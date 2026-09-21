@@ -1,0 +1,27 @@
+{
+  "settings": { "duration": 1 },
+  "locations": [
+    { "id": "DEPOT", "latitude": 39.124, "longitude": -94.555 },
+    { "id": "NORTH", "latitude": 39.15, "longitude": -94.55 },
+    { "id": "SOUTH", "latitude": 39.10, "longitude": -94.56 },
+    { "id": "EARLY", "latitude": 39.13, "longitude": -94.55 }
+  ],
+  "depots": [{ "id": "TEST_DEPOT", "locationId": "DEPOT" }],
+  "orders": { "deliveries": [
+    { "id": "TEST_NORTH", "delivery": { "locationId": "NORTH", "duration": 900 } },
+    { "id": "TEST_SOUTH", "delivery": { "locationId": "SOUTH", "duration": 900 } },
+    { "id": "TEST_EARLY", "delivery": { "locationId": "EARLY", "duration": 900 } }
+  ] },
+  "vehicles": [
+    { "id": "TEST_TRUCK_1", "start": { "locationId": "DEPOT", "earliestStartTime": "2030-01-01T08:00:00-06:00" }, "end": { "locationId": "DEPOT", "latestEndTime": "2030-01-01T17:00:00-06:00" }, "routing": { "profile": "USA_5_DELIVERY", "trafficMode": "AVERAGE" }, "costs": { "fixed": 100, "perHour": 50, "perKilometer": 0.75 } },
+    { "id": "TEST_TRUCK_2", "start": { "locationId": "DEPOT", "earliestStartTime": "2030-01-01T08:00:00-06:00" }, "end": { "locationId": "DEPOT", "latestEndTime": "2030-01-01T17:00:00-06:00" }, "routing": { "profile": "USA_5_DELIVERY", "trafficMode": "AVERAGE" }, "costs": { "fixed": 100, "perHour": 50, "perKilometer": 0.75 } }
+  ],
+  "reporting": {
+    "terminal": "SYNTHETIC TEST — NOT CUSTOMER FREIGHT",
+    "orders": {
+      "TEST_NORTH": { "shipToName": "Synthetic north appointment", "appointment": { "blockBegin": "2030-01-01T09:00:00-06:00", "blockEnd": "2030-01-01T09:00:00-06:00", "confirmed": true } },
+      "TEST_SOUTH": { "shipToName": "Synthetic south appointment", "appointment": { "blockBegin": "2030-01-01T09:00:00-06:00", "blockEnd": "2030-01-01T09:00:00-06:00", "confirmed": true } },
+      "TEST_EARLY": { "shipToName": "Synthetic appointment before shift", "appointment": { "blockBegin": "2030-01-01T06:00:00-06:00", "blockEnd": "2030-01-01T06:15:00-06:00", "confirmed": true } }
+    }
+  }
+}

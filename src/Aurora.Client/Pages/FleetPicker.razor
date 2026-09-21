@@ -1,0 +1,63 @@
+@using System.Text.Json.Nodes
+<details class="fleet-picker" open>
+    <summary>Add equipment to this plan</summary>
+    <p class="file-format">Choose a quantity by type for a scenario, or a specific available unit. Each trailer entry represents a powered vehicle for this plan.</p>
+    <div class="editor-grid">
+        <label class="field"><span>Equipment type</span><select @bind="_type" @bind:after="ClearUnit"><option value="">Choose type</option>@foreach (var type in Catalog.Types.Where(x => !x.PowerOnly)) { <option value="@type.Code">@type.Code — @type.Description</option> }</select></label>
+        <label class="field"><span>Number of trucks</span><input type="number" value="@_countText" @oninput="e => _countText = e.Value?.ToString() ?? string.Empty" min="1" max="100" /></label>
+        <label class="field"><span>Terminal filter for units</span><input @bind="_terminal" @bind:after="ClearUnit" /></label>
+        <label class="field"><span>Specific available unit</span><select @bind="_unit"><option value="">Use quantity by type</option>@foreach (var unit in Catalog.Units.Where(x => x.Available && Catalog.Types.Any(t => t.Code == x.TypeCode && !t.PowerOnly) && (string.IsNullOrWhiteSpace(_terminal) || x.Terminal.Equals(_terminal, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(_type) || x.TypeCode == _type))) { <option value="@unit.Id">@unit.Id — @unit.Terminal — @unit.TypeCode</option> }</select></label>
+        <label class="field"><span>Start / return depot</span><select @bind="_depot"><option value="">Choose location</option>@foreach (var id in Locations) { <option value="@id">@id</option> }</select></label>
+    </div>
+    <PlannerTime Label="Departure" @bind-Value="_start" /><PlannerTime Label="Latest return" @bind-Value="_end" />
+    @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+    <button class="outline-button" @onclick="Add" disabled="@(Catalog.Types.Count == 0)">+ Add @(_unit == "" ? _countText : "1") to fleet</button>
+    @if (Catalog.Types.Count == 0) { <p class="file-format">Add equipment types in the Equipment catalog first.</p> }
+</details>
+@code {
+    [Parameter] public EquipmentCatalogDto Catalog { get; set; } = new([], []);
+    [Parameter] public string SourceJson { get; set; } = "{}";
+    [Parameter] public IReadOnlyList<string> UsedIds { get; set; } = [];
+    [Parameter] public EventCallback<EquipmentSelection> OnAdd { get; set; }
+    public sealed record EquipmentSelection(string TypeCode, IReadOnlyList<JsonObject> Vehicles);
+    private string _type = "", _terminal = "", _unit = "", _depot = "", _start = "", _end = "";
+    private string _countText = "1";
+    private string? _error, _loaded;
+    private List<string> Locations = [];
+    protected override void OnParametersSet()
+    {
+        if (_loaded == SourceJson) return; _loaded = SourceJson;
+        var root = RoutingInput.Parse(SourceJson);
+        Locations = RoutingInput.Items(root["locations"]).Select(x => RoutingInput.Text(x["id"])!).Where(x => x is not null).ToList();
+        var first = RoutingInput.Items(root["vehicles"]).FirstOrDefault();
+        _depot = RoutingInput.Text(first?["start"]?["locationId"]) ?? Locations.FirstOrDefault() ?? "";
+        _start = RoutingInput.Text(first?["start"]?["earliestStartTime"]) ?? "";
+        _end = RoutingInput.Text(first?["end"]?["latestEndTime"]) ?? "";
+        _terminal = RoutingInput.Text(root["reporting"]?["terminal"]) ?? "";
+    }
+    private void ClearUnit() => _unit = "";
+    private async Task Add()
+    {
+        try
+        {
+            var unit = string.IsNullOrEmpty(_unit) ? null : Catalog.Units.SingleOrDefault(x => x.Id == _unit && x.Available);
+            if (!string.IsNullOrEmpty(_unit) && unit is null) throw new FormatException("Choose an available equipment unit.");
+            var type = Catalog.Types.SingleOrDefault(x => x.Code == (unit?.TypeCode ?? _type)) ?? throw new FormatException("Choose an equipment type.");
+            if (!int.TryParse(_countText, out var count) || count is < 1 or > 100) throw new FormatException("Add between 1 and 100 trucks at a time.");
+            if (!Locations.Contains(_depot)) throw new FormatException("Choose a depot from this plan.");
+            var ids = UsedIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var added = new List<JsonObject>();
+            for (int i = 1; i <= (unit is null ? count : 1); i++)
+            {
+                var id = unit?.Id;
+                if (id is not null && ids.Contains(id)) throw new FormatException("That unit is already in the fleet.");
+                if (id is null) { var n = 1; do { id = $"{type.Code}-{n++:D3}"; } while (ids.Contains(id)); }
+                ids.Add(id);
+                added.Add(EquipmentPlanning.Vehicle(type, id, _depot, _start, _end));
+            }
+            await OnAdd.InvokeAsync(new EquipmentSelection(type.Code, added)); _error = null;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+}
+

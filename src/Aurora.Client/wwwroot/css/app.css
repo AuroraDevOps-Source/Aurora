@@ -1,0 +1,138 @@
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #26b050;
+}
+
+.invalid {
+    outline: 1px solid red;
+}
+
+.validation-message {
+    color: red;
+}
+
+#blazor-error-ui {
+    color-scheme: light only;
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+    }
+
+.blazor-error-boundary {
+    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
+    padding: 1rem 1rem 1rem 3.7rem;
+    color: white;
+}
+
+    .blazor-error-boundary::after {
+        content: "An error has occurred."
+    }
+
+.loading-progress {
+    position: absolute;
+    display: block;
+    width: 8rem;
+    height: 8rem;
+    inset: 20vh 0 auto 0;
+    margin: 0 auto 0 auto;
+}
+
+    .loading-progress circle {
+        fill: none;
+        stroke: #e0e0e0;
+        stroke-width: 0.6rem;
+        transform-origin: 50% 50%;
+        transform: rotate(-90deg);
+    }
+
+        .loading-progress circle:last-child {
+            stroke: var(--blue);
+            stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
+            transition: stroke-dasharray 0.05s ease-in-out;
+        }
+
+.loading-progress-text {
+    position: absolute;
+    text-align: center;
+    font-weight: bold;
+    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
+}
+
+    .loading-progress-text:after {
+        content: var(--blazor-load-percentage-text, "Loading");
+    }
+
+code { color: var(--ink); }
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}
+
+/* Integration Hub palette, retaining Aurora's always-visible product navigation. */
+.aurora-appbar { border-bottom: 1px solid rgba(255, 255, 255, .1); }
+.aurora-appbar .mud-toolbar { gap: 24px; }
+.aurora-brand { flex-shrink: 0; font-size: 1.25rem; font-weight: 600; }
+.aurora-product-nav { display: flex; align-items: stretch; align-self: stretch; min-width: 0; overflow-x: auto; }
+.aurora-product-nav .header-link {
+    flex-shrink: 0;
+    padding: 0 16px;
+    border-radius: 0;
+    border-bottom: 3px solid transparent;
+    color: rgba(255, 255, 255, .75);
+    text-transform: none;
+    font-size: .9rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+.aurora-product-nav .header-link:hover { color: white; background: rgba(255, 255, 255, .05); }
+.aurora-product-nav .header-link.active { color: white; background: rgba(255, 255, 255, .1); border-bottom-color: #3b82f6; }
+.aurora-product-nav .header-link:disabled { color: rgba(255, 255, 255, .35); }
+.aurora-product-nav .header-link:focus-visible { outline: 2px solid #93c5fd; outline-offset: -4px; }
+.aurora-user { color: rgba(255, 255, 255, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.aurora-login { padding-top: 48px; padding-bottom: 48px; }
+.aurora-login-card { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--card-shadow); }
+.aurora-login-brand { padding: 22px 32px; background: #2d3748; color: white; font-size: 1.25rem; font-weight: 600; }
+.aurora-login-body { padding: 32px; }
+.aurora-login-description { color: var(--muted); margin-bottom: 24px; }
+.aurora-sign-in { min-height: 44px; box-shadow: none; }
+.aurora-login-field { margin-bottom: 18px; }
+.aurora-login-field label { display: block; color: var(--ink); font-size: .875rem; font-weight: 500; margin-bottom: 6px; }
+.aurora-login-field input {
+    width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box;
+    border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px;
+    background: white; color: var(--ink); font: inherit;
+}
+.aurora-login-field input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+
+@media (max-width: 900px) {
+    .aurora-user, .aurora-appbar .mud-spacer { display: none; }
+    .aurora-appbar .mud-toolbar { gap: 16px; }
+    .aurora-product-nav { flex: 1; }
+}
+@media (max-width: 600px) {
+    .aurora-appbar .mud-toolbar { gap: 10px; padding-inline: 12px; }
+    .aurora-brand { font-size: 1.1rem; }
+    .aurora-product-nav .header-link { padding-inline: 12px; font-size: .85rem; }
+    .aurora-login { padding-top: 24px; }
+    .aurora-login-body { padding: 24px; }
+}

@@ -1,0 +1,21 @@
+@using System.Globalization
+@if (Appointment is null)
+{
+    <span class="appointment-empty">Not provided</span>
+}
+else
+{
+    @foreach (var window in Appointment.Windows)
+    {
+        <div>@Time(window.EarliestStart) – @Time(window.LatestStart)</div>
+        @if (window.LatestEnd is not null) { <div>Finish by @Time(window.LatestEnd)</div> }
+    }
+    <small class="appointment-state @(Appointment.Enforced ? "enforced" : "informational")">
+        @(Appointment.Source == "PTV time slots" ? "PTV time window" : Appointment.Confirmed == true ? "Confirmed · scheduling constraint" : Appointment.Confirmed == false ? "Unconfirmed · informational" : "Confirmation not provided · informational")
+    </small>
+}
+
+@code {
+    [Parameter] public AppointmentInfoDto? Appointment { get; set; }
+    private static string Time(DateTimeOffset? time) => time?.ToString("MM/dd h:mm tt zzz", CultureInfo.InvariantCulture) ?? "Unbounded";
+}

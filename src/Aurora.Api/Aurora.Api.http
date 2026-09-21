@@ -1,0 +1,34 @@
+@host = https://localhost:7077
+
+### Health — no auth
+GET {{host}}/health/live
+
+###
+GET {{host}}/health/ready
+
+### Step 1: password check, sets the Aurora.Auth pre-auth cookie
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "userName": "admin@aurora.local", "password": "ChangeMe!Dev123" }
+
+### Step 2: with that cookie present this returns 302 straight back with ?code=
+# (ConsentType.Implicit means no consent screen). PKCE values below are placeholders —
+# a real client generates them per request; see scripts in the plan's verification notes.
+GET {{host}}/connect/authorize?client_id=aurora-spa&response_type=code&redirect_uri=https%3A%2F%2Flocalhost%3A7259%2Fauthentication%2Flogin-callback&scope=openid%20profile%20roles%20offline_access&code_challenge=REPLACE&code_challenge_method=S256
+
+### Step 3: redeem the code (refresh token comes back as an HttpOnly cookie, not in the body)
+POST {{host}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&client_id=aurora-spa&code=REPLACE&redirect_uri=https%3A%2F%2Flocalhost%3A7259%2Fauthentication%2Flogin-callback&code_verifier=REPLACE
+
+### Refresh — no refresh_token field; it's read from the Aurora.rt cookie
+POST {{host}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&client_id=aurora-spa
+
+### Tenant-scoped read (401 without a bearer token)
+GET {{host}}/api/v1/routing/route-plans
+Authorization: Bearer REPLACE

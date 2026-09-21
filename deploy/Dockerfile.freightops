@@ -1,0 +1,4 @@
+FROM ghcr.io/auroradevops-source/freightops-nginx:sha-f19953567a5b73bee1302713d4013bac2d4bcef8
+COPY dist/ /usr/share/nginx/html/
+COPY entrypoint.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh

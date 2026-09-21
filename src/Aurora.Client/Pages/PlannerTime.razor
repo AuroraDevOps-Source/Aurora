@@ -1,0 +1,25 @@
+@using System.Globalization
+<div class="planner-time">
+    <label class="field"><span>@Label</span><input type="datetime-local" value="@_local" @onchange="ChangeLocal" /></label>
+    <label class="field"><span>UTC offset</span><input aria-label="@(Label + " UTC offset")" value="@_offset" @onchange="ChangeOffset" placeholder="-07:00" /></label>
+</div>
+@code {
+    [Parameter] public string Label { get; set; } = "Date and time";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    private string _local = "", _offset = "", _loaded = "";
+    protected override void OnParametersSet()
+    {
+        if (Value == _loaded) return; _loaded = Value;
+        if (DateTimeOffset.TryParse(Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
+        { _local = time.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture); _offset = time.ToString("zzz", CultureInfo.InvariantCulture); }
+        else { _local = ""; }
+    }
+    private Task ChangeLocal(ChangeEventArgs e) { _local = e.Value?.ToString() ?? ""; return Publish(); }
+    private Task ChangeOffset(ChangeEventArgs e) { _offset = e.Value?.ToString() ?? ""; return Publish(); }
+    private Task Publish()
+    {
+        _loaded = string.IsNullOrWhiteSpace(_local) ? "" : _local + (_local.Length == 16 ? ":00" : "") + _offset.Trim();
+        return ValueChanged.InvokeAsync(_loaded);
+    }
+}

@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+artifacts/
+.claude/
+deploy/private/
+*.user
+*.pfx
+*.key
+*.env

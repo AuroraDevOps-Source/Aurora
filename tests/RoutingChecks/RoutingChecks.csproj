@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Aurora.Modules.Routing/Aurora.Modules.Routing.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../../src/Aurora.Client/RoutingDraft.cs" Link="RoutingDraft.cs" /></ItemGroup>
+  <ItemGroup><None Include="../../src/Aurora.Client/wwwroot/samples/appointment-test.json" Link="sample.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><None Include="../../src/Aurora.Client/wwwroot/samples/equipment-catalog.json" Link="equipment.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>

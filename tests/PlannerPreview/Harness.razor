@@ -1,0 +1,13 @@
+@using Aurora.Client.Pages
+@using Aurora.Contracts
+<main class="planner-page"><header class="planner-header"><div><h1>Route planner preview</h1><p>Local component test with synthetic data and an in-memory equipment catalog.</p></div></header><div class="planning-tools"><button class="primary-button" @onclick="() => _fleet = true">Schedule &amp; trucks</button><button class="outline-button" @onclick="() => _appointments = true">Appointments</button><button class="outline-button" @onclick="() => _equipment = true">Equipment catalog</button></div><p role="status">@_status</p><details><summary>Current plan JSON</summary><pre>@_json</pre></details></main>
+<VariationModal IsOpen="_fleet" IsInitialRun="true" SourceJson="@_json" SourceFileName="preview.json" OnClose="() => _fleet = false" OnRun="ApplyFleet" />
+<EquipmentCatalog IsOpen="_equipment" OnClose="() => _equipment = false" />
+<PlanAppointments IsOpen="_appointments" SourceJson="@_json" OnClose="() => _appointments = false" OnApply="ApplyAppointments" />
+@code {
+    private string _json = File.ReadAllText("../../src/Aurora.Client/wwwroot/samples/appointment-test.json");
+    private string _status = "Three sample orders loaded.";
+    private bool _fleet, _appointments, _equipment;
+    private void ApplyFleet(VariationModal.VariationRequest request) { _json = request.Json; _fleet = false; _status = $"Applied fleet: {RoutingInput.Items(RoutingInput.Parse(_json)["vehicles"]).Count()} trucks."; }
+    private void ApplyAppointments(string json) { _json = json; _status = "Appointment changes applied."; }
+}

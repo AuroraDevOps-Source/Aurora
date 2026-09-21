@@ -1,0 +1,78 @@
+@inherits LayoutComponentBase
+@inject HttpClient Api
+@inject NavigationManager Navigation
+
+<MudThemeProvider Theme="AuroraTheme.Hub" IsDarkMode="false" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <AuthorizeView>
+        <Authorized>
+            @* Always-visible product header. The three entries are whatever this tenant has
+               licensed, so a customer without FreightOps simply never sees it. *@
+            <MudAppBar Elevation="0" Fixed="true" Class="aurora-appbar">
+                <MudText Typo="Typo.h6" Class="aurora-brand">Aurora</MudText>
+
+                <nav class="aurora-product-nav" aria-label="Products">
+                    @foreach (var product in _products)
+                    {
+                        <MudButton Class="@HeaderClass(product)"
+                                   Disabled="@(!product.HasAccess)"
+                                   OnClick="@(() => Select(product))">
+                            @ProductWorkspace.NameFor(product.Code)
+                        </MudButton>
+                    }
+                </nav>
+
+                <MudText Typo="Typo.body2" Class="aurora-user ml-auto">@context.User.Identity?.Name</MudText>
+            </MudAppBar>
+        </Authorized>
+    </AuthorizeView>
+
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private List<ProductDto> _products = [];
+    private bool _productsLoaded;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only ask once the user is actually signed in; the login page shares this layout.
+        if (AuthState is null || (await AuthState).User.Identity?.IsAuthenticated != true)
+        {
+            _products = [];
+            _productsLoaded = false;
+            return;
+        }
+
+        if (_productsLoaded) return;
+
+        try
+        {
+            _products = (await Api.GetFromJsonAsync<List<ProductDto>>("api/v1/me/products") ?? [])
+                .OrderBy(p => p.Code == ProductWorkspace.Hub ? 0 : p.Code == ProductWorkspace.FreightOps ? 1 : 2)
+                .ToList();
+            _productsLoaded = true;
+        }
+        catch
+        {
+            // A header that cannot load its tiles should not take the whole page down.
+            _products = [];
+        }
+    }
+
+    private string HeaderClass(ProductDto product)
+    {
+        var current = ProductWorkspace.CodeFor(new Uri(Navigation.Uri).AbsolutePath);
+        return product.Code == current ? "mud-inherit-text header-link active" : "mud-inherit-text header-link";
+    }
+
+    private void Select(ProductDto product) => Navigation.NavigateTo(ProductWorkspace.RouteFor(product.Code));
+}

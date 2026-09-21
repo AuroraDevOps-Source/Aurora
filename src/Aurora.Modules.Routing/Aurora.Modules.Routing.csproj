@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aurora.Infrastructure\Aurora.Infrastructure.csproj" />
+    <ProjectReference Include="..\Aurora.Contracts\Aurora.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Queries/**/*.sql" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

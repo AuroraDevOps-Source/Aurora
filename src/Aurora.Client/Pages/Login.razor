@@ -1,0 +1,111 @@
+@page "/login"
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Sign in - Aurora</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="aurora-login">
+    <MudPaper Class="aurora-login-card" Elevation="0">
+        <div class="aurora-login-brand">Aurora</div>
+        <div class="aurora-login-body">
+        <MudText Typo="Typo.h5" Class="mb-2">Sign in to Aurora</MudText>
+        <MudText Typo="Typo.body2" Class="aurora-login-description">One account for your licensed products.</MudText>
+
+        <form id="aurora-login-form" @ref="_loginForm" method="post" action="/api/auth/login"
+              autocomplete="on" @onsubmit="SignInAsync" @onsubmit:preventDefault>
+        <div class="aurora-login-field">
+            <label for="aurora-username">Username</label>
+            <input id="aurora-username" name="username" type="text" autocomplete="username"
+                   autocapitalize="none" spellcheck="false" required />
+        </div>
+        <div class="aurora-login-field">
+            <label for="aurora-password">Password</label>
+            <input id="aurora-password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="aurora-sign-in"
+                   Disabled="_signingIn" ButtonType="ButtonType.Submit">
+            @(_signingIn ? "Signing in…" : "Sign in")
+        </MudButton>
+        </form>
+        <MudText Typo="Typo.caption" Align="Align.Center" Class="mt-4" Color="Color.Secondary">Version @_releaseVersion</MudText>
+        </div>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private static readonly string _releaseVersion = System.Reflection.CustomAttributeExtensions
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Login).Assembly)
+        ?.InformationalVersion ?? "Development";
+    private ElementReference _loginForm;
+    private string? _error;
+    private bool _signingIn;
+
+    private async Task SignInAsync()
+    {
+        if (_signingIn) return;
+        _error = null;
+        _signingIn = true;
+        StateHasChanged();
+
+        try
+        {
+            // Read the submitted native form, including password-manager autofill that may
+            // not dispatch input/change events. Credentials are never saved in web storage.
+            var credentials = await JS.InvokeAsync<LoginCredentials>("auroraLogin.readCredentials", _loginForm);
+            if (string.IsNullOrWhiteSpace(credentials.UserName) || string.IsNullOrEmpty(credentials.Password))
+            {
+                _error = "Enter your username and password.";
+                return;
+            }
+            var client = HttpClientFactory.CreateClient(ApiClients.Anonymous);
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+            {
+                Content = JsonContent.Create(credentials)
+            };
+            // Cross-origin (different port) — the Set-Cookie response is only honoured if the
+            // browser fetch is told to include credentials.
+            request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Invalid username or password.";
+                return;
+            }
+
+            // The Aurora.Auth cookie is now set. Hand off to the OIDC flow — it completes
+            // silently (the client is registered with ConsentType.Implicit) since that cookie
+            // is present, and lands back here via the authentication/login-callback route.
+            Navigation.NavigateTo("authentication/login");
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Could not reach Aurora. Please try again.";
+        }
+        catch (TaskCanceledException)
+        {
+            _error = "Sign-in timed out. Please try again.";
+        }
+        catch (JSException)
+        {
+            _error = "The sign-in form could not be read. Refresh the page and try again.";
+        }
+        finally
+        {
+            _signingIn = false;
+        }
+    }
+
+    public sealed class LoginCredentials
+    {
+        public string UserName { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

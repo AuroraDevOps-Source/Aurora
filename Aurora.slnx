@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Aurora.Api/Aurora.Api.csproj" />
+    <Project Path="src/Aurora.Client/Aurora.Client.csproj" />
+    <Project Path="src/Aurora.Contracts/Aurora.Contracts.csproj" />
+    <Project Path="src/Aurora.Infrastructure/Aurora.Infrastructure.csproj" />
+    <Project Path="src/Aurora.Migrations/Aurora.Migrations.csproj" />
+    <Project Path="src/Aurora.Modules.Routing/Aurora.Modules.Routing.csproj" />
+  </Folder>
+</Solution>

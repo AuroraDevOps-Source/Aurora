@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>868eeb5d-7111-4a59-8c2e-4e03c93bf8d6</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="OpenIddict.AspNetCore" Version="7.6.0" />
+    <PackageReference Include="OpenIddict.Server.AspNetCore" Version="7.6.0" />
+    <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aurora.Infrastructure\Aurora.Infrastructure.csproj" />
+    <ProjectReference Include="..\Aurora.Modules.Routing\Aurora.Modules.Routing.csproj" />
+    <ProjectReference Include="..\Aurora.Contracts\Aurora.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

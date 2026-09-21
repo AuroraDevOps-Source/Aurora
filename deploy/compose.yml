@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16
+    container_name: aurora-auth-db
+    restart: unless-stopped
+    env_file: ./private/db.env
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  api:
+    image: aurora-auth-api:${RELEASE_TAG}
+    container_name: aurora-auth-api
+    restart: unless-stopped
+    env_file: ./private/api.env
+    volumes:
+      - ./private/certificates:/certificates:ro
+      - dataprotection:/keys
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [default, proxy]
+  web:
+    image: aurora-auth-web:${RELEASE_TAG}
+    container_name: aurora-auth-web
+    restart: unless-stopped
+    networks: [proxy]
+volumes:
+  database:
+  dataprotection:
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,371 @@
+@using System.Globalization
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@inject HttpClient Http
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop" role="presentation" @onclick="Close">
+        <section class="variation-modal" role="dialog" aria-modal="true" aria-labelledby="variation-title" @onclick:stopPropagation>
+            <header class="modal-header">
+                <div>
+                    <span class="eyebrow">@(IsInitialRun ? "PLAN SETTINGS" : "SCENARIO COMPARISON")</span>
+                    <h2 id="variation-title">@(IsInitialRun ? "Fleet & planning limits" : "Compare scenario")</h2>
+                    <p>The original file stays unchanged. @(IsInitialRun ? "Save these settings, then optimize when ready." : "Only this new run receives these fleet settings.")</p>
+                </div>
+                <button class="modal-close" title="Close" aria-label="Close" @onclick="Close" disabled="@(IsRunning || _submitting)">×</button>
+            </header>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert modal-alert" role="alert">@_error</div>
+            }
+            <div class="catalog-body">
+                @if (_catalogError is not null) { <p class="alert" role="alert">@_catalogError</p> }
+                <fieldset disabled="@(IsRunning || _submitting)">
+                    <FleetPicker Catalog="_catalog" SourceJson="@(SourceJson ?? "{}")" UsedIds="@_vehicles.Select(x => x.Id).ToArray()" OnAdd="AddEquipment" />
+                    <details class="fleet-picker"><summary>Set schedule for all available trucks</summary><PlannerTime Label="Departure" @bind-Value="_bulkStart" /><PlannerTime Label="Latest return" @bind-Value="_bulkEnd" /><button class="outline-button" @onclick="ApplySchedule">Apply schedule to fleet</button></details>
+                </fieldset>
+            </div>
+            @if (_vehicles.Count == 0)
+            {
+                <div class="empty-state compact">This request does not contain a vehicle list that can be configured.</div>
+            }
+            else
+            {
+                <div class="variation-summary">
+                    <div><strong>@_vehicles.Count(vehicle => vehicle.Enabled)</strong><span>available trucks</span></div>
+                    <div><strong>@_vehicles.Count(vehicle => !vehicle.Enabled)</strong><span>removed from run</span></div>
+                    <label class="field"><span>Calculation budget (seconds)</span><InputNumber @bind-Value="_calculationSeconds" min="1" max="120" /></label>
+                    <p>Turn trucks off to remove them. Copy truck adds another unit. Calculation budget controls solver time, not route duration.</p>
+                </div>
+
+                <div class="vehicle-editor-list">
+                    @foreach (var vehicle in _vehicles)
+                    {
+                        <article class="vehicle-editor @(vehicle.Enabled ? "" : "disabled")" @key="vehicle.Key">
+                            <div class="vehicle-editor-heading">
+                                <label class="switch-row">
+                                    <input type="checkbox" @bind="vehicle.Enabled" />
+                                    <span></span>
+                                    <strong>@(vehicle.Enabled ? "Available" : "Removed")</strong>
+                                </label>
+                                <label class="field truck-id-field"><span>Truck ID</span><input @bind="vehicle.Id" disabled="@(!vehicle.Enabled || IsRunning || _submitting)" /></label>
+                                @if (!string.IsNullOrEmpty(vehicle.TypeCode)) { <span>@vehicle.TypeCode</span> }
+                                <button class="text-button" @onclick="() => CopyVehicle(vehicle)" disabled="@(IsRunning || _submitting)">+ Copy truck</button>
+                            </div>
+
+                            <fieldset disabled="@(!vehicle.Enabled || IsRunning || _submitting)">
+                                <div class="editor-section">
+                                    <h3>Operating limits</h3>
+                                    <label class="field"><span>Change equipment type</span><select value="" @onchange="e => ChangeType(vehicle, e.Value?.ToString())"><option value="">Keep current equipment</option>@foreach (var type in _catalog.Types.Where(x => !x.PowerOnly)) { <option value="@type.Code">@type.Code — @type.Description</option> }</select></label>
+                                    <PlannerTime Label="Earliest departure" @bind-Value="vehicle.StartTime" />
+                                    <PlannerTime Label="Latest return" @bind-Value="vehicle.EndTime" />
+                                    <div class="editor-grid limits-grid">
+                                        <label class="field"><span>Maximum stops</span><InputNumber @bind-Value="vehicle.MaximumStops" min="1" /></label>
+                                        <label class="field"><span>Weight capacity</span><InputNumber @bind-Value="vehicle.Weight" step="100" min="0" /></label>
+                                        <label class="field"><span>Cube capacity</span><InputNumber @bind-Value="vehicle.Volume" step="10" min="0" /></label>
+                                        <label class="field"><span>Pallet capacity</span><InputNumber @bind-Value="vehicle.Pallets" step="1" min="0" /></label>
+                                    </div>
+                                </div>
+                                <div class="editor-section cost-section">
+                                    <h3>Cost assumptions</h3>
+                                    <div class="editor-grid cost-grid">
+                                        <label class="field money"><span>Fixed cost</span><InputNumber @bind-Value="vehicle.FixedCost" step="10" min="0" /></label>
+                                        <label class="field money"><span>Per hour</span><InputNumber @bind-Value="vehicle.PerHour" step="1" min="0" /></label>
+                                        <label class="field money"><span>Per kilometer</span><InputNumber @bind-Value="vehicle.PerKilometer" step="0.05" min="0" /></label>
+                                        <label class="field money"><span>Per stop</span><InputNumber @bind-Value="vehicle.PerStop" step="1" min="0" /></label>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </article>
+                    }
+                </div>
+            }
+
+            <footer class="modal-footer">
+                <span>@(IsInitialRun ? "Apply your settings, then optimize from the workspace." : "Calculate a new plan and compare it with the current result. Costs use your configured rates.")</span>
+                <div>
+                    <button class="outline-button" @onclick="Close" disabled="@(IsRunning || _submitting)">Cancel</button>
+                    <button class="run-variation-button" @onclick="Run" disabled="@(IsRunning || _submitting || _vehicles.Count == 0)">
+                        @if (IsRunning || _submitting) { <span class="spinner"></span><span>@(IsInitialRun ? "Saving…" : "Running variation…")</span> }
+                        else { <span>@(IsInitialRun ? "Apply settings" : "Run variation")</span><span aria-hidden="true">→</span> }
+                    </button>
+                </div>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public bool IsRunning { get; set; }
+    [Parameter] public bool IsInitialRun { get; set; }
+    [Parameter] public string? SourceJson { get; set; }
+    [Parameter] public string SourceFileName { get; set; } = "manifest.json";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<VariationRequest> OnRun { get; set; }
+
+    private readonly List<VehicleEditor> _vehicles = [];
+    private string? _loadedJson;
+    private string? _error;
+    private bool _submitting;
+    private bool _wasOpen;
+    private int _calculationSeconds = 60;
+    private EquipmentCatalogDto _catalog = new([], []);
+    private string? _catalogError;
+    private string _bulkStart = "", _bulkEnd = "";
+    private bool _refreshCatalog;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsOpen || !_refreshCatalog) return;
+        _refreshCatalog = false;
+        try { _catalog = await Http.GetFromJsonAsync<EquipmentCatalogDto>("api/v1/routing/equipment") ?? new([], []); _catalogError = null; }
+        catch { _catalogError = "The saved equipment catalog could not be loaded. Existing trucks can still be edited."; }
+    }
+    private void AddEquipment(FleetPicker.EquipmentSelection selection)
+    {
+        foreach (var vehicle in selection.Vehicles) { var editor = VehicleEditor.FromJson(vehicle); editor.TypeCode = selection.TypeCode; _vehicles.Add(editor); }
+    }
+    private void ApplySchedule()
+    {
+        try
+        {
+            var start = RoutingInput.Time(JsonValue.Create(_bulkStart)); var end = RoutingInput.Time(JsonValue.Create(_bulkEnd));
+            if (start is null || end is null || end <= start) throw new FormatException("Choose departure and a later return, including UTC offsets.");
+            foreach (var vehicle in _vehicles.Where(x => x.Enabled)) { vehicle.StartTime = _bulkStart; vehicle.EndTime = _bulkEnd; }
+            _error = null;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+    private void ChangeType(VehicleEditor vehicle, string? code)
+    {
+        if (string.IsNullOrEmpty(code)) return;
+        try
+        {
+            var type = _catalog.Types.Single(x => x.Code == code);
+            var json = vehicle.BuildJson();
+            var replacement = EquipmentPlanning.Vehicle(type, vehicle.Id, RoutingInput.Text(json["start"]?["locationId"]) ?? "", vehicle.StartTime, vehicle.EndTime);
+            foreach (var field in new[] { "routing", "categories", "costs" }) { json.Remove(field); if (replacement[field] is { } value) json[field] = value.DeepClone(); }
+            if (json["constraints"] is not JsonObject) json["constraints"] = new JsonObject();
+            if (replacement["constraints"]?["maximumLoads"] is { } loads) json["constraints"]!["maximumLoads"] = loads.DeepClone();
+            else json["constraints"]!.AsObject().Remove("maximumLoads");
+            if (type.MaximumStops is not null) { if (json["constraints"]!["route"] is not JsonObject) json["constraints"]!["route"] = new JsonObject(); json["constraints"]!["route"]!["maximumNumberOfStops"] = type.MaximumStops; }
+            var changed = VehicleEditor.FromJson(json); changed.Enabled = vehicle.Enabled; changed.TypeCode = code;
+            _vehicles[_vehicles.IndexOf(vehicle)] = changed; _error = null;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!IsOpen) { _wasOpen = false; return; }
+        if (string.IsNullOrWhiteSpace(SourceJson) || (_wasOpen && SourceJson == _loadedJson)) return;
+        _wasOpen = true;
+        _refreshCatalog = true;
+        _loadedJson = SourceJson;
+        LoadVehicles(SourceJson);
+    }
+
+    private void LoadVehicles(string json)
+    {
+        _vehicles.Clear();
+        _error = null;
+        try
+        {
+            var root = JsonNode.Parse(json) as JsonObject ?? throw new JsonException("The request root must be a JSON object.");
+            _calculationSeconds = root["settings"]?["duration"]?.GetValue<int>() ?? 60;
+            var vehicles = root["vehicles"] as JsonArray ?? throw new JsonException("No vehicles array was found.");
+            foreach (var node in vehicles.OfType<JsonObject>())
+            {
+                var editor = VehicleEditor.FromJson(node);
+                if (root["reporting"]?["vehicles"] is JsonObject reports) editor.TypeCode = RoutingInput.Text(reports[editor.Id]?["equipmentType"]) ?? "";
+                _vehicles.Add(editor);
+            }
+            _bulkStart = _vehicles.FirstOrDefault()?.StartTime ?? "";
+            _bulkEnd = _vehicles.FirstOrDefault()?.EndTime ?? "";
+        }
+        catch (Exception ex)
+        {
+            _error = $"The vehicle settings could not be loaded: {ex.Message}";
+        }
+    }
+
+    private void CopyVehicle(VehicleEditor source)
+    {
+        try
+        {
+            source.Validate();
+            var copy = source.Copy();
+            copy.TypeCode = source.TypeCode;
+            var baseId = string.IsNullOrWhiteSpace(source.Id) ? "TRUCK" : source.Id;
+            var number = 2;
+            do copy.Id = $"{baseId}-COPY-{number++}";
+            while (_vehicles.Any(vehicle => string.Equals(vehicle.Id, copy.Id, StringComparison.OrdinalIgnoreCase)));
+            var index = _vehicles.IndexOf(source);
+            _vehicles.Insert(index + 1, copy);
+            _error = null;
+        }
+        catch (Exception ex) { _error = $"The truck could not be copied: {ex.Message}"; }
+    }
+
+    private async Task Run()
+    {
+        if (_submitting || IsRunning) return;
+        _error = null;
+        var enabled = _vehicles.Where(vehicle => vehicle.Enabled).ToList();
+        if (enabled.Count == 0) { _error = "Keep at least one truck available."; return; }
+        if (enabled.Any(vehicle => string.IsNullOrWhiteSpace(vehicle.Id))) { _error = "Every available truck needs an ID."; return; }
+        if (enabled.GroupBy(vehicle => vehicle.Id.Trim(), StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+        { _error = "Truck IDs must be unique."; return; }
+
+        try
+        {
+            if (_calculationSeconds is < 1 or > 120) throw new FormatException("Calculation budget must be between 1 and 120 seconds.");
+            foreach (var vehicle in enabled) vehicle.Validate();
+            _submitting = true;
+            StateHasChanged();
+            var root = JsonNode.Parse(SourceJson!) as JsonObject ?? throw new JsonException("The request root must be a JSON object.");
+            var array = new JsonArray();
+            foreach (var vehicle in enabled) array.Add(vehicle.BuildJson());
+            root["vehicles"] = array;
+            if (enabled.Any(x => !string.IsNullOrEmpty(x.TypeCode)))
+            {
+                if (root["reporting"] is not JsonObject) root["reporting"] = new JsonObject();
+                if (root["reporting"]!["vehicles"] is not JsonObject) root["reporting"]!["vehicles"] = new JsonObject();
+                foreach (var vehicle in enabled.Where(x => !string.IsNullOrEmpty(x.TypeCode)))
+                {
+                    var reports = root["reporting"]!["vehicles"]!;
+                    if (reports[vehicle.Id.Trim()] is not JsonObject) reports[vehicle.Id.Trim()] = new JsonObject();
+                    reports[vehicle.Id.Trim()]!["equipmentType"] = vehicle.TypeCode;
+                }
+            }
+            if (root["settings"] is not JsonObject) root["settings"] = new JsonObject();
+            root["settings"]!["duration"] = _calculationSeconds;
+            var baseName = Path.GetFileNameWithoutExtension(SourceFileName);
+            var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            _ = RoutingInput.Prepare(json);
+            await OnRun.InvokeAsync(new VariationRequest(json, IsInitialRun ? SourceFileName : $"{baseName}-variation.json"));
+        }
+        catch (Exception ex)
+        {
+            _error = $"The variation could not be created: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private Task Close() => IsRunning || _submitting ? Task.CompletedTask : OnClose.InvokeAsync();
+
+    public sealed record VariationRequest(string Json, string FileName);
+
+    private sealed class VehicleEditor
+    {
+        public Guid Key { get; } = Guid.NewGuid();
+        public bool Enabled { get; set; } = true;
+        public string Id { get; set; } = string.Empty;
+        public string TypeCode { get; set; } = string.Empty;
+        public string StartTime { get; set; } = string.Empty;
+        public string EndTime { get; set; } = string.Empty;
+        public int? MaximumStops { get; set; }
+        public double? Weight { get; set; }
+        public double? Volume { get; set; }
+        public double? Pallets { get; set; }
+        public double? FixedCost { get; set; }
+        public double? PerHour { get; set; }
+        public double? PerKilometer { get; set; }
+        public double? PerStop { get; set; }
+        private JsonObject Original { get; init; } = [];
+
+        public static VehicleEditor FromJson(JsonObject json)
+        {
+            var vehicle = new VehicleEditor { Original = (JsonObject)json.DeepClone(), Id = json["id"]?.GetValue<string>() ?? string.Empty, StartTime = json["start"]?["earliestStartTime"]?.GetValue<string>() ?? "" };
+            var costs = json["costs"] as JsonObject;
+            vehicle.EndTime = RoutingInput.Text(json["end"]?["latestEndTime"]) ?? "";
+            vehicle.FixedCost = Number(costs?["fixed"]);
+            vehicle.PerHour = Number(costs?["perHour"]);
+            vehicle.PerKilometer = Number(costs?["perKilometer"]);
+            vehicle.PerStop = Number(costs?["perStop"]);
+            var constraints = json["constraints"] as JsonObject;
+            vehicle.MaximumStops = constraints?["route"]?["maximumNumberOfStops"]?.GetValue<int>();
+            if (constraints?["maximumLoads"] is JsonArray loads)
+            {
+                vehicle.Weight = Load(loads, "weight");
+                vehicle.Volume = Load(loads, "volume");
+                vehicle.Pallets = Load(loads, "pallets");
+            }
+            return vehicle;
+        }
+
+        public VehicleEditor Copy() => FromJson(BuildJson());
+
+        public void Validate()
+        {
+            if (MaximumStops is < 1) throw new FormatException($"{Id}: maximum stops must be at least one.");
+            if (new[] { Weight, Volume, Pallets, FixedCost, PerHour, PerKilometer, PerStop }.Any(x => x is not null && (!double.IsFinite(x.Value) || x < 0)))
+                throw new FormatException($"{Id}: capacities and costs must be finite, non-negative numbers.");
+            var start = RoutingInput.Time(JsonValue.Create(StartTime));
+            if (start is not null && RoutingInput.Time(JsonValue.Create(EndTime)) is { } end && start >= end)
+                throw new FormatException($"{Id}: earliest departure must be before latest return.");
+            _ = RoutingInput.Time(JsonValue.Create(EndTime));
+        }
+
+        public JsonObject BuildJson()
+        {
+            var json = (JsonObject)Original.DeepClone();
+            json["id"] = Id.Trim();
+            if (!string.IsNullOrWhiteSpace(StartTime)) Object(json, "start")["earliestStartTime"] = StartTime.Trim();
+            var existingCosts = json["costs"] as JsonObject;
+            if (existingCosts is not null || FixedCost is not null || PerHour is not null || PerKilometer is not null || PerStop is not null)
+            {
+                var costs = existingCosts ?? Object(json, "costs");
+                Set(costs, "fixed", FixedCost);
+                Set(costs, "perHour", PerHour);
+                Set(costs, "perKilometer", PerKilometer);
+                Set(costs, "perStop", PerStop);
+            }
+            var existingConstraints = json["constraints"] as JsonObject;
+            if (existingConstraints is not null || Weight is not null || Volume is not null || Pallets is not null || MaximumStops is not null)
+            {
+                var constraints = existingConstraints ?? Object(json, "constraints");
+                var existingLoads = constraints["maximumLoads"] as JsonArray;
+                if (existingLoads is not null || Weight is not null || Volume is not null || Pallets is not null)
+                {
+                    var loads = existingLoads ?? new JsonArray();
+                    if (existingLoads is null) constraints["maximumLoads"] = loads;
+                    SetLoad(loads, "weight", Weight);
+                    SetLoad(loads, "volume", Volume);
+                    SetLoad(loads, "pallets", Pallets);
+                    if (loads.Count == 0) constraints.Remove("maximumLoads");
+                }
+                if (MaximumStops is not null) Object(constraints, "route")["maximumNumberOfStops"] = MaximumStops.Value;
+                else if (constraints["route"] is JsonObject route) route.Remove("maximumNumberOfStops");
+            }
+            if (!string.IsNullOrWhiteSpace(EndTime)) Object(json, "end")["latestEndTime"] = EndTime.Trim();
+            else if (json["end"] is JsonObject end) end.Remove("latestEndTime");
+            if (string.IsNullOrWhiteSpace(StartTime) && json["start"] is JsonObject begin) begin.Remove("earliestStartTime");
+            return json;
+        }
+
+        private static JsonObject Object(JsonObject parent, string name)
+        {
+            if (parent[name] is JsonObject value) return value;
+            var created = new JsonObject(); parent[name] = created; return created;
+        }
+        private static double? Number(JsonNode? node) => node is null ? null : node.GetValue<double>();
+        private static double? Load(JsonArray loads, string dimension) => loads.OfType<JsonObject>()
+            .FirstOrDefault(load => string.Equals(load["dimension"]?.GetValue<string>(), dimension, StringComparison.OrdinalIgnoreCase))?["value"]?.GetValue<double>();
+        private static void Set(JsonObject parent, string name, double? value) { if (value is null) parent.Remove(name); else parent[name] = value.Value; }
+        private static void SetLoad(JsonArray loads, string dimension, double? value)
+        {
+            var load = loads.OfType<JsonObject>().FirstOrDefault(item => string.Equals(item["dimension"]?.GetValue<string>(), dimension, StringComparison.OrdinalIgnoreCase));
+            if (value is null) { if (load is not null) loads.Remove(load); return; }
+            if (load is null) { load = new JsonObject { ["dimension"] = dimension }; loads.Add(load); }
+            load["value"] = value.Value;
+        }
+    }
+}
+

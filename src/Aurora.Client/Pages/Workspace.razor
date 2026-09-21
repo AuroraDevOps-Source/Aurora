@@ -1,0 +1,98 @@
+@page "/workspace/{ProductCode}"
+@attribute [Authorize]
+@inject HttpClient Api
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>@ProductWorkspace.NameFor(ProductCode ?? "") - Aurora</PageTitle>
+
+@if (_error is not null)
+{
+    <MudContainer Class="pa-4">
+        <MudAlert Severity="Severity.Warning">@_error</MudAlert>
+        <MudLink Href="/login">Sign in to Aurora again</MudLink>
+    </MudContainer>
+}
+else if (_url is null)
+{
+    <MudContainer Class="pa-4"><MudProgressCircular Indeterminate="true" /></MudContainer>
+}
+else
+{
+    <iframe @key="_url" class="workspace-frame" src="@_url"
+            title="@ProductWorkspace.NameFor(ProductCode ?? "")"></iframe>
+}
+
+<style>
+    .workspace-frame {
+        width: 100%;
+        height: calc(100dvh - var(--mud-appbar-height, 64px));
+        border: 0;
+        display: block;
+    }
+</style>
+
+@code {
+    [Parameter] public string? ProductCode { get; set; }
+
+    private string? _url;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _url = null;
+        _error = null;
+
+        var products = await LoadAsync();
+        if (_error is not null) return;
+        var product = products.FirstOrDefault(p => p.Code == ProductCode);
+
+        if (product is null)
+        {
+            _error = "That application is not enabled for your organisation.";
+            return;
+        }
+
+        if (!product.HasAccess)
+        {
+            _error = $"You do not have access to {product.Name}. Ask an administrator to grant you a role.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(product.Url))
+        {
+            _error = $"No address is configured for {product.Name}.";
+            return;
+        }
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClients.Anonymous);
+            using var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/prepare-embedded-session");
+            request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Your Aurora session has expired. Sign in again to open this application.";
+                return;
+            }
+            _url = product.Url;
+        }
+        catch
+        {
+            _error = "Could not prepare your application session. Please try again.";
+        }
+    }
+
+    private async Task<List<ProductDto>> LoadAsync()
+    {
+        try
+        {
+            return await Api.GetFromJsonAsync<List<ProductDto>>("api/v1/me/products") ?? [];
+        }
+        catch
+        {
+            _error = "Could not load your applications.";
+            return [];
+        }
+    }
+}
