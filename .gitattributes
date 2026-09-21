@@ -1,0 +1,20 @@
+# Normalize text files to LF in the repository; Git checks them out with the
+# platform's native endings. Without this, a Windows-only history bakes CRLF
+# into the blobs and every Linux/container diff shows whole-file changes.
+* text=auto
+
+# Binary assets must never get end-of-line conversion — it silently corrupts
+# them. A PDF, image, font or archive rewritten LF->CRLF no longer opens.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.gz    binary
+*.tgz   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.pfx   binary
