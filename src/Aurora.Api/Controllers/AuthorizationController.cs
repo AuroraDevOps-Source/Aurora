@@ -35,12 +35,22 @@ public sealed class AuthorizationController(
         var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
         if (result is not { Succeeded: true })
         {
-            return Challenge(
-                authenticationSchemes: [IdentityConstants.ApplicationScheme],
-                properties: new AuthenticationProperties
-                {
-                    RedirectUri = Request.PathBase + Request.Path + Request.QueryString
-                });
+            // This endpoint is browser navigation, unlike the bearer-protected API. An
+            // anonymous product sign-in must resume the same PKCE request after login.
+            // Silent checks still receive the OIDC login_required error.
+            if (request.HasPromptValue("none"))
+                return Forbid(
+                    authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme],
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    {
+                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.LoginRequired
+                    }));
+
+            var parameters = Request.HasFormContentType
+                ? QueryString.Create(await Request.ReadFormAsync(HttpContext.RequestAborted))
+                : Request.QueryString;
+            var returnTo = Request.PathBase + Request.Path + parameters;
+            return LocalRedirect("/login?returnUrl=" + Uri.EscapeDataString(returnTo));
         }
 
         // AuthenticateAsync(scheme) does not update the ambient HttpContext.User (it's still
@@ -92,6 +102,7 @@ public sealed class AuthorizationController(
 
         identity.SetClaim(Claims.Subject, user.Id.ToString())
                 .SetClaim(Claims.Email, user.Email)
+                .SetClaim(Claims.EmailVerified, user.EmailConfirmed)
                 .SetClaim(Claims.Name, user.UserName)
                 .SetClaim("tenant_id", tenantId.ToString())
                 .SetClaims(Claims.Role, [.. roles]);

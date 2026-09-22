@@ -140,3 +140,89 @@ foreach (var unit in samples.Units) unit.Validate();
 Check(samples.Types.Count == 14 && samples.Units.Count == 279, "spreadsheet sample covers 14 types and 279 units");
 Check(samples.Units.Select(x => x.Id).Distinct().Count() == 279 && samples.Units.All(x => samples.Types.Any(t => t.Code == x.TypeCode)), "sample unit IDs are unique and reference known types");
 Console.WriteLine($"{count} final checks passed.");
+
+// A real result shape has depot pickup tasks as well as deliveries; input routes use a flat sequence.
+var reusable = RoutingInput.Parse("""
+{"status":"SUCCEEDED","routes":[{"vehicleId":"TEST_TRUCK_1","start":{"start":"2030-01-01T08:00:00-06:00"},"stops":[
+{"appointments":[{"tasks":[{"orderId":"TEST_NORTH","type":"PICKUP","depotId":"TEST_DEPOT","duration":0}]}]},
+{"appointments":[{"timeSlotId":"OLD_SLOT","tasks":[{"orderId":"TEST_NORTH","type":"DELIVERY","start":"2030-01-01T09:00:00-06:00","duration":900}]}]}]}]}
+""");
+var quick = RoutingInput.Parse(QuickUpdate.Prepare(RoutingInput.Prepare(edited.ToJsonString()), reusable.ToJsonString()));
+var seed = quick["routes"]![0]!;
+Check(quick["settings"]!["duration"]!.GetValue<int>() == 5 && edited["settings"]!["duration"]!.GetValue<int>() == 1, "quick budget does not overwrite saved full budget");
+Check(seed["tasks"]!.AsArray().Count == 2 && seed["tasks"]![0]!["type"]!.GetValue<string>() == "PICKUP", "pickup and delivery order is retained in a flat input route");
+Check(seed["tasks"]![1]!["timeSlotId"]!.GetValue<string>() == "APPT_0", "quick update maps old appointment slots onto newly prepared constraints");
+Check(seed["tasks"]![1]!["start"] is null && seed["tasks"]![1]!["duration"] is null && seed["stops"] is null, "old timings and result-only fields do not leak into input routes");
+Check(seed["reconstructionPolicy"]!["violations"]!.GetValue<string>() == "CLEANUP", "PTV must reconstruct against current constraints");
+Check(quick["orders"]!["deliveries"]!.AsArray().Count == 3 && quick["orders"]!["deliveries"]![0]!["delivery"]!["duration"]!.GetValue<int>() == 1350, "new service duration and previously unscheduled orders remain in quick input");
+Check(RoutingInput.Describe(quick, "TEST_NORTH")!.Windows[0].EarliestStart!.Value.Hour == 10, "changed appointment is enforced before routes are added");
+var noTruck = RoutingInput.Parse(preparedText);
+noTruck["vehicles"] = new JsonArray();
+Check(RoutingInput.Parse(QuickUpdate.Prepare(noTruck.ToJsonString(), reusable.ToJsonString()))["routes"]!.AsArray().Count == 0, "removed vehicles are not seeded");
+var noOrder = RoutingInput.Parse(preparedText);
+noOrder["orders"]!["deliveries"]!.AsArray().RemoveAt(0);
+Check(RoutingInput.Parse(QuickUpdate.Prepare(noOrder.ToJsonString(), reusable.ToJsonString()))["routes"]!.AsArray().Count == 0, "removed orders drop both pickup and delivery tasks");
+var noDepot = RoutingInput.Parse(preparedText);
+noDepot["depots"] = new JsonArray();
+Check(RoutingInput.Parse(QuickUpdate.Prepare(noDepot.ToJsonString(), reusable.ToJsonString()))["routes"]!.AsArray().Count == 0, "removed depot drops the whole seeded order for reassignment");
+var newDate = RoutingInput.Parse(preparedText);
+newDate["vehicles"]![0]!["start"]!["earliestStartTime"] = "2030-01-02T07:00:00-06:00";
+Check(RoutingInput.Parse(QuickUpdate.Prepare(newDate.ToJsonString(), reusable.ToJsonString()))["routes"]![0]!["start"]!.GetValue<string>().StartsWith("2030-01-02"), "changed shift date replaces previous route date");
+Reject(() => QuickUpdate.Prepare(preparedText, """{"status":"FAILED"}"""), "failed results cannot seed another run");
+Reject(() => QuickUpdate.Prepare(quick.ToJsonString(), reusable.ToJsonString()), "explicit preassigned routes are not silently replaced");
+var duplicateRoute = RoutingInput.Parse(reusable.ToJsonString());
+duplicateRoute["routes"]!.AsArray().Add(duplicateRoute["routes"]![0]!.DeepClone());
+Reject(() => QuickUpdate.Prepare(preparedText, duplicateRoute.ToJsonString()), "duplicate vehicle seeds are rejected before PTV");
+Console.WriteLine($"{count} checks including quick updates passed.");
+
+// Exercise the service/HTTP boundary without credentials or paid PTV calls.
+var portProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+portProbe.Start();
+var testPort = ((System.Net.IPEndPoint)portProbe.LocalEndpoint).Port;
+portProbe.Stop();
+using var listener = new System.Net.HttpListener();
+listener.Prefixes.Add($"http://localhost:{testPort}/");
+listener.Start();
+var submitted = new List<JsonObject>();
+var stub = Task.Run(async () =>
+{
+    for (var i = 0; i < 4; i++)
+    {
+        var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        var body = reusable.ToJsonString();
+        if (context.Request.HttpMethod == "POST")
+        {
+            using var reader = new StreamReader(context.Request.InputStream);
+            submitted.Add(RoutingInput.Parse(await reader.ReadToEndAsync()));
+            body = """{"id":"synthetic-test"}""";
+            context.Response.StatusCode = 202;
+        }
+        var bytes = System.Text.Encoding.UTF8.GetBytes(body);
+        context.Response.ContentType = "application/json";
+        context.Response.ContentLength64 = bytes.Length;
+        await context.Response.OutputStream.WriteAsync(bytes);
+        context.Response.Close();
+    }
+});
+var service = new OptimizationService(Microsoft.Extensions.Options.Options.Create(new PtvSettings
+{
+    BaseUrl = $"http://localhost:{testPort}", ApiKey = "synthetic-test-only", PollIntervalSeconds = 1
+}));
+using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+var fullResult = await service.OptimizeAsync("test.json", edited.ToJsonString(), testTimeout.Token);
+var quickResult = await service.OptimizeAsync("test.json", edited.ToJsonString(), testTimeout.Token, fullResult.RawResponse);
+await stub;
+Check(submitted.Count == 2 && submitted.All(x => x["reporting"] is null), "full and quick requests remove reporting metadata before HTTP submission");
+Check(submitted[0]["routes"] is null && submitted[0]["settings"]!["duration"]!.GetValue<int>() == 1, "full optimization retains configured budget and fresh input");
+Check(submitted[1]["routes"]!.AsArray().Count == 1 && submitted[1]["settings"]!["duration"]!.GetValue<int>() == 5, "quick service submits reusable routes with the short budget");
+Check(quickResult.Status == "SUCCEEDED" && quickResult.Log.Any(x => x.StartsWith("Quick update:")), "quick results retain status and identify the seeded run");
+Check(Aurora.Client.ProductWorkspace.RouteFor("auroratms") == "/workspace/auroratms" &&
+    Aurora.Client.ProductWorkspace.CodeFor("/workspace/auroratms") == "auroratms" &&
+    Aurora.Client.ProductWorkspace.NameFor("auroratms") == "Aurora TMS", "TMS launcher opens and highlights its own workspace");
+var authorizeReturn = "/connect/authorize?client_id=auroratms-spa&state=original";
+Check(Aurora.Client.AuthenticationNavigation.AuthorizationReturnPath(authorizeReturn) == authorizeReturn,
+    "login resumes the original product authorization request");
+foreach (var unsafeReturn in new[] { "https://untrusted.example/connect/authorize", "//untrusted.example", "/\\untrusted.example", "/login", "/connect/authorize/../login" })
+    Check(Aurora.Client.AuthenticationNavigation.AuthorizationReturnPath(unsafeReturn) is null,
+        "login refuses unsafe return path " + unsafeReturn);
+Console.WriteLine($"{count} checks including HTTP request flow passed.");

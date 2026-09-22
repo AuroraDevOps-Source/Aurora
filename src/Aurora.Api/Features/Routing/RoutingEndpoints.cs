@@ -94,8 +94,21 @@ public static class RoutingEndpoints
 
         try
         {
+            string? previousResult = null;
+            var mode = form["mode"].ToString();
+            if (mode is not ("" or "full" or "quick"))
+                return Results.BadRequest(new ApiErrorDto("Choose Quick update or Full optimization."));
+            if (mode == "quick")
+            {
+                var previous = form.Files.GetFile("previousResult");
+                if (previous is null || previous.Length == 0 || previous.Length > MaxUploadBytes)
+                    return Results.BadRequest(new ApiErrorDto("Quick update needs a previous result of 25 MB or smaller."));
+                await using var previousStream = previous.OpenReadStream();
+                using var previousReader = new StreamReader(previousStream);
+                previousResult = await previousReader.ReadToEndAsync(cancellationToken);
+            }
             var result = await optimizations.OptimizeAsync(
-                Path.GetFileName(file.FileName), requestJson, cancellationToken);
+                Path.GetFileName(file.FileName), requestJson, cancellationToken, previousResult);
 
             return Results.Ok(result);
         }

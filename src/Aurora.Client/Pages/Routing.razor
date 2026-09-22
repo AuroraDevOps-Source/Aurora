@@ -19,9 +19,13 @@
             <span class="plan-status @(_result is null ? "draft" : "complete")">@(_busy ? "Calculating" : _result is null ? "Draft plan" : "Plan results")</span>
             @if (_result is null)
             {
-                <button class="primary-button planner-optimize" @onclick="Optimize" disabled="@(!CanOptimize)">
+                @if (CanQuickUpdate)
+                {
+                    <button class="primary-button planner-optimize" @onclick="() => Optimize(true)" disabled="@(!CanOptimize)">Quick update · 5s</button>
+                }
+                <button class="primary-button planner-optimize" @onclick="() => Optimize()" disabled="@(!CanOptimize)">
                     @if (_busy) { <span class="spinner" aria-hidden="true"></span><span>Optimizing…</span> }
-                    else { <span>Optimize routes</span><span aria-hidden="true">→</span> }
+                    else { <span>@(CanQuickUpdate ? "Full optimization" : "Optimize routes")</span><span aria-hidden="true">→</span> }
                 </button>
             }
             else
@@ -33,6 +37,14 @@
     </header>
 
     @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert planner-alert" role="alert">@_error</div> }
+    @if (CanQuickUpdate && _result is null)
+    {
+        <p class="preview-footnote">Quick update starts from your last plan with a 5-second search. Total time includes preparation. Full optimization uses your configured calculation budget.</p>
+    }
+    @if (_result is not null && _lastRunWasQuick)
+    {
+        <p class="preview-footnote" role="status">Quick update result · 5-second search using the previous plan. Review left-off orders and constraints; use Full optimization for a longer search.</p>
+    }
     @if (_busy)
     {
         <div class="planner-progress" role="status"><span>@_busyLabel</span><button class="text-button" @onclick="Cancel">Cancel optimization</button></div>
@@ -401,6 +413,8 @@ else
 </section>
 
 <VariationModal IsOpen="_variationOpen" IsRunning="_busy" SourceJson="@_sourceJson"
+                CanQuickUpdate="@CanQuickUpdate"
+                RunError="@_error"
                 IsInitialRun="@(_result is null)" SourceFileName="@_sourceName"
                 OnClose="CloseVariation" OnRun="RunVariation" />
 <EquipmentCatalog IsOpen="_equipmentOpen" OnClose="() => _equipmentOpen = false" />
@@ -416,6 +430,9 @@ else
     private string? _setupMessage;
     private string? _selectedVehicle;
     private OptimizationResultDto? _result;
+    private OptimizationResultDto? _previousResult;
+    private bool _lastRunWasQuick;
+    private bool CanQuickUpdate => _previousResult is { Status: "SUCCEEDED", Routes.Count: > 0 };
     private ComparisonSnapshot? _comparison;
     private CancellationTokenSource? _cts;
     private bool _busy;
@@ -473,6 +490,7 @@ else
             await using var stream = _file.OpenReadStream(MaxFileSize);
             using var reader = new StreamReader(stream, Encoding.UTF8);
             SetInput(await reader.ReadToEndAsync(), _file.Name);
+            _previousResult = null;
             _setupMessage = "Orders imported. Review your fleet, then optimize the plan.";
         }
         catch (Exception ex) { _error = $"Could not read this file: {ex.Message}" + (_sourceJson is null ? "" : " Your previous plan inputs have been kept."); }
@@ -496,6 +514,7 @@ else
         try
         {
             SetInput(await Http.GetStringAsync("samples/appointment-test.json"), "synthetic-appointment-test.json");
+            _previousResult = null;
             _setupMessage = "Synthetic data only: two simultaneous 9 AM appointments require separate trucks; a 6 AM appointment is outside the vehicle shift. This is not customer freight.";
         }
         catch (Exception ex) { _error = $"Could not load the sample: {ex.Message}"; }
@@ -528,14 +547,15 @@ else
 
     private void OpenInitialSettings() { if (IsWorking || _sourceJson is null) return; _error = null; _variationOpen = true; }
 
-    private async Task Optimize()
+    private async Task Optimize(bool quick = false)
     {
         if (!CanOptimize || _sourceJson is null) return;
-        _comparison = null;
-        await RunOptimization(_sourceJson, _sourceName);
+        var previous = _previousResult;
+        if (await RunOptimization(_sourceJson, _sourceName, quick))
+            _comparison = previous?.Summary is { } baseline ? new ComparisonSnapshot(previous.FileName, baseline, previous.Routes) : null;
     }
 
-    private async Task<bool> RunOptimization(string json, string fileName)
+    private async Task<bool> RunOptimization(string json, string fileName, bool quick = false)
     {
         if (IsWorking) return false;
         _busy = true;
@@ -550,8 +570,16 @@ else
             using var content = new ByteArrayContent(Encoding.UTF8.GetBytes(json));
             content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
             form.Add(content, "file", fileName);
+            form.Add(new StringContent(quick ? "quick" : "full"), "mode");
+            if (quick)
+            {
+                if (!CanQuickUpdate) { _error = "Complete a full optimization before using Quick update."; return false; }
+                var previousContent = new ByteArrayContent(Encoding.UTF8.GetBytes(_previousResult!.RawResponse));
+                previousContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                form.Add(previousContent, "previousResult", "previous-result.json");
+            }
 
-            _busyLabel = "Optimizing routes…";
+            _busyLabel = quick ? "Updating the previous plan · 5-second search plus preparation…" : "Optimizing routes…";
             using var response = await Http.PostAsync("api/v1/routing/optimizations", form, cts.Token);
             if (!response.IsSuccessStatusCode)
             {
@@ -567,8 +595,15 @@ else
                 _error = "The server returned an empty result.";
                 return false;
             }
+            if (result.Status != "SUCCEEDED")
+            {
+                _error = result.TimedOut ? "The calculation timed out. Your plan inputs and any previous result have been kept." : $"PTV did not complete the calculation ({result.Status}). Your plan inputs and any previous result have been kept. Try Full optimization or review the plan settings.";
+                return false;
+            }
             await JS.InvokeVoidAsync("routeMap.dispose");
             _result = result;
+            _previousResult = result;
+            _lastRunWasQuick = quick;
             _renderPreview = false;
             _selectedVehicle = null;
             _tab = ResultTab.Manifest;
@@ -613,7 +648,7 @@ else
         }
         if (_result?.Summary is not { } baseline) return;
         var comparison = new ComparisonSnapshot(_result.FileName, baseline, _result.Routes);
-        if (await RunOptimization(request.Json, request.FileName))
+        if (await RunOptimization(request.Json, request.FileName, request.Quick))
         {
             _sourceJson = request.Json;
             _sourceName = request.FileName;
@@ -667,6 +702,8 @@ else
         if (IsWorking) return;
         await JS.InvokeVoidAsync("routeMap.dispose");
         _result = null;
+        _previousResult = null;
+        _lastRunWasQuick = false;
         _file = null;
         _sourceJson = null;
         _draft = null;

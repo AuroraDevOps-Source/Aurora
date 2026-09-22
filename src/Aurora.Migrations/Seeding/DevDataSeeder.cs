@@ -1,4 +1,4 @@
-using Aurora.Infrastructure.Data;
+﻿using Aurora.Infrastructure.Data;
 using Aurora.Infrastructure.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -24,13 +24,15 @@ public static class DevDataSeeder
     private const string AuroraClientId = "aurora-spa";
     private const string FreightOpsClientId = "freightops-spa";
     private const string HubClientId = "hub-spa";
+    private const string AuroraTmsClientId = "auroratms-spa";
 
     private const string AdminEmail = "admin@aurora.local";
     private const string AdminPassword = "ChangeMe!Dev123";
 
     // One role per product. The dev admin gets admin rights in all three so the launcher shows
     // every tile; a real customer would hold only the roles for what they bought.
-    private static readonly string[] AdminRoles = ["aurora:Admin", "fo:Admin", "hub:Admin"];
+    private static readonly string[] AdminRoles =
+        ["aurora:Admin", "fo:Admin", "hub:Admin", "atms:Admin"];
 
     public static async Task SeedAsync(IServiceProvider services)
     {
@@ -53,18 +55,20 @@ public static class DevDataSeeder
         var auroraUrl = configuration["Products:AuroraUrl"] ?? "https://localhost:7259";
         var freightOpsUrl = configuration["Products:FreightOpsUrl"] ?? "http://localhost:5173";
         var hubUrl = configuration["Products:HubUrl"] ?? "https://localhost:7146";
+        var auroraTmsUrl = configuration["Products:AuroraTmsUrl"] ?? "http://localhost:5174";
 
-        await EntitleDevTenantAsync(dbContext, auroraUrl, freightOpsUrl, hubUrl);
-        await EnsureClientApplicationsAsync(applicationManager, auroraUrl, freightOpsUrl, hubUrl);
+        await EntitleDevTenantAsync(dbContext, auroraUrl, freightOpsUrl, hubUrl, auroraTmsUrl);
+        await EnsureClientApplicationsAsync(applicationManager, auroraUrl, freightOpsUrl, hubUrl, auroraTmsUrl);
         await EnsureDevAdminUserAsync(dbContext, userManager, configuration,
             provider.GetRequiredService<IHostEnvironment>());
 
         Console.WriteLine($"Bootstrap account: {configuration["Seed:AdminEmail"] ?? AdminEmail}");
-        Console.WriteLine($"Products: aurora={auroraUrl}  freightops={freightOpsUrl}  hub={hubUrl}");
+        Console.WriteLine(
+            $"Products: aurora={auroraUrl}  freightops={freightOpsUrl}  hub={hubUrl}  auroratms={auroraTmsUrl}");
     }
 
     private static async Task EntitleDevTenantAsync(
-        AuroraDbContext dbContext, string auroraUrl, string freightOpsUrl, string hubUrl)
+        AuroraDbContext dbContext, string auroraUrl, string freightOpsUrl, string hubUrl, string auroraTmsUrl)
     {
         // Gives the dev tenant all three products. Removing a row here is the whole mechanism
         // for revoking a product: its roles stop being minted and its tile disappears.
@@ -76,15 +80,17 @@ public static class DevDataSeeder
             INSERT INTO tenant_product (tenant_id, product_code, instance_url)
             VALUES ({0}, 'aurora', {1}),
                    ({0}, 'freightops', {2} || '/auth/sso'),
-                   ({0}, 'hub', {3} || '/sso')
+                   ({0}, 'hub', {3} || '/sso'),
+                   ({0}, 'auroratms', {4} || '/auth/sso')
             ON CONFLICT (tenant_id, product_code)
             DO UPDATE SET instance_url = EXCLUDED.instance_url, is_active = true;
             """,
-            DevTenantId, auroraUrl, freightOpsUrl, hubUrl);
+            DevTenantId, auroraUrl, freightOpsUrl, hubUrl, auroraTmsUrl);
     }
 
     private static async Task EnsureClientApplicationsAsync(
-        IOpenIddictApplicationManager applicationManager, string auroraUrl, string freightOpsUrl, string hubUrl)
+        IOpenIddictApplicationManager applicationManager,
+        string auroraUrl, string freightOpsUrl, string hubUrl, string auroraTmsUrl)
     {
         // The deployed Aurora and a locally-run Aurora.Client are both registered, so pointing
         // Products:AuroraUrl at production does not stop the app running on a developer machine.
@@ -103,6 +109,13 @@ public static class DevDataSeeder
         await EnsureClientAsync(applicationManager, HubClientId, "Integration Hub",
             ["authentication/login-callback"], ["authentication/logout-callback"],
             hubUrl, "https://localhost:7146");
+
+        // The TMS React app redeems the code in the browser and then trades the resulting Aurora
+        // token for one of its own, so only its callback route is registered here. Its Vite dev
+        // server is registered alongside the deployment for the same reason as the two above.
+        await EnsureClientAsync(applicationManager, AuroraTmsClientId, "Aurora TMS",
+            ["auth/callback"], ["auth/logout-callback"],
+            auroraTmsUrl, "http://localhost:5174");
     }
 
     private static async Task EnsureClientAsync(

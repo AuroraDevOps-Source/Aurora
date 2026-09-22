@@ -1,12 +1,13 @@
-# Single sign-on across Aurora, FreightOps and the Integration Hub
+# Single sign-on across Aurora, FreightOps, the Integration Hub and Aurora TMS
 
-Aurora is the identity provider. FreightOps and the Hub accept tokens it issues **alongside the
+Aurora is the identity provider. The other products accept tokens it issues **alongside the
 tokens they issue themselves**, so this ships without a cutover: existing logins keep working,
 and each application's login screen can be pointed at Aurora whenever it suits.
 
 ## How it fits together
 
-- **Roles are namespaced per product** — `fo:Manager`, `hub:Admin`, `aurora:Admin`. Each
+- **Roles are namespaced per product** — `fo:Manager`, `hub:Admin`, `aurora:Admin`,
+  `atms:Dispatcher`. Each
   application strips its own prefix and ignores every other product's roles, so an Admin in the
   Hub is never an Admin in FreightOps. Neither application's own role vocabulary changed.
 - **Entitlement is enforced by role issuance, not by a licence check.** Aurora only mints a
@@ -58,6 +59,33 @@ once). It ties a Hub account to an Aurora user and a Hub client to an Aurora ten
 A Hub user signing in through Aurora resolves to a client via that link, so every existing
 `GetClientId()` filter keeps working untouched.
 
+## Configuring Aurora TMS
+
+| Setting | Value |
+|---|---|
+| `Aurora:Authority` | Aurora's base URL. **Leave empty to disable SSO.** |
+| `Aurora:Audience` | `auroratms-api` |
+| `Aurora:ClientId` | `auroratms-spa` |
+| `Aurora:RequireHttpsMetadata` | `true` in production. |
+
+Schema is handled by EF: the `AuroraSsoLinks` migration adds `tenants.aurora_tenant_id` and
+`AspNetUsers.aurora_user_id`. The workspace link itself is environment-specific, so it is a one-off
+instead: `scripts/link-aurora-workspace.sql` in that repository.
+
+**This one exchanges rather than accepts.** FreightOps and the Hub validate an Aurora token on
+every request; the TMS validates it once, at `POST /api/auth/aurora`, and issues one of its own.
+Its authorization reads a large per-user claim set — terminal and region scope, screen grants,
+agent scope — that its own `TokenService` computes from the local user row, so accepting Aurora's
+token per request would mean recomputing all of it per request. Exchanging once means every filter,
+the refresh rotation and the MFA policy see exactly what a password login produces.
+
+The consequence worth knowing: revoking the product in Aurora stops the next **sign-in**, not the
+current TMS session. Its original expiry is bounded by the TMS `Jwt:RefreshTokenDays` setting
+(14 days by default) and is not extended by rotation. Refresh and MFA enrollment preserve the
+Aurora role grant. Immediate revocation requires revoking the TMS session too.
+
+Its full setup, including what to do when a sign-in is refused, is in `docs/aurora-sso.md` there.
+
 ## Granting a product to a tenant
 
 ```sql
@@ -68,14 +96,20 @@ VALUES ('<tenant guid>', 'freightops', 'https://freightops.customer.example.com'
 Then assign the user a role for it, e.g. `fo:Manager`, in `AspNetUserRoles`. The tile appears on
 the launcher and the token starts carrying that role.
 
+Point `instance_url` at the product's SSO entry path rather than its root — `/auth/sso` for
+FreightOps and the TMS, `/sso` for the Hub — so clicking the tile signs the user straight in
+instead of showing them a login page.
+
 To revoke: `UPDATE tenant_product SET is_active = false WHERE ...`.
 
 ## What is deliberately not done yet
 
-- **The FreightOps and Hub front ends still use their own login screens.** Both APIs accept
-  Aurora tokens now, and both applications are registered as OIDC clients in Aurora
-  (`freightops-spa`, `hub-spa`), so pointing each front end at Aurora is the remaining step —
-  and can be done one application at a time.
+- **Existing product password logins remain available.** The test installations of FreightOps,
+  the Hub and Aurora TMS now support Aurora sign-in. The TMS login card offers "Sign in with
+  Aurora" beside the password form.
+- **Signing out of a product does not sign you out of Aurora.** Every product ends only its own
+  session, so clicking the tile again signs straight back in. Right for a launcher, surprising on
+  a shared machine.
 - `IsAuroraUser()` in the Hub (its flag for Aurora Software staff) is not set for Aurora-issued
   tokens, so such users are treated as ordinary tenant users. Worth renaming that flag to
   something like `IsPlatformStaff`, since "Aurora" now also means the product.
@@ -99,13 +133,26 @@ must forward `X-Forwarded-Proto`, or the endpoint URLs in the discovery document
 `http://` and the browser refuses them as mixed content.
 
 Also set `Cors:AllowedOrigins` to every product front end that signs in through Aurora, and
-`Products:AuroraUrl` / `Products:FreightOpsUrl` / `Products:HubUrl` so the launcher tiles and the
-registered redirect URIs point at the real deployments.
+`Products:AuroraUrl` / `Products:FreightOpsUrl` / `Products:HubUrl` / `Products:AuroraTmsUrl` so
+the launcher tiles and the registered redirect URIs point at the real deployments.
 
-### Why the session cookie is SameSite=Lax
+`Cors:AllowedOrigins` is not optional for the TMS: its browser posts directly to Aurora's
+`/connect/token` to redeem the authorization code, so a missing origin fails the exchange rather
+than degrading it.
+
+### Session cookies and product navigation
 
 Signing in from another product is a cross-site top-level navigation — the Hub sends the browser
 to Aurora's `/connect/authorize`. A `SameSite=Strict` cookie is deliberately withheld on exactly
 that request, so Aurora would not recognise the existing session and would challenge instead of
 completing silently. Lax is the correct setting for an identity provider's session cookie and
-still withholds it from cross-site POSTs.
+still withholds it from cross-site POSTs. Embedded deployments explicitly set
+`Auth:AllowEmbeddedLogin=true`, use `SameSite=None; Secure`, and prepare the issuer session
+before opening a product frame. Only Aurora itself may frame its login/authorization pages,
+and session-changing endpoints reject untrusted origins.
+
+Anonymous interactive authorization now redirects to Aurora's `/login` and preserves the
+original PKCE request in a local return path. After login, the form resumes that authorization
+instead of starting an unrelated Aurora client session. `prompt=none` still returns the OIDC
+`login_required` error without displaying a form. Ordinary unauthenticated API requests remain
+401 responses.

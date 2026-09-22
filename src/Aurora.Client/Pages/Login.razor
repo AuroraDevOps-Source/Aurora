@@ -40,6 +40,8 @@
 </MudContainer>
 
 @code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
     private static readonly string _releaseVersion = System.Reflection.CustomAttributeExtensions
         .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Login).Assembly)
         ?.InformationalVersion ?? "Development";
@@ -77,6 +79,13 @@
             if (!response.IsSuccessStatusCode)
             {
                 _error = "Invalid username or password.";
+                return;
+            }
+
+            // Resume a product's original PKCE request so its state reaches its callback.
+            if (AuthenticationNavigation.AuthorizationReturnPath(ReturnUrl) is { } returnTo)
+            {
+                Navigation.NavigateTo(returnTo, forceLoad: true);
                 return;
             }
 

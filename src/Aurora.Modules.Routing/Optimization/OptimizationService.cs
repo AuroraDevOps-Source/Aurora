@@ -17,14 +17,18 @@ public sealed class OptimizationService(IOptions<PtvSettings> settings)
     public async Task<OptimizationResultDto> OptimizeAsync(
         string fileName,
         string requestJson,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? previousResult = null)
     {
         // A root-level reporting sidecar carries display fields PTV does not accept. Keep the
         // uploaded JSON for report enrichment and send only the canonical request to PTV.
         requestJson = RoutingInput.Prepare(requestJson);
+        if (previousResult is not null) requestJson = QuickUpdate.Prepare(requestJson, previousResult);
         var ptvRequestJson = ManifestReportExtractor.RemoveReportingSidecar(requestJson);
 
         var log = new List<string>();
+        if (previousResult is not null)
+            log.Add($"Quick update: {RoutingInput.Items(RoutingInput.Parse(requestJson)["routes"]).Count()} previous routes seeded; {QuickUpdate.CalculationSeconds}s calculation budget.");
         using var client = new PtvClient(_settings);
         var run = await client.RunAsync(ptvRequestJson, line => log.Add(line), cancellationToken);
 

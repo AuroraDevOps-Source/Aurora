@@ -16,9 +16,9 @@
                 <button class="modal-close" title="Close" aria-label="Close" @onclick="Close" disabled="@(IsRunning || _submitting)">×</button>
             </header>
 
-            @if (!string.IsNullOrWhiteSpace(_error))
+            @if (!string.IsNullOrWhiteSpace(_error ?? RunError))
             {
-                <div class="alert modal-alert" role="alert">@_error</div>
+                <div class="alert modal-alert" role="alert">@(_error ?? RunError)</div>
             }
             <div class="catalog-body">
                 @if (_catalogError is not null) { <p class="alert" role="alert">@_catalogError</p> }
@@ -38,6 +38,10 @@
                     <div><strong>@_vehicles.Count(vehicle => !vehicle.Enabled)</strong><span>removed from run</span></div>
                     <label class="field"><span>Calculation budget (seconds)</span><InputNumber @bind-Value="_calculationSeconds" min="1" max="120" /></label>
                     <p>Turn trucks off to remove them. Copy truck adds another unit. Calculation budget controls solver time, not route duration.</p>
+                    @if (!IsInitialRun && CanQuickUpdate)
+                    {
+                        <p>Quick update reuses the last plan with a 5-second search, plus preparation time. Full optimization uses the calculation budget above.</p>
+                    }
                 </div>
 
                 <div class="vehicle-editor-list">
@@ -87,9 +91,13 @@
                 <span>@(IsInitialRun ? "Apply your settings, then optimize from the workspace." : "Calculate a new plan and compare it with the current result. Costs use your configured rates.")</span>
                 <div>
                     <button class="outline-button" @onclick="Close" disabled="@(IsRunning || _submitting)">Cancel</button>
-                    <button class="run-variation-button" @onclick="Run" disabled="@(IsRunning || _submitting || _vehicles.Count == 0)">
+                    @if (!IsInitialRun && CanQuickUpdate)
+                    {
+                        <button class="run-variation-button" @onclick="() => Run(true)" disabled="@(IsRunning || _submitting || _vehicles.Count == 0)">Quick update · 5s</button>
+                    }
+                    <button class="run-variation-button" @onclick="() => Run()" disabled="@(IsRunning || _submitting || _vehicles.Count == 0)">
                         @if (IsRunning || _submitting) { <span class="spinner"></span><span>@(IsInitialRun ? "Saving…" : "Running variation…")</span> }
-                        else { <span>@(IsInitialRun ? "Apply settings" : "Run variation")</span><span aria-hidden="true">→</span> }
+                        else { <span>@(IsInitialRun ? "Apply settings" : "Full optimization")</span><span aria-hidden="true">→</span> }
                     </button>
                 </div>
             </footer>
@@ -101,6 +109,8 @@
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public bool IsRunning { get; set; }
     [Parameter] public bool IsInitialRun { get; set; }
+    [Parameter] public bool CanQuickUpdate { get; set; }
+    [Parameter] public string? RunError { get; set; }
     [Parameter] public string? SourceJson { get; set; }
     [Parameter] public string SourceFileName { get; set; } = "manifest.json";
     [Parameter] public EventCallback OnClose { get; set; }
@@ -210,7 +220,7 @@
         catch (Exception ex) { _error = $"The truck could not be copied: {ex.Message}"; }
     }
 
-    private async Task Run()
+    private async Task Run(bool quick = false)
     {
         if (_submitting || IsRunning) return;
         _error = null;
@@ -246,7 +256,7 @@
             var baseName = Path.GetFileNameWithoutExtension(SourceFileName);
             var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             _ = RoutingInput.Prepare(json);
-            await OnRun.InvokeAsync(new VariationRequest(json, IsInitialRun ? SourceFileName : $"{baseName}-variation.json"));
+            await OnRun.InvokeAsync(new VariationRequest(json, IsInitialRun ? SourceFileName : $"{baseName}-variation.json", quick));
         }
         catch (Exception ex)
         {
@@ -260,7 +270,7 @@
 
     private Task Close() => IsRunning || _submitting ? Task.CompletedTask : OnClose.InvokeAsync();
 
-    public sealed record VariationRequest(string Json, string FileName);
+    public sealed record VariationRequest(string Json, string FileName, bool Quick = false);
 
     private sealed class VehicleEditor
     {
