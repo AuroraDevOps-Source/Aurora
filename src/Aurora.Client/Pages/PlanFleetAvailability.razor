@@ -1,0 +1,65 @@
+@using System.Text.Json.Nodes
+
+<div class="availability-list">
+    @foreach (var truck in _trucks)
+    {
+        <div class="availability-truck" @key="truck.Id">
+            <div class="truck-line">
+                <label class="switch-row truck-available"><input type="checkbox" aria-label="@($"{truck.Id} available")" checked="@truck.Available" @onchange="e => Toggle(truck, (bool)e.Value!)" /><span></span></label>
+                <button class="setup-row-toggle" aria-expanded="@(_expanded == truck.Id)" @onclick="()=>_expanded = _expanded == truck.Id ? null : truck.Id"><span>@(_expanded == truck.Id ? "▾" : "▸")</span><strong>@truck.Id</strong><span class="row-description">@Hours(truck.Start) – @Hours(truck.End)</span><small>@(truck.Available ? "Available" : "Not today")</small></button>
+            </div>
+            @if (_expanded == truck.Id)
+            {
+                <div class="setup-row-editor truck-hours"><PlannerTime Label="Departure" Value="@truck.Start" ValueChanged="v => ChangeTime(truck, v, true)" /><PlannerTime Label="Latest return" Value="@truck.End" ValueChanged="v => ChangeTime(truck, v, false)" /></div>
+            }
+        </div>
+    }
+</div>
+@if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+<p class="preview-footnote">@_trucks.Count(t => t.Available) available of @_trucks.Count trucks. Changes apply to this plan only.</p>
+
+@code {
+    [Parameter] public string SourceJson { get; set; } = "{}";
+    [Parameter] public EventCallback<string> OnApply { get; set; }
+    private string? _loaded, _error, _expanded;
+    private static string Hours(string value) => DateTimeOffset.TryParse(value, out var time) ? time.ToString("h:mm tt zzz") : value;
+    private JsonObject _root = new();
+    private List<Truck> _trucks = [];
+    protected override void OnParametersSet()
+    {
+        if (SourceJson == _loaded) return;
+        _loaded = SourceJson; _root = RoutingInput.Parse(SourceJson);
+        var current = RoutingInput.Items(_root["vehicles"]).Select(v => new Truck(v, true));
+        var unavailable = RoutingInput.Items(_root["reporting"]?["unavailableVehicles"]).Select(v => new Truck(v, false));
+        _trucks = current.Concat(unavailable).ToList();
+    }
+    private async Task Toggle(Truck truck, bool value) { truck.Available = value; await Save(); }
+    private async Task ChangeTime(Truck truck, string value, bool start)
+    {
+        try
+        {
+            var begin = RoutingInput.Time(JsonValue.Create(start ? value : truck.Start));
+            var finish = RoutingInput.Time(JsonValue.Create(start ? truck.End : value));
+            if (begin is null || finish is null || finish <= begin) throw new FormatException("Latest return must be after departure. Include explicit UTC offsets.");
+            truck.Node[start ? "start" : "end"]![start ? "earliestStartTime" : "latestEndTime"] = value;
+            await Save();
+        }
+        catch (FormatException ex) { _error = ex.Message; }
+    }
+    private async Task Save()
+    {
+        _error = null;
+        _root["vehicles"] = new JsonArray(_trucks.Where(t => t.Available).Select(t => (JsonNode)t.Node.DeepClone()).ToArray());
+        _root["reporting"] ??= new JsonObject();
+        _root["reporting"]!["unavailableVehicles"] = new JsonArray(_trucks.Where(t => !t.Available).Select(t => (JsonNode)t.Node.DeepClone()).ToArray());
+        await OnApply.InvokeAsync(_root.ToJsonString());
+    }
+    private sealed class Truck(JsonObject node, bool available)
+    {
+        public JsonObject Node { get; } = (JsonObject)node.DeepClone();
+        public string Id => Node["id"]!.GetValue<string>();
+        public string Start => Node["start"]?["earliestStartTime"]?.GetValue<string>() ?? "";
+        public string End => Node["end"]?["latestEndTime"]?.GetValue<string>() ?? "";
+        public bool Available { get; set; } = available;
+    }
+}

@@ -1,0 +1,63 @@
+@inject HttpClient Http
+@using System.Text.Json
+<section class="planning-card">
+    <div class="tms-selection"><div><strong>@_fleet.Units.Count(u=>u.UseForRouting) trucks saved</strong><p>Available trucks are offered to planning for orders at the same terminal.</p></div><button class="primary-button" @onclick="NewTruck">+ Add truck</button><button class="outline-button" @onclick="()=>_catalogOpen=true">Equipment types & capacities</button></div>
+    @if(_error is not null) { <p class="alert" role="alert">@_error</p> }
+    @if(_message is not null) { <p role="status">@_message</p> }
+    <label class="field">Find truck or terminal<input @bind="_filter" @bind:event="oninput" placeholder="Truck ID, terminal, plate…" /></label>
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Truck</th><th>Terminal</th><th>Type</th><th>Default shift</th><th>Plate</th><th>Status</th><th></th></tr></thead><tbody>
+        @foreach(var truck in _fleet.Units.Where(u=>u.UseForRouting && $"{u.Id} {u.Alias} {u.Terminal} {u.Plate}".Contains(_filter,StringComparison.OrdinalIgnoreCase)))
+        {
+            <tr><td><strong>@truck.Id</strong><small>@truck.Alias</small></td><td>@truck.Terminal</td><td>@truck.TypeCode</td><td>@truck.ShiftStart–@truck.ShiftEnd (@truck.UtcOffset)</td><td>@truck.Plate @truck.PlateState</td><td>@(truck.Available ? "Available" : "Unavailable")</td><td><button class="text-button" @onclick="()=>Edit(truck)">Edit @truck.Id</button></td></tr>
+        }
+    </tbody></table></div>
+    @if(!_fleet.Units.Any(u=>u.UseForRouting)) { <p class="empty-state">Add your first truck. Equipment types define its capacity, routing profile, and operating costs.</p> }
+    <p class="preview-footnote">Driver scheduling is a separate step to add later. This version plans trucks and their working hours; it does not enforce driver hours of service.</p>
+</section>
+@if(_editing)
+{
+    <div class="modal-backdrop"><section class="variation-modal" role="dialog" aria-modal="true" aria-labelledby="truck-title"><header class="modal-header"><div><h2 id="truck-title">@(_existing ? "Edit truck" : "Add truck")</h2><p>Saved only for your company.</p></div><button class="modal-close" aria-label="Close truck editor" @onclick="()=>_editing=false" disabled="@_saving">×</button></header>
+    <div class="catalog-body">
+        @if(_error is not null) { <p class="alert" role="alert">@_error</p> }
+        <fieldset disabled="@_saving"><div class="editor-grid">
+            <label class="field">Truck ID<input @bind="_truck.Id" disabled="@_existing" /></label><label class="field">Display name<input @bind="_truck.Alias" /></label>
+            <label class="field">Terminal<input @bind="_truck.Terminal" placeholder="LAX" /></label><label class="field">Equipment type<select @bind="_truck.TypeCode"><option value="">Choose type</option>@foreach(var type in _fleet.Types.Where(t=>!t.PowerOnly)) { <option value="@type.Code">@type.Code — @type.Description</option> }</select></label>
+            <label class="field">VIN<input @bind="_truck.Vin" /></label><label class="field">License plate<input @bind="_truck.Plate" /></label><label class="field">Plate state<input @bind="_truck.PlateState" /></label>
+            <label class="field">Default departure (HH:mm)<input @bind="_truck.ShiftStart" placeholder="08:00" /></label><label class="field">Latest return (HH:mm)<input @bind="_truck.ShiftEnd" placeholder="18:00" /></label><label class="field">UTC offset<input @bind="_truck.UtcOffset" placeholder="-04:00" /></label>
+            <label><input type="checkbox" @bind="_truck.Available" /> Available for planning</label>
+        </div><label class="field">Notes / maintenance<textarea @bind="_truck.Notes"></textarea></label></fieldset>
+        <p class="preview-footnote">Earlier return times mean an overnight shift. Review the offset when daylight saving time changes. Daily hours and availability can be adjusted in the wizard.</p>
+    </div><footer class="modal-footer"><button class="outline-button" @onclick="()=>_editing=false" disabled="@_saving">Cancel</button><button class="primary-button" @onclick="Save" disabled="@_saving">@(_saving ? "Saving…" : "Save truck")</button></footer></section></div>
+}
+<EquipmentCatalog IsOpen="_catalogOpen" OnClose="CloseCatalog" />
+@code {
+    private EquipmentCatalogDto _fleet=new([],[]);
+    private EquipmentUnitDto _truck=new();
+    private bool _editing,_existing,_saving,_catalogOpen;
+    private string _filter="";
+    private string? _error,_message;
+    protected override async Task OnInitializedAsync()=>await Load();
+    private async Task Load()
+    {
+        try { _fleet=await Http.GetFromJsonAsync<EquipmentCatalogDto>("api/v1/routing/equipment") ?? new([],[]); }
+        catch(Exception ex) { _error="Could not load your company's fleet. "+ex.Message; }
+    }
+    private void NewTruck() { _truck=new() {UseForRouting=true,Terminal=_fleet.Units.FirstOrDefault(u=>u.UseForRouting)?.Terminal ?? ""};_existing=false;_editing=true;_error=_message=null; }
+    private void Edit(EquipmentUnitDto truck) { _truck=JsonSerializer.Deserialize<EquipmentUnitDto>(JsonSerializer.Serialize(truck))!;_existing=true;_editing=true;_error=_message=null; }
+    private async Task Save()
+    {
+        if(_saving)return;_saving=true;_error=_message=null;
+        try
+        {
+            _truck.Id=_truck.Id.Trim();_truck.Terminal=_truck.Terminal.Trim().ToUpperInvariant();_truck.UseForRouting=true;_truck.Validate();
+            if(!_existing && _fleet.Units.Any(u=>u.Id==_truck.Id))throw new FormatException("That ID already exists in the equipment catalog. Edit the existing unit instead of duplicating it.");
+            if(!_fleet.Types.Any(t=>t.Code==_truck.TypeCode && !t.PowerOnly))throw new FormatException("Select a truck or powered trailer configuration.");
+            using var response=await Http.PutAsJsonAsync("api/v1/routing/equipment/units",_truck);
+            if(!response.IsSuccessStatusCode)throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Truck could not be saved.");
+            _editing=false;await Load();_message="Truck saved. New plans will use the updated fleet settings.";
+        }
+        catch(Exception ex){_error=ex.Message;}
+        finally{_saving=false;}
+    }
+    private async Task CloseCatalog(){_catalogOpen=false;await Load();}
+}

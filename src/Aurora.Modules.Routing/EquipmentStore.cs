@@ -52,6 +52,11 @@ public sealed class EquipmentStore(NpgsqlConnectionFactory factory, ITenantConte
         item.Validate();
         item.Id = item.Id.Trim();
         await using var db = await factory.OpenConnectionAsync(ct);
+        if(item.UseForRouting)
+        {
+            var data=await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT data::text FROM routing_equipment_type WHERE tenant_id=@TenantId AND code=@TypeCode", new {tenant.TenantId,item.TypeCode},cancellationToken:ct));
+            if(data is null || JsonSerializer.Deserialize<EquipmentTypeDto>(data)!.PowerOnly) throw new FormatException("Select a saved truck or powered trailer configuration for route planning.");
+        }
         var exists = await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM routing_equipment_type WHERE tenant_id=@TenantId AND code=@TypeCode)", new { tenant.TenantId, item.TypeCode }, cancellationToken: ct));
         if (!exists) throw new FormatException("Save the equipment type before adding its units.");
         await db.ExecuteAsync(new CommandDefinition("""

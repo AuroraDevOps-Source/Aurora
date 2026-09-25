@@ -1,0 +1,48 @@
+@inject HttpClient Http
+<section class="manifest-editor">
+    <h2>Edit Manifest · @Manifest.Vehicle</h2>
+    <p>Manifest @Manifest.Id.ToString("N")[..8] · Delivery · Truck @Manifest.Vehicle</p>
+    @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+    @if (_saved) { <p role="status">Manifest saved.</p> }
+    <div class="manifest-edit-grid" @oninput="Changed" @onchange="Changed">
+        <label class="field"><span>Bill-to code</span><input @bind="_edit.BillToCode" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Bill-to name</span><input @bind="_edit.BillToName" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Carrier</span><input @bind="_edit.Carrier" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Driver</span><input @bind="_edit.Driver" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Trailer</span><input @bind="_edit.Trailer" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Origin terminal</span><input @bind="_edit.OriginTerminal" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Destination terminal</span><input @bind="_edit.DestinationTerminal" maxlength="200" disabled="@_saving" /></label>
+        <label class="field"><span>Manifest date</span><InputDate @bind-Value="_edit.ManifestDate" disabled="@_saving" /></label>
+        <label class="field"><span>Direction</span><select @bind="_edit.Direction" disabled="@_saving"><option>Outbound</option><option>Inbound</option></select></label>
+        <label class="field manifest-notes"><span>Notes</span><textarea @bind="_edit.Notes" maxlength="4000" rows="3" disabled="@_saving"></textarea></label>
+    </div>
+    <p class="preview-footnote">These details are saved with this manifest. Driver and trailer are references; the optimized truck assignment and stop sequence stay as planned.</p>
+    <div class="manifest-edit-actions"><button class="primary-button" @onclick="Save" disabled="@(!_dirty || _saving)">@(_saving ? "Saving…" : "Save manifest")</button><button class="outline-button" @onclick="Cancel" disabled="@(!_dirty || _saving)">Cancel changes</button></div>
+</section>
+@code {
+    [Parameter, EditorRequired] public SavedManifestDto Manifest { get; set; } = default!;
+    [Parameter] public EventCallback<SavedManifestDto> OnSaved { get; set; }
+    [Parameter] public EventCallback<bool> OnDirty { get; set; }
+    private ManifestDetailsDto _edit=new();
+    private Guid _loaded;
+    private bool _dirty,_saving,_saved;
+    private string? _error;
+    protected override void OnParametersSet() { if(_loaded!=Manifest.Id) { _loaded=Manifest.Id; Load(); } }
+    private void Load() {
+        _edit=Manifest.Details is { } details ? System.Text.Json.JsonSerializer.Deserialize<ManifestDetailsDto>(System.Text.Json.JsonSerializer.Serialize(details))! : new() {OriginTerminal=Manifest.Route.Terminal,ManifestDate=Manifest.Route.Departure is { } date ? DateOnly.FromDateTime(date.Date) : null};
+        _dirty=false;_error=null;_saved=false;
+    }
+    private async Task Changed() { _dirty=true;_saved=false;await OnDirty.InvokeAsync(true); }
+    private async Task Cancel() { Load();await OnDirty.InvokeAsync(false); }
+    private async Task Save() {
+        _saving=true;_error=null;
+        try {
+            _edit.Validate();
+            using var response=await Http.PutAsJsonAsync($"api/v1/aurora/manifests/{Manifest.Id}",new UpdateManifestDto(_edit,Manifest.Revision));
+            if(!response.IsSuccessStatusCode) throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Could not save manifest.");
+            var saved=(await response.Content.ReadFromJsonAsync<SavedManifestDto>())!;
+            _dirty=false;_saved=true;await OnDirty.InvokeAsync(false);await OnSaved.InvokeAsync(saved);
+        } catch(Exception ex) { _error=ex.Message; }
+        finally { _saving=false; }
+    }
+}

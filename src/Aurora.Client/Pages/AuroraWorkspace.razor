@@ -1,0 +1,164 @@
+@page "/aurora/{WorkspaceView}"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Aurora · @WorkspaceTitle</PageTitle>
+<div class="tms-workspace">
+    <aside class="tms-sidebar"><h2>Aurora</h2><p>@(_company?.Name ?? "Your company")</p>
+        <NavLink href="aurora/orders">Orders</NavLink><NavLink href="aurora/manifests">Manifest</NavLink><NavLink href="aurora/fleet">Fleet Management</NavLink>
+    </aside>
+    <main class="tms-main">
+        <header class="planner-header"><div><span class="eyebrow">AURORA WORKSPACE</span><h1>@WorkspaceTitle</h1><p>@(IsFleet ? "Your company’s trucks, availability, and default working hours." : IsManifests ? "Saved truck routes and their delivery sequence." : "Filter the day's orders, select your work, and plan the routes.")</p></div><button class="outline-button" @onclick="Refresh" disabled="@(_loading || _manifestDirty)">Refresh</button></header>
+        @if(_error is not null) { <p class="alert" role="alert">@_error</p> }
+        @if(_loading) { <p role="status">Loading workspace…</p> }
+        @if(IsFleet) { <FleetManagement @key="_fleetVersion" /> }
+        else if(!IsManifests)
+        {
+            <section class="planning-card">
+                <div class="tms-filters">
+                    <label class="field">From date/time<input type="datetime-local" @bind="_from" /></label>
+                    <label class="field">To date/time<input type="datetime-local" @bind="_to" /></label>
+                    <label class="field">Status<select @bind="_status"><option value="">All statuses</option>@foreach(var status in WorkspaceOrderStatus.All) { <option value="@status">@WorkspaceOrderStatus.Label(status)</option> }</select></label>
+                    <button class="outline-button" @onclick="ApplyFilters" disabled="@_loading">Apply filters</button><button class="text-button" @onclick="ResetFilters">Clear filters</button>
+                </div>
+                <p class="preview-footnote">Filters apply automatically on load: beginning of this month through today, in your local time zone.</p>
+                <div class="tms-selection"><strong>@_selected.Count selected · @_orders.Count orders shown</strong><button class="primary-button" @onclick="Launch" disabled="@(_selected.Count==0 || _launching || _loading)">@(_launching ? "Opening wizard…" : "Route Optimization ↗")</button></div>
+                @if(_launchUrl is not null) { <p role="status">Your selection is ready. <a href="@_launchUrl" target="_blank">Open route optimization wizard</a> if the new window did not open.</p> }
+                <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th><input type="checkbox" aria-label="Select all available orders shown" checked="@AllSelected" @onchange="ToggleAll" /></th><th>PRO / Order</th><th>Scheduled date/time</th><th>Customer</th><th>City</th><th>Status</th></tr></thead><tbody>
+                    @foreach(var order in _orders)
+                    {
+                        <tr @key="order.Id"><td><input type="checkbox" aria-label="@("Select "+order.Id)" checked="@_selected.Contains(order.Id)" disabled="@(order.Status!=WorkspaceOrderStatus.Ready)" @onchange="e=>Toggle(order.Id,e.Value is true)" /></td><td><strong>@order.Id</strong></td><td>@order.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@order.Customer</td><td>@order.City</td><td><span class="count-pill">@WorkspaceOrderStatus.Label(order.Status)</span></td></tr>
+                    }
+                </tbody></table></div>
+                @if(!_loading && _orders.Count==0) { <p class="empty-state">@(_sources.Count==0 ? "No orders have been imported yet." : "No orders match these filters.")</p> }
+            </section>
+        }
+        else
+        {
+            @if(!_loading && _manifests.Count==0) { <section class="planning-card empty-state">No saved manifests yet. Select orders, optimize, and click Finish to create manifests.</section> }
+            <div class="route-picker" aria-label="Saved manifests">
+            @foreach(var item in _manifests)
+            {
+                <button class="@(_viewManifest?.Id == item.Id ? "active" : "")" disabled="@_manifestDirty" @onclick="()=>ViewManifest(item)"><strong>@item.Vehicle</strong><span>@item.Route.ManifestStops stops · @item.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</span><span>Manifest @item.Id.ToString("N")[..8]</span></button>
+            }
+            </div>
+            @if (_viewManifest is { } manifest)
+            {
+                <section class="planning-card tms-manifest">
+                    <nav class="view-tabs" role="tablist" aria-label="Manifest details">
+                        <button role="tab" aria-selected="@(!_routeTab)" class="@(!_routeTab ? "active" : "")" @onclick="()=>SelectManifestTab(false)">Edit Manifest</button>
+                        <button role="tab" aria-selected="@_routeTab" class="@(_routeTab ? "active" : "")" disabled="@_manifestDirty" @onclick="()=>SelectManifestTab(true)">Route</button>
+                    </nav>
+                    @if (!_routeTab) { <ManifestEditor @key="(manifest.Id, manifest.Revision)" Manifest="manifest" OnSaved="ManifestSaved" OnDirty="v=>_manifestDirty=v" /> }
+                    else {
+                    <h2>View route · @manifest.Vehicle</h2>
+                    <p>@manifest.Route.Pros.Count orders · @((manifest.Route.Kilometers * 0.621371).ToString("N1")) miles · @manifest.Route.Cost.ToString("C2") estimated cost</p>
+                    <div id="saved-route-map" style="height:360px"></div>
+                    <p class="preview-footnote">Bird’s-eye view · Lines show the saved stop sequence.</p>
+                    <p>Departure: @manifest.Route.Departure?.ToString("MMM d, h:mm tt zzz") · Return: @manifest.Route.Return?.ToString("MMM d, h:mm tt zzz")</p>
+                    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Stop</th><th>PRO</th><th>Customer</th><th>Address</th><th>Arrival</th><th>Departure</th></tr></thead><tbody>
+                    @foreach(var order in manifest.Route.Pros.OrderBy(p=>p.StopNumber)) { <tr><td>@order.StopNumber</td><td>@order.ProNumber</td><td>@order.ShipToName</td><td>@order.Address1, @order.City @order.State @order.PostalCode</td><td>@order.Arrival?.ToString("h:mm tt zzz")</td><td>@order.Departure?.ToString("h:mm tt zzz")</td></tr> }
+                    </tbody></table></div>
+                    }
+                </section>
+            }
+        }
+    </main>
+</div>
+
+@code {
+    [Parameter] public string WorkspaceView { get; set; } = "orders";
+    private bool IsManifests=>WorkspaceView=="manifests";
+    private bool IsFleet=>WorkspaceView=="fleet";
+    private string WorkspaceTitle=>IsFleet ? "Fleet Management" : IsManifests ? "Manifest" : "Orders";
+    private SavedManifestDto? _viewManifest;
+    private bool _renderSavedMap, _routeTab, _manifestDirty;
+    private void ViewManifest(SavedManifestDto manifest) { _viewManifest=manifest; _routeTab=false; _renderSavedMap=false; }
+    private async Task SelectManifestTab(bool route) { await JS.InvokeVoidAsync("routeMap.dispose"); _routeTab=route; _renderSavedMap=route; }
+    private void ManifestSaved(SavedManifestDto manifest) { _viewManifest=manifest;var index=_manifests.FindIndex(m=>m.Id==manifest.Id);if(index>=0)_manifests[index]=manifest; }
+    private WorkspaceTenantDto? _company;
+    private int _fleetVersion;
+    private List<OrderSourceDto> _sources=[];
+    private List<WorkspaceOrderDto> _orders=[];
+    private List<SavedManifestDto> _manifests=[];
+    private HashSet<string> _selected=new(StringComparer.Ordinal);
+    private Guid _source;
+    private DateTime? _from=new DateTime(DateTime.Today.Year,DateTime.Today.Month,1), _to=DateTime.Today.AddDays(1).AddSeconds(-1);
+    private string _status=WorkspaceOrderStatus.Ready;
+    private string? _error,_launchUrl;
+    private bool _loading,_launching;
+    private DotNetObjectReference<AuroraWorkspace>? _reference;
+    private bool AllSelected=>_orders.Any(o=>o.Status==WorkspaceOrderStatus.Ready) && _orders.Where(o=>o.Status==WorkspaceOrderStatus.Ready).All(o=>_selected.Contains(o.Id));
+    protected override async Task OnParametersSetAsync()=>await Refresh();
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (_renderSavedMap && _routeTab && IsManifests && _viewManifest is { } manifest)
+        {
+            _renderSavedMap=false;
+            await JS.InvokeVoidAsync("routeMap.render", "saved-route-map", new {
+                routes = new[] { new { manifest.Vehicle, color="#2363eb", stops=manifest.Route.RouteStops.Select(stop=>new {
+                    lat=stop.Latitude, lon=stop.Longitude, stop.LocationId, stop.IsDepot, stop.OrderIds,
+                    arrival=stop.Arrival?.ToString("h:mm tt zzz"), departure=stop.Departure?.ToString("h:mm tt zzz") }) } }, dropped=Array.Empty<object>() });
+        }
+        if(first) { _reference=DotNetObjectReference.Create(this); await JS.InvokeVoidAsync("auroraWorkspace.watch",_reference); }
+    }
+    [JSInvokable] public async Task WorkspaceChanged() { if(IsFleet || _manifestDirty)return; await Refresh(); await InvokeAsync(StateHasChanged); }
+    private async Task Refresh()
+    {
+        if(_loading || _manifestDirty)return;
+        _loading=true; _error=null;
+        try
+        {
+            _company ??= await Http.GetFromJsonAsync<WorkspaceTenantDto>("api/v1/me/tenant");
+            if(IsFleet) { _fleetVersion++; }
+            else if(IsManifests) {
+                _manifests=await Http.GetFromJsonAsync<List<SavedManifestDto>>("api/v1/aurora/manifests") ?? [];
+                var selected=_manifests.FirstOrDefault(m=>m.Id==_viewManifest?.Id) ?? _manifests.FirstOrDefault();
+                if(selected is not null) { if(_viewManifest?.Id==selected.Id) { _viewManifest=selected;_renderSavedMap=_routeTab; } else ViewManifest(selected); } else { _viewManifest=null;_renderSavedMap=false; }
+            }
+            else
+            {
+                _sources=await Http.GetFromJsonAsync<List<OrderSourceDto>>("api/v1/aurora/sources") ?? [];
+                if(_source==Guid.Empty) _source=_sources.FirstOrDefault()?.Id ?? Guid.Empty;
+                if(_source!=Guid.Empty)
+                {
+                    if(_from>_to) throw new FormatException("End date/time must be after start.");
+                    // datetime-local represents browser local time; obtain the actual UTC offset in JS (DST included).
+                    var from=_from is null ? null : await JS.InvokeAsync<string>("auroraWorkspace.utc",_from.Value.ToString("yyyy-MM-ddTHH:mm:ss"));
+                    var to=_to is null ? null : await JS.InvokeAsync<string>("auroraWorkspace.utc",_to.Value.ToString("yyyy-MM-ddTHH:mm:ss"));
+                    var url=$"api/v1/aurora/orders?source={_source}&status={Uri.EscapeDataString(_status)}";
+                    if(from is not null)url+="&from="+Uri.EscapeDataString(from);
+                    if(to is not null)url+="&to="+Uri.EscapeDataString(to);
+                    _orders=await Http.GetFromJsonAsync<List<WorkspaceOrderDto>>(url) ?? [];
+                    _selected.IntersectWith(_orders.Where(o=>o.Status==WorkspaceOrderStatus.Ready).Select(o=>o.Id));
+                }
+            }
+        }
+        catch(Exception ex) { _error="Could not load the workspace. "+ex.Message; }
+        finally { _loading=false; }
+    }
+    private async Task SourceChanged() { _selected.Clear(); _launchUrl=null; await Refresh(); }
+    private async Task ApplyFilters() { _selected.Clear(); await Refresh(); }
+    private async Task ResetFilters() { _from=null;_to=null;_status="";await ApplyFilters(); }
+    private void Toggle(string id,bool selected) { if(selected)_selected.Add(id);else _selected.Remove(id); }
+    private void ToggleAll(ChangeEventArgs e) { foreach(var o in _orders.Where(o=>o.Status==WorkspaceOrderStatus.Ready))Toggle(o.Id,e.Value is true); }
+    private async Task Launch()
+    {
+        _launching=true;_error=null;_launchUrl=null;
+        await JS.InvokeVoidAsync("auroraWorkspace.open");
+        try
+        {
+            using var response=await Http.PostAsJsonAsync("api/v1/aurora/drafts",new CreateOrderDraftDto(_source,_selected.ToArray()));
+            if(!response.IsSuccessStatusCode)throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Could not prepare selected orders.");
+            var draft=(await response.Content.ReadFromJsonAsync<OrderDraftDto>())!;
+            _launchUrl=$"/routing?draft={draft.Id}";
+            await JS.InvokeVoidAsync("auroraWorkspace.navigate",_launchUrl);
+        }
+        catch(Exception ex) { _error=ex.Message;await JS.InvokeVoidAsync("auroraWorkspace.cancel"); }
+        finally { _launching=false; }
+    }
+    public async ValueTask DisposeAsync() { try { await JS.InvokeVoidAsync("auroraWorkspace.unwatch"); await JS.InvokeVoidAsync("routeMap.dispose"); } catch(JSDisconnectedException){} _reference?.Dispose(); }
+}

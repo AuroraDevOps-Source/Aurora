@@ -3,6 +3,13 @@
 {
     <span class="appointment-empty">Not provided</span>
 }
+else if (Compact)
+{
+    @foreach (var window in Appointment.Windows)
+    {
+        <span class="compact-window">@Time(window.EarliestStart)@(window.LatestStart is not null ? " – " + Time(window.LatestStart) : "")@(window.LatestEnd is not null ? " · Finish by " + Time(window.LatestEnd) : "")</span>
+    }
+}
 else
 {
     @foreach (var window in Appointment.Windows)
@@ -16,6 +23,7 @@ else
 }
 
 @code {
+    [Parameter] public bool Compact { get; set; }
     [Parameter] public AppointmentInfoDto? Appointment { get; set; }
     private static string Time(DateTimeOffset? time) => time?.ToString("MM/dd h:mm tt zzz", CultureInfo.InvariantCulture) ?? "Unbounded";
 }

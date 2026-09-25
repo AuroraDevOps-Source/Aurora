@@ -89,11 +89,14 @@ in Docker. Nothing here belongs in `appsettings.json`.
 
 ```bash
 dotnet run --project tests/RoutingChecks
+dotnet run --project tests/OrderWorkspaceChecks
+dotnet run --project tests/PlanningSessionChecks
 dotnet run --project tests/RoadRoutingChecks
 dotnet run --project tests/EquipmentChecks
 ```
 
-`tests/PlannerPreview` is a Blazor harness for eyeballing planner components.
+`tests/PlannerPreview` is a Blazor harness for eyeballing planner components. Its `/wizard` page exercises the planning flow with simulated PTV responses and stubbed maps.
+See `docs/ROUTING-WIZARD-2026-09-23.md` for session storage and recovery details.
 `tests/login-checks.mjs` and `tests/map-checks.mjs` are browser-driven checks;
 `tests/equipment-isolation.sql` asserts that RLS actually blocks cross-tenant reads.
 
@@ -107,3 +110,5 @@ and never in this repository.
 `DEPLOYMENT-2026-09-13.md` records the current staging installation, the SSO
 verification results, and the repeat-deployment procedure. `docs/single-sign-on.md`
 covers the federation design; `docs/ROUTING-*.md` cover the routing and equipment work.
+
+The native Aurora workspace now contains Orders and Manifest. See `docs/AURORA-WORKSPACE-2026-09-24.md` for selection, Finish, imports, persistence and test-server verification.

@@ -117,6 +117,11 @@ public sealed class PtvClient : IDisposable
         }
     }
 
+    public Task<PtvResponse> SubmitAsync(string json, CancellationToken ct) => PostAsync("/optimizations", json, ct);
+    public Task<PtvResponse> ResultAsync(string id, CancellationToken ct) => GetAsync($"/optimizations/{Uri.EscapeDataString(id)}", ct);
+    public Task<PtvResponse> ProgressAsync(string id, CancellationToken ct) => GetAsync($"/optimizations/{Uri.EscapeDataString(id)}/progress", ct);
+    public Task<PtvResponse> StopAsync(string id, CancellationToken ct) => PostAsync($"/optimizations/{Uri.EscapeDataString(id)}/stop", "", ct);
+
     private async Task<PtvResponse> PostAsync(string path, string json, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl + path)

@@ -53,6 +53,10 @@ public sealed class EquipmentUnitDto
     public string Terminal { get; set; } = "";
     public string TypeCode { get; set; } = "";
     public bool Available { get; set; } = true;
+    public bool UseForRouting { get; set; }
+    public string ShiftStart { get; set; } = "08:00";
+    public string ShiftEnd { get; set; } = "18:00";
+    public string UtcOffset { get; set; } = "-04:00";
     public string Vin { get; set; } = "";
     public string Plate { get; set; } = "";
     public string PlateState { get; set; } = "";
@@ -61,6 +65,15 @@ public sealed class EquipmentUnitDto
     {
         if (string.IsNullOrWhiteSpace(Id) || Id.Length > 80 || string.IsNullOrWhiteSpace(Terminal) || string.IsNullOrWhiteSpace(TypeCode))
             throw new FormatException("Equipment needs an ID (up to 80 characters), terminal and type.");
+        if (UseForRouting)
+        {
+            if (!TimeOnly.TryParseExact(ShiftStart, "HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _) ||
+                !TimeOnly.TryParseExact(ShiftEnd, "HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _) ||
+                !System.Text.RegularExpressions.Regex.IsMatch(UtcOffset, @"^[+-](0[0-9]|1[0-4]):[0-5][0-9]$"))
+                throw new FormatException("Use HH:mm shift times and an explicit UTC offset such as -04:00.");
+            _ = RoutingInput.Time(JsonValue.Create($"2026-01-01T{ShiftStart}:00{UtcOffset}"));
+            if (ShiftStart == ShiftEnd) throw new FormatException("Departure and return cannot be the same time.");
+        }
     }
 }
 

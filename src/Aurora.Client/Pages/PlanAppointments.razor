@@ -1,7 +1,24 @@
 @using System.Globalization
 @using System.Text.Json.Nodes
 
-@if (IsOpen)
+@if (IsOpen && Inline)
+{
+    <div class="inline-appointments">
+        <label class="field"><span>Search PRO / destination</span><input @bind="_search" @bind:event="oninput" /></label>
+        @if (_error is not null) { <div class="alert" role="alert">@_error</div> }
+        @if (_message is not null) { <p role="status">@_message</p> }
+        <div class="appointment-list">
+        @foreach (var order in _draft?.Deliveries.Where(x => $"{x.Id} {x.Name}".Contains(_search, StringComparison.OrdinalIgnoreCase)) ?? [])
+        {
+            <div class="appointment-order" @key="order.Id">
+                <button class="appointment-toggle setup-row-toggle" aria-expanded="@(_id == order.Id)" @onclick="()=>Toggle(order.Id)"><span>@(_id == order.Id ? "▾" : "▸")</span><strong>@order.Id</strong><span class="row-description">@order.Name</span><span class="row-appointment"><AppointmentDisplay Appointment="order.Appointment" Compact="true" /></span></button>
+                @if (_id == order.Id) { <div class="inline-appointment-editor">@Editor</div> }
+            </div>
+        }
+        </div>
+    </div>
+}
+else if (IsOpen)
 {
     <div class="modal-backdrop"><section class="variation-modal" role="dialog" aria-modal="true" aria-labelledby="appointments-title">
         <header class="modal-header"><div><span class="eyebrow">PLAN APPOINTMENTS</span><h2 id="appointments-title">Appointments &amp; service time</h2><p>Search a PRO or destination, then edit its appointment. Changes apply to this plan.</p></div><button class="modal-close" aria-label="Close appointments" @onclick="Close">×</button></header>
@@ -15,14 +32,7 @@
             <div class="catalog-form">
                 @if (_id is not null)
                 {
-                    <h3>@_id</h3><p class="file-format">Confirmed windows constrain arrival. Existing location opening hours still apply.</p>
-                    <PlannerTime Label="Appointment start" @bind-Value="_start" />
-                    <PlannerTime Label="Appointment end" @bind-Value="_end" />
-                    <label><input type="checkbox" @bind="_confirmed" /> Confirmed appointment</label>
-                    <label><input type="checkbox" @bind="_replaceNative" /> Replace imported scheduling windows for this order</label>
-                    <p class="file-format">Use this when changing a window built into the file. It removes the current location time restrictions for this order only, including opening hours, before applying the new appointment.</p>
-                    <label class="field"><span>Service time (minutes)</span><InputNumber @bind-Value="_service" min="0" max="1440" /></label>
-                    <div class="planning-tools"><button class="primary-button" @onclick="() => Save(false)">Apply to plan</button><button class="outline-button" @onclick="() => Save(true)">Clear appointment</button></div><p class="file-format">Clear removes the added appointment. Imported windows remain unless Replace imported scheduling windows is selected.</p>
+                    @Editor
                 }
                 else { <p>Select an order to edit.</p> }
             </div></div>
@@ -31,6 +41,18 @@
 }
 
 @code {
+    private RenderFragment Editor => @<div class="appointment-fields">
+                    <h3>@_id</h3><p class="file-format">Confirmed windows constrain arrival. Existing location opening hours still apply.</p>
+                    <PlannerTime Label="Appointment start" @bind-Value="_start" />
+                    <PlannerTime Label="Appointment end" @bind-Value="_end" />
+                    <label><input type="checkbox" @bind="_confirmed" /> Confirmed appointment</label>
+                    <label><input type="checkbox" @bind="_replaceNative" /> Replace imported scheduling windows for this order</label>
+                    <p class="file-format">Use this when changing a window built into the file. It removes the current location time restrictions for this order only, including opening hours, before applying the new appointment.</p>
+                    <label class="field"><span>Service time (minutes)</span><InputNumber @bind-Value="_service" min="0" max="1440" /></label>
+                    <div class="planning-tools"><button class="primary-button" @onclick="() => Save(false)">Apply to plan</button><button class="outline-button" @onclick="() => Save(true)">Clear appointment</button></div><p class="file-format">Clear removes the added appointment. Imported windows remain unless Replace imported scheduling windows is selected.</p>
+    </div>;
+    [Parameter] public bool Inline { get; set; }
+    private void Toggle(string id) { if (_id == id) _id=null; else Select(id); }
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public string? SourceJson { get; set; }
     [Parameter] public EventCallback<string> OnApply { get; set; }
@@ -42,7 +64,7 @@
     private double? _service;
     protected override void OnParametersSet()
     {
-        if (IsOpen && SourceJson is not null && SourceJson != _loaded) { _loaded = SourceJson; _draft = RoutingDraft.Read(SourceJson); _id = null; }
+        if (IsOpen && SourceJson is not null && SourceJson != _loaded) { _loaded = SourceJson; _draft = RoutingDraft.Read(SourceJson); if (_id is not null && !_draft.Deliveries.Any(o=>o.Id==_id)) _id = null; }
     }
     private void Select(string id)
     {

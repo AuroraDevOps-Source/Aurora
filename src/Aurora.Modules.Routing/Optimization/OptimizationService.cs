@@ -32,6 +32,13 @@ public sealed class OptimizationService(IOptions<PtvSettings> settings)
         using var client = new PtvClient(_settings);
         var run = await client.RunAsync(ptvRequestJson, line => log.Add(line), cancellationToken);
 
+        return Describe(fileName, requestJson, run, log);
+    }
+
+    public static OptimizationResultDto Describe(string fileName, string requestJson, PtvRun run, IReadOnlyList<string>? messages = null)
+    {
+        var log = messages ?? [];
+        var ptvRequestJson = ManifestReportExtractor.RemoveReportingSidecar(requestJson);
         RunSummaryDto? summary = null;
         IReadOnlyList<RouteSummaryDto> routeDtos = [];
         IReadOnlyList<DroppedOrderDto> droppedDtos = [];

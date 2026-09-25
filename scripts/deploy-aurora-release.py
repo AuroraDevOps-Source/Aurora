@@ -1,4 +1,4 @@
-"""Update only the Aurora API/web containers. Never runs migrations or tenant seeding."""
+"""Publish Aurora test API/web and reset demo orders/plans; retain fleet and identity."""
 import argparse
 from pathlib import Path
 import re
@@ -20,6 +20,8 @@ if not (source / 'api/Aurora.Api.dll').is_file() or not (source / 'client/wwwroo
 for name in ('api', 'web'):
     subprocess.run(['docker', 'build', '-q', '-f', str(source / f'deploy/Dockerfile.{name}'),
         '-t', f'aurora-auth-{name}:{args.release}', str(source)], check=True)
+# Mandatory test reset: fail closed if the release omitted the reset helper.
+subprocess.run(['python3', str(source / 'scripts/reset-staging-orders.py')], check=True)
 stamp = time.strftime('%Y%m%d-%H%M%S')
 for path in (root / '.env', root / 'private/api.env'):
     backup = path.with_name(path.name + '.pre-' + args.release + '-' + stamp)
@@ -42,4 +44,4 @@ for attempt in range(15):
     time.sleep(2)
 else:
     raise RuntimeError('The deployed Aurora API did not become ready')
-print('Deployed Aurora ' + args.release + '; databases and product deployments unchanged.')
+print('Deployed Aurora ' + args.release + '; demo orders/plans reset; fleet and other product deployments unchanged.')

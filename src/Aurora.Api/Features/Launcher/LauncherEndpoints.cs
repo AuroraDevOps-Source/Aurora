@@ -38,6 +38,13 @@ public static class LauncherEndpoints
     {
         var group = app.MapGroup("/api/v1/me").RequireAuthorization();
 
+        group.MapGet("/tenant", async (NpgsqlConnectionFactory factory, ITenantContext tenant, CancellationToken ct) =>
+        {
+            await using var db=await factory.OpenConnectionAsync(ct);
+            var company=await db.QuerySingleAsync<WorkspaceTenantDto>(new CommandDefinition("SELECT id,name FROM tenant WHERE id=@TenantId AND is_active",new {tenant.TenantId},cancellationToken:ct));
+            return Results.Ok(company);
+        });
+
         group.MapGet("/products", async (
             NpgsqlConnectionFactory connectionFactory,
             ITenantContext tenantContext,

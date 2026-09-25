@@ -1,3 +1,8 @@
 @page "/"
+@page "/wizard"
 @using Microsoft.AspNetCore.Components.Web
-<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="stylesheet" href="/css/route-optimization.css" /><HeadOutlet /></head><body><Harness @rendermode="RenderMode.InteractiveServer" /><script src="_framework/blazor.web.js"></script></body></html>
+@inject NavigationManager Navigation
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="stylesheet" href="/css/route-optimization.css" /><HeadOutlet /></head><body><p style="padding:8px 24px;background:#fff3cd;margin:0">Local preview: simulated PTV responses; maps are stubbed.</p>
+@if (new Uri(Navigation.Uri).AbsolutePath == "/wizard") { <Aurora.Client.Pages.Routing @rendermode="new InteractiveServerRenderMode(prerender: false)" /> }
+else { <Harness @rendermode="RenderMode.InteractiveServer" /> }
+<script>window.routeMap={dispose:()=>{},render:()=>{},filter:()=>{},setMode:()=>{}};</script><script src="_framework/blazor.web.js"></script></body></html>

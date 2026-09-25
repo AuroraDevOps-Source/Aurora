@@ -18,7 +18,7 @@ public static class ProductWorkspace
         FreightOps => "/workspace/freightops",
         Hub => "/workspace/hub",
         AuroraTms => "/workspace/auroratms",
-        _ => "/routing"
+        _ => "/aurora/orders"
     };
 
     public static string? CodeFor(string path) => path switch
@@ -26,7 +26,7 @@ public static class ProductWorkspace
         "/workspace/freightops" => FreightOps,
         "/workspace/hub" => Hub,
         "/workspace/auroratms" => AuroraTms,
-        "/" or "/routing" => Aurora,
+        "/" or "/routing" or "/aurora/orders" or "/aurora/manifests" or "/aurora/fleet" => Aurora,
         _ => null
     };
 
@@ -35,7 +35,7 @@ public static class ProductWorkspace
     {
         FreightOps => "FreightOps",
         Hub => "Integration Hub",
-        AuroraTms => "Aurora TMS",
-        _ => "Route Optimization"
+        AuroraTms => "Nova 2.0",
+        _ => "Aurora"
     };
 }

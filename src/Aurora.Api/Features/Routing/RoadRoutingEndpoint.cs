@@ -34,7 +34,7 @@ public static class RoadRoutingEndpoint
                     return Results.Json(new ApiErrorDto("PTV could not load road directions. Check Routing API access and the vehicle profile, then retry."), statusCode: 502);
                 using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
                 if (body.RootElement.TryGetProperty("violated", out var violated) && violated.GetBoolean())
-                    return Results.Json(new ApiErrorDto("PTV reported vehicle restrictions on this road route. Bird’s-eye view remains available."), statusCode: 422);
+                    return Results.Json(new ApiErrorDto("PTV reported road-access restrictions. The optimized plan is retained; bird’s-eye view remains available.", [$"Profile: {request.Profile}. Route points {start + 1}–{Math.Min(start + 20, request.Points.Count)} include a restricted road connection. Review delivery/depot coordinates and the vehicle profile before using road directions."]), statusCode: 422);
                 using var geometry = JsonDocument.Parse(body.RootElement.GetProperty("polyline").GetString()!);
                 foreach (var pair in geometry.RootElement.GetProperty("coordinates").EnumerateArray())
                     points.Add(new RoadPointDto(pair[1].GetDouble(), pair[0].GetDouble()));

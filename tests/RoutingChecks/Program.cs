@@ -218,7 +218,7 @@ Check(submitted[1]["routes"]!.AsArray().Count == 1 && submitted[1]["settings"]![
 Check(quickResult.Status == "SUCCEEDED" && quickResult.Log.Any(x => x.StartsWith("Quick update:")), "quick results retain status and identify the seeded run");
 Check(Aurora.Client.ProductWorkspace.RouteFor("auroratms") == "/workspace/auroratms" &&
     Aurora.Client.ProductWorkspace.CodeFor("/workspace/auroratms") == "auroratms" &&
-    Aurora.Client.ProductWorkspace.NameFor("auroratms") == "Aurora TMS", "TMS launcher opens and highlights its own workspace");
+    Aurora.Client.ProductWorkspace.NameFor("auroratms") == "Nova 2.0", "TMS launcher opens and highlights its own workspace");
 var authorizeReturn = "/connect/authorize?client_id=auroratms-spa&state=original";
 Check(Aurora.Client.AuthenticationNavigation.AuthorizationReturnPath(authorizeReturn) == authorizeReturn,
     "login resumes the original product authorization request");

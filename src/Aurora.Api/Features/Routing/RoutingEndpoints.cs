@@ -18,6 +18,19 @@ public static class RoutingEndpoints
 
         group.MapPost("/optimizations", RunOptimization).DisableAntiforgery();
         group.MapPost("/road-route", RoadRoutingEndpoint.Calculate);
+        group.MapPost("/sessions", async (StartPlanningDto input, HttpContext context, PlanningSessions sessions, Aurora.Modules.Routing.OrderWorkspace workspace, CancellationToken ct) =>
+            {
+                try
+                {
+                    if (input.WorkspaceDraftId is { } draftId) input = input with { RequestJson = await workspace.ValidateDraft(draftId, PlanningSessions.Owner(context.User), input.RequestJson, ct) };
+                    return await sessions.Start(input, context.User);
+                }
+                catch (FormatException ex) { return Results.BadRequest(new ApiErrorDto(ex.Message)); }
+                catch (KeyNotFoundException) { return Results.NotFound(new ApiErrorDto("Planning selection not found.")); }
+            })
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(60 * 1024 * 1024));
+        group.MapGet("/sessions/{id:guid}", (Guid id, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Poll(id, context.User, false, ct, context.Request.Query.ContainsKey("inputs")));
+        group.MapPost("/sessions/{id:guid}/stop", (Guid id, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Poll(id, context.User, true, ct));
         group.MapGet("/equipment", async (Aurora.Modules.Routing.EquipmentStore store, CancellationToken ct) => Results.Ok(await store.List(ct)));
         group.MapPost("/equipment/import", async (EquipmentCatalogDto catalog, Aurora.Modules.Routing.EquipmentStore store, CancellationToken ct) =>
         {

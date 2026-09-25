@@ -270,7 +270,7 @@ public static class RunSummary
                 Stops: Int(m?["numberOfStops"]),
                 Km: Int(m?["distance"]) / 1000.0,
                 DriveSeconds: Int(m?["durations"]?["driving"]),
-                Cost: Dbl(m?["cost"]),
+                Cost: Dbl(m?["costs"]?["total"] ?? m?["cost"]),
                 LoadUtil: Dbl(m?["vehicleUtilization"]?["load"]),
                 TimeUtil: Dbl(m?["vehicleUtilization"]?["duration"]));
         }).OrderByDescending(r => r.Orders).ToList();
@@ -291,7 +291,7 @@ public static class RunSummary
             Unscheduled: unscheduled,
             Km: Int(metrics?["totalDistance"]) / 1000.0,
             DriveSeconds: routes.Sum(r => r.DriveSeconds),
-            Cost: Dbl(metrics?["totalCost"]),
+            Cost: Dbl(metrics?["costs"]?["grossTotal"] ?? metrics?["totalCost"]),
             Violations: violations,
             Orders: orders,
             Locations: locations,

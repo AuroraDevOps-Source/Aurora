@@ -67,7 +67,7 @@
                     </div><label class="field"><span>Notes / maintenance</span><textarea @bind="_unit.Notes"></textarea></label><button class="primary-button" @onclick="SaveUnit">Save unit</button></div></div>
                 }
                 </fieldset>
-            </div><footer class="modal-footer"><span>Catalog changes are saved for your organization. Existing plan inputs keep their current values.</span><button class="outline-button" @onclick="Close" disabled="@_busy">Done</button></footer>
+            </div><footer class="modal-footer"><span>Catalog changes are saved for your organization. Aurora order planning checks saved truck settings when a run starts; completed manifests retain their original values.</span><button class="outline-button" @onclick="Close" disabled="@_busy">Done</button></footer>
         </section>
     </div>
 }
