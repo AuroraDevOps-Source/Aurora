@@ -94,6 +94,52 @@ if(connection is not null)
  try {await other.UpdateManifest(editedManifest.Id,new(details,1),default);throw new Exception("cross tenant edit accepted");}catch(KeyNotFoundException){Check(true,"cross tenant manifest edit rejected");}
  try {await store.UpdateManifest(editedManifest.Id,new(new ManifestDetailsDto {Notes=new string('x',4001)},1),default);throw new Exception("invalid details accepted");}catch(FormatException){Check(true,"oversized notes rejected");}
 
+
+ var tms=new TmsStore(factory,tenant); var hiddenTms=new TmsStore(otherFactory,otherTenant);
+ async Task Fails(Func<Task> action,string name){try{await action();}catch(Exception ex) when(ex is FormatException or KeyNotFoundException or PostgresException){Check(true,name);return;}throw new Exception(name);}
+ var shipment=new TmsOrder{Id="CRUD-100",Customer="Acme",City="Philadelphia",Address="123 Test St",Address2="Dock 2",Country="US",Shipper="Origin Co",OriginAddress="456 Origin Ave",OriginAddress2="Suite 9",OriginCity="Boston",OriginState="MA",OriginPostalCode="02101",OriginCountry="US",BillTo="Billing Co",BillToAddress="789 Accounts Rd",BillToAddress2="Floor 3",BillToCity="Toronto",BillToState="ON",BillToPostalCode="M5V 2T6",BillToCountry="CA",Pieces=5,Weight=900,ScheduledAt=DateTimeOffset.UtcNow};
+ await tms.SaveOrder(shipment,true,default);
+ var loaded=(await tms.Orders(null,null,null,"CRUD-100",null,default)).Single();
+ Check(loaded.Address==shipment.Address && loaded.Weight==900,"manual shipment fields persist");
+ Check(loaded.BillToAddress=="789 Accounts Rd" && loaded.BillToAddress2=="Floor 3" && loaded.BillToCity=="Toronto" && loaded.BillToState=="ON" && loaded.BillToPostalCode=="M5V 2T6" && loaded.BillToCountry=="CA" && loaded.OriginAddress=="456 Origin Ave" && loaded.OriginAddress2=="Suite 9" && loaded.OriginCountry=="US" && loaded.Country=="US" && loaded.Address2=="Dock 2","all three independent addresses survive database reload");
+ var copied=System.Text.Json.JsonSerializer.Deserialize<TmsOrder>(System.Text.Json.JsonSerializer.Serialize(loaded))!;
+ copied.CopyBillTo(true);Check(copied.BillTo=="Origin Co" && copied.BillToAddress=="456 Origin Ave" && copied.BillToAddress2=="Suite 9" && copied.BillToPostalCode=="02101","copy shipper includes complete billing address");
+ copied.CopyBillTo(false);Check(copied.BillTo=="Acme" && copied.BillToAddress=="123 Test St" && copied.BillToAddress2=="Dock 2" && copied.BillToCountry=="US","copy consignee includes complete billing address");
+ copied.BillToAddress="Independent edit";Check(copied.Address=="123 Test St" && copied.OriginAddress=="456 Origin Ave","billing copy stays independently editable");
+ loaded.Customer="Acme edited";await tms.SaveOrder(loaded,false,default);
+ await Fails(()=>tms.SaveOrder(loaded,false,default),"stale order edit rejected");
+ Check(!(await hiddenTms.Orders(null,null,null,null,null,default)).Any(),"TMS order tenant isolation");
+ Check(!(await tms.Orders(DateTimeOffset.UtcNow.AddDays(1),null,null,"CRUD-100",null,default)).Any(),"TMS order date filtering");
+ await Fails(()=>hiddenTms.DeleteOrder(loaded.SourceId,loaded.Id,1,default),"cross tenant order delete rejected");
+ var manifest=new TmsManifest{Number="TEST-100",Vehicle=truck,Details=new(){Carrier="Carrier",BillToName="Bill to"}};
+ await tms.SaveManifest(manifest,true,default);
+ var fresh=(await tms.Manifests(default)).Single(m=>m.Id==manifest.Id);
+ Check(fresh.Details.Carrier=="Carrier" && fresh.OrderCount==0,"manual manifest created without optimization");
+ var key=new TmsOrderKey(loaded.SourceId,loaded.Id);
+ await tms.ChangeOrders(fresh.Id,new([key],0),false,false,default);
+ loaded=(await tms.Orders(null,null,null,null,fresh.Id,default)).Single();
+ Check(loaded.Status=="Routed" && loaded.ManifestNumber=="TEST-100","assignment persists and marks order Routed");
+ await Fails(()=>tms.DeleteOrder(loaded.SourceId,loaded.Id,loaded.Revision,default),"assigned order cannot be deleted");
+ await Fails(()=>tms.ChangeOrders(fresh.Id,new([key],0),true,false,default),"stale assignment change rejected");
+ var second=new TmsManifest{Number="TEST-200"};await tms.SaveManifest(second,true,default);
+ await Fails(()=>tms.ChangeOrders(second.Id,new([key],0),false,false,default),"order cannot be assigned twice");
+ await Fails(()=>hiddenTms.ChangeOrders(fresh.Id,new([key],1),true,false,default),"cross tenant membership rejected");
+ await tms.ChangeOrders(fresh.Id,new([key],1),true,false,default);
+ loaded=(await tms.Orders(null,null,null,"CRUD-100",null,default)).Single();
+ Check(loaded.Status==WorkspaceOrderStatus.Ready && loaded.ManifestId is null,"removing order returns it to Ready to Ship");
+ await tms.ChangeOrders(fresh.Id,new([key],2),false,false,default);
+ await tms.ChangeOrders(fresh.Id,new([],3),true,true,default);
+ Check(!(await tms.Manifests(default)).Any(m=>m.Id==fresh.Id),"deleted manifest disappears");
+ loaded=(await tms.Orders(null,null,null,"CRUD-100",null,default)).Single();
+ Check(loaded.ManifestId is null && loaded.Status==WorkspaceOrderStatus.Ready,"manifest deletion releases orders");
+ await tms.ChangeOrders(second.Id,new([key],0),false,false,default);
+ var dispatch=(await tms.Manifests(default)).Single(m=>m.Id==second.Id);dispatch.Status="Dispatched";await tms.SaveManifest(dispatch,false,default);
+ loaded=(await tms.Orders(null,null,null,"CRUD-100",null,default)).Single();Check(loaded.Status=="Dispatched","manifest lifecycle updates order status");
+ await Fails(()=>tms.ChangeOrders(second.Id,new([],2),true,true,default),"dispatched manifest cannot be deleted");
+ await Fails(()=>tms.ChangeOrders(second.Id,new([key],2),true,false,default),"dispatched assignments locked");
+ await Fails(()=>tms.SaveOrder(loaded,false,default),"dispatched order edit locked");
+ var disposable=new TmsOrder{Id="DELETE-ME",Customer="Temp"};await tms.SaveOrder(disposable,true,default);await tms.DeleteOrder(disposable.SourceId,disposable.Id,0,default);
+ Check(!(await tms.Orders(null,null,null,"DELETE-ME",null,default)).Any(),"unassigned order delete persists");
  if(args.Length>0) { await store.Import(new("Desktop appointment file",File.ReadAllText(args[0])),default); var desktop=(await store.Sources(default)).Single(s=>s.Name=="Desktop appointment file"); Check((await store.Orders(desktop.Id,null,null,null,default)).Count()==100,"all 100 desktop orders import with dates"); }
 }
 Console.WriteLine($"{count} order workspace checks passed.");

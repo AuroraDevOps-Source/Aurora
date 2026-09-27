@@ -1,0 +1,77 @@
+@inject HttpClient Http
+@inject IJSRuntime JS
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+@if(_message is not null){<p role="status">@_message</p>}
+@if(_edit is null){
+<section class="planning-card">
+ <div class="tms-filters">
+ <label class="field">From date/time<input type="datetime-local" @bind="_from" /></label><label class="field">To date/time<input type="datetime-local" @bind="_to" /></label>
+ <label class="field">Status<select @bind="_status"><option value="">All statuses</option>@foreach(var s in WorkspaceOrderStatus.All){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
+ <label class="field">Search<input @bind="_search" placeholder="PRO, customer, city, reference" /></label>
+ <button class="outline-button" @onclick="Load" disabled="@_busy">Apply filters</button><button class="text-button" @onclick="Clear" disabled="@_busy">Clear filters</button>
+ </div>
+ <div class="tms-selection"><strong>@_orders.Count orders</strong><button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
+ <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Scheduled</th><th>Customer</th><th>City</th><th>Status</th><th>Manifest</th><th></th></tr></thead><tbody>
+ @foreach(var o in _orders){<tr><td><button class="text-button" @onclick="()=>Edit(o)" disabled="@(_edit is not null || _busy)">@o.Id</button></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td>@WorkspaceOrderStatus.Label(o.Status)</td><td>@o.ManifestNumber</td><td><button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></tr>}
+ </tbody></table></div>
+ @if(_orders.Count==0){<p>No orders match these filters.</p>}
+</section>}
+@if(_delete is {} deleting){<section class="planning-card" role="alert"><p>Delete order <strong>@deleting.Id</strong>?</p><button class="primary-button" disabled="@_busy" @onclick="Delete">Delete order</button><button class="outline-button" @onclick="()=>_delete=null">Cancel</button></section>}
+@if(_edit is {} e){
+<section class="planning-card"><h2>@(_new?"Add order":"Edit order · "+e.Id)</h2>
+<fieldset disabled="@_busy" class="tms-edit-fields"><div class="manifest-edit-grid order-header-fields">
+<label class="field">PRO / Order<input @bind="e.Id" disabled="@(!_new)" maxlength="200" /></label>
+<label class="field">Scheduled date/time<input type="datetime-local" @bind="_scheduled" /></label>
+<label class="field">Status<select @bind="e.Status" disabled="@(e.ManifestId is not null)">@foreach(var s in WorkspaceOrderStatus.All.Where(s=>e.ManifestId is not null || !new[]{"Routed","Dispatched","InTransit","OutForDelivery"}.Contains(s))){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
+<label class="field">Reference<input @bind="e.Reference" maxlength="200" /></label>
+</div>
+<div class="order-parties">
+<fieldset class="order-party"><legend>Shipper</legend>
+<div class="order-address-fields">
+<label class="field address-wide">Name<input aria-label="Shipper name" @bind="e.Shipper" maxlength="200" /></label>
+<label class="field address-wide">Street address<input aria-label="Shipper street address" @bind="e.OriginAddress" maxlength="200" /></label>
+<label class="field address-wide">Address line 2<input aria-label="Shipper address line 2" @bind="e.OriginAddress2" maxlength="200" /></label>
+<label class="field address-wide">City<input aria-label="Shipper city" @bind="e.OriginCity" maxlength="200" /></label>
+<label class="field">State / province<input aria-label="Shipper state / province" @bind="e.OriginState" maxlength="200" /></label>
+<label class="field">ZIP / postal code<input aria-label="Shipper zip / postal code" @bind="e.OriginPostalCode" maxlength="200" /></label>
+<label class="field address-wide">Country<input aria-label="Shipper country" @bind="e.OriginCountry" maxlength="200" /></label>
+</div></fieldset>
+<fieldset class="order-party"><legend>Consignee</legend>
+<div class="order-address-fields">
+<label class="field address-wide">Name<input aria-label="Consignee name" @bind="e.Customer" maxlength="200" /></label>
+<label class="field address-wide">Street address<input aria-label="Consignee street address" @bind="e.Address" maxlength="200" /></label>
+<label class="field address-wide">Address line 2<input aria-label="Consignee address line 2" @bind="e.Address2" maxlength="200" /></label>
+<label class="field address-wide">City<input aria-label="Consignee city" @bind="e.City" maxlength="200" /></label>
+<label class="field">State / province<input aria-label="Consignee state / province" @bind="e.State" maxlength="200" /></label>
+<label class="field">ZIP / postal code<input aria-label="Consignee zip / postal code" @bind="e.PostalCode" maxlength="200" /></label>
+<label class="field address-wide">Country<input aria-label="Consignee country" @bind="e.Country" maxlength="200" /></label>
+</div></fieldset>
+<fieldset class="order-party"><legend>Bill To</legend>
+<div class="order-address-fields">
+<label class="field address-wide">Name<input aria-label="Bill To name" @bind="e.BillTo" maxlength="200" /></label>
+<label class="field address-wide">Street address<input aria-label="Bill To street address" @bind="e.BillToAddress" maxlength="200" /></label>
+<label class="field address-wide">Address line 2<input aria-label="Bill To address line 2" @bind="e.BillToAddress2" maxlength="200" /></label>
+<label class="field address-wide">City<input aria-label="Bill To city" @bind="e.BillToCity" maxlength="200" /></label>
+<label class="field">State / province<input aria-label="Bill To state / province" @bind="e.BillToState" maxlength="200" /></label>
+<label class="field">ZIP / postal code<input aria-label="Bill To zip / postal code" @bind="e.BillToPostalCode" maxlength="200" /></label>
+<label class="field address-wide">Country<input aria-label="Bill To country" @bind="e.BillToCountry" maxlength="200" /></label>
+</div><div class="address-copy"><button type="button" class="text-button" @onclick="()=>e.CopyBillTo(true)">Copy shipper</button><button type="button" class="text-button" @onclick="()=>e.CopyBillTo(false)">Copy consignee</button></div></fieldset>
+</div><h3 class="order-section-title">Freight &amp; notes</h3><div class="manifest-edit-grid">
+<label class="field">Pieces<InputNumber @bind-Value="e.Pieces" /></label><label class="field">Weight (lb)<InputNumber @bind-Value="e.Weight" /></label><label class="field">Cube (ft³)<InputNumber @bind-Value="e.Cube" /></label>
+<label class="field manifest-notes">Notes<textarea @bind="e.Notes" maxlength="4000" rows="2"></textarea></label>
+</div><div class="manifest-edit-actions"><button class="primary-button" @onclick="Save">Save order</button><button class="outline-button" @onclick="()=>_edit=null">Cancel</button></div></fieldset>
+</section>}
+@code {
+ List<TmsOrder> _orders=[]; TmsOrder? _edit,_delete; bool _new,_busy; string? _error,_message;
+ DateTime? _from=new DateTime(DateTime.Today.Year,DateTime.Today.Month,1),_to=DateTime.Today.AddDays(1).AddSeconds(-1); DateTime _scheduled;
+ string _status=WorkspaceOrderStatus.Ready,_search="";
+ protected override async Task OnInitializedAsync()=>await Load();
+ async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;}}
+ async Task Check(HttpResponseMessage r){if(!r.IsSuccessStatusCode)throw new FormatException((await r.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Request failed.");}
+ async Task Load()=>await Run(async()=>{if(_from>_to)throw new FormatException("End must follow start.");var url="api/v1/tms/orders?status="+Uri.EscapeDataString(_status)+"&search="+Uri.EscapeDataString(_search);foreach(var pair in new[]{("from",_from),("to",_to)})if(pair.Item2 is {} d)url+="&"+pair.Item1+"="+Uri.EscapeDataString(await JS.InvokeAsync<string>("auroraWorkspace.utc",d.ToString("yyyy-MM-ddTHH:mm:ss")));_orders=await Http.GetFromJsonAsync<List<TmsOrder>>(url)??[];});
+ async Task Clear(){_from=null;_to=null;_status="";_search="";await Load();}
+ void New(){_edit=new();_new=true;_scheduled=DateTime.Now;_message=null;_delete=null;}
+ void Edit(TmsOrder o){_edit=System.Text.Json.JsonSerializer.Deserialize<TmsOrder>(System.Text.Json.JsonSerializer.Serialize(o));_scheduled=o.ScheduledAt.LocalDateTime;_new=false;_message=null;_delete=null;}
+ async Task Save(){await Run(async()=>{_edit!.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",_scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));_edit.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/orders",_edit):await Http.PutAsJsonAsync("api/v1/tms/orders",_edit);await Check(r);_edit=null;_message="Order saved.";});if(_edit is null)await Load();}
+ async Task Delete(){await Run(async()=>{var o=_delete!;using var r=await Http.DeleteAsync($"api/v1/tms/orders/{o.SourceId}/{Uri.EscapeDataString(o.Id)}?revision={o.Revision}");await Check(r);_delete=null;_message="Order deleted.";});if(_delete is null)await Load();}
+}

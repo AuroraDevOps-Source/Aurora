@@ -71,7 +71,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         await using var db = await factory.OpenConnectionAsync(ct);
         var rows = await db.QueryAsync<OrderRow>(new CommandDefinition("""
             SELECT id, scheduled_at AS ScheduledAt, customer, city, status FROM aurora_order
-            WHERE tenant_id=@TenantId AND source_id=@source AND (@from IS NULL OR scheduled_at >= @from)
+            WHERE tenant_id=@TenantId AND deleted_at IS NULL AND source_id=@source AND (@from IS NULL OR scheduled_at >= @from)
             AND (@to IS NULL OR scheduled_at <= @to) AND (@status IS NULL OR @status='' OR status=@status)
             ORDER BY scheduled_at,id
             """,new {tenant.TenantId,source,from=from?.ToUniversalTime(),to=to?.ToUniversalTime(),status},cancellationToken:ct));
@@ -83,7 +83,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         await using var db = await factory.OpenConnectionAsync(ct);
         var json = await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT request::text FROM aurora_order_source WHERE tenant_id=@TenantId AND id=@SourceId",new{tenant.TenantId,input.SourceId},cancellationToken:ct)) ?? throw new FormatException("Import not found.");
         var selected = FleetPlanning.Build(SelectOrders(json,input.OrderIds), await new EquipmentStore(factory, tenant).List(ct));
-        var available = await db.QueryAsync<string>(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@OrderIds) AND status='ReadyToRoute'",new{tenant.TenantId,input.SourceId,input.OrderIds},cancellationToken:ct));
+        var available = await db.QueryAsync<string>(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@OrderIds) AND status='ReadyToRoute' AND deleted_at IS NULL",new{tenant.TenantId,input.SourceId,input.OrderIds},cancellationToken:ct));
         if(available.Count()!=input.OrderIds.Length) throw new FormatException("Some selected orders are already manifested. Refresh the grid.");
         var id=Guid.NewGuid();
         await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_planning_draft(tenant_id,id,owner_id,source_id,order_ids,request) VALUES (@TenantId,@id,@owner,@SourceId,@OrderIds,CAST(@selected AS jsonb))",new{tenant.TenantId,id,owner,input.SourceId,input.OrderIds,selected},cancellationToken:ct));
@@ -105,7 +105,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
     public async Task<IReadOnlyList<SavedManifestDto>> Manifests(CancellationToken ct)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
-        var rows=await db.QueryAsync<ManifestRow>(new CommandDefinition("SELECT id, draft_id AS DraftId, vehicle, created_at AS CreatedAt, data::text AS Data FROM aurora_manifest WHERE tenant_id=@TenantId ORDER BY created_at DESC,vehicle",new{tenant.TenantId},cancellationToken:ct));
+        var rows=await db.QueryAsync<ManifestRow>(new CommandDefinition("SELECT id, draft_id AS DraftId, vehicle, created_at AS CreatedAt, data::text AS Data FROM aurora_manifest WHERE tenant_id=@TenantId AND draft_id IS NOT NULL AND deleted_at IS NULL ORDER BY created_at DESC,vehicle",new{tenant.TenantId},cancellationToken:ct));
         return rows.Select(r=>new SavedManifestDto(r.Id,r.DraftId,r.Vehicle,new DateTimeOffset(r.CreatedAt),JsonSerializer.Deserialize<RouteSummaryDto>(r.Data)!, JsonNode.Parse(r.Data)?["ManifestDetails"]?.Deserialize<ManifestDetailsDto>(), JsonNode.Parse(r.Data)?["ManifestRevision"]?.GetValue<int>() ?? 0)).ToArray();
     }
     public async Task<SavedManifestDto> UpdateManifest(Guid id, UpdateManifestDto input, CancellationToken ct)
@@ -115,8 +115,8 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         await using var db=await factory.OpenConnectionAsync(ct);
         var changed=await db.ExecuteAsync(new CommandDefinition("""
             UPDATE aurora_manifest SET data=jsonb_set(jsonb_set(data,'{ManifestDetails}',CAST(@details AS jsonb)),
-                '{ManifestRevision}',to_jsonb(@nextRevision::int))
-            WHERE tenant_id=@TenantId AND id=@id AND COALESCE((data->>'ManifestRevision')::int,0)=@Revision
+                '{ManifestRevision}',to_jsonb(@nextRevision::int)), details=CAST(@details AS jsonb),revision=revision+1
+            WHERE tenant_id=@TenantId AND id=@id AND revision=@Revision AND draft_id IS NOT NULL AND deleted_at IS NULL
             """,new {tenant.TenantId,id,details=JsonSerializer.Serialize(input.Details),input.Revision,nextRevision=input.Revision+1},cancellationToken:ct));
         if(changed==0) {
             if(!await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_manifest WHERE tenant_id=@TenantId AND id=@id)",new{tenant.TenantId,id},cancellationToken:ct))) throw new KeyNotFoundException("Manifest not found.");
@@ -154,7 +154,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         }
         var assignments=Assignments(result,draft.OrderIds);
         var scheduled=assignments.SelectMany(a=>a.Orders).Order(StringComparer.Ordinal).ToArray();
-        var states=await db.QueryAsync<string>(new CommandDefinition("SELECT status FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@scheduled) ORDER BY id FOR UPDATE",new{tenant.TenantId,draft.SourceId,scheduled},tx,cancellationToken:ct));
+        var states=await db.QueryAsync<string>(new CommandDefinition("SELECT status FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@scheduled) AND deleted_at IS NULL ORDER BY id FOR UPDATE",new{tenant.TenantId,draft.SourceId,scheduled},tx,cancellationToken:ct));
         if(states.Count()!=scheduled.Length || states.Any(s=>s!=WorkspaceOrderStatus.Ready)) throw new FormatException("Another plan already manifested some orders. Refresh Orders and plan the remaining orders.");
         foreach(var (route,ids) in assignments)
         {
@@ -163,7 +163,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
             foreach(var order in ids)
             {
                 var stop=route.Pros.First(p=>p.ProNumber==order).StopNumber!.Value;
-                await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_manifest_order(tenant_id,manifest_id,source_id,order_id,stop_number) VALUES (@TenantId,@id,@SourceId,@order,@stop); UPDATE aurora_order SET status='Routed' WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@order",new{tenant.TenantId,id,draft.SourceId,order,stop},tx,cancellationToken:ct));
+                await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_manifest_order(tenant_id,manifest_id,source_id,order_id,stop_number) VALUES (@TenantId,@id,@SourceId,@order,@stop); UPDATE aurora_order SET status='Routed',revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@order",new{tenant.TenantId,id,draft.SourceId,order,stop},tx,cancellationToken:ct));
             }
         }
         await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_planning_draft SET finished_session=@session WHERE tenant_id=@TenantId AND id=@draftId",new{tenant.TenantId,session,draftId},tx,cancellationToken:ct));

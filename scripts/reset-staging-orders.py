@@ -67,7 +67,8 @@ def main():
         for table in ["aurora_manifest_order","aurora_manifest","aurora_planning_draft","aurora_order","aurora_order_source"]:
             statements.append(f"DELETE FROM {table} WHERE tenant_id='{TENANT}';")
         for table,key in [("aurora_order_source","sources"),("aurora_order","orders")]:
-            statements.append(f"INSERT INTO {table} SELECT * FROM jsonb_populate_recordset(NULL::{table}, {literal(baseline[key])});")
+            columns = "tenant_id,id,name,request" if key=="sources" else "tenant_id,source_id,id,scheduled_at,customer,city,status"
+            statements.append(f"INSERT INTO {table} ({columns}) SELECT {columns} FROM jsonb_populate_recordset(NULL::{table}, {literal(baseline[key])});")
         statements.append("COMMIT;")
         sql("\n".join(statements))
         # Archive only this tenant's session files, never the shared encryption keys.

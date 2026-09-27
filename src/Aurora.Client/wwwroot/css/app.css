@@ -136,3 +136,31 @@ code { color: var(--ink); }
     .aurora-login { padding-top: 24px; }
     .aurora-login-body { padding: 24px; }
 }
+.tms-edit-fields { border:0; padding:0; margin:0; min-width:0; }
+.tms-picker { border-top:1px solid #dbe2ea; margin-top:12px; padding-top:12px; }
+.tms-main > .planning-card { margin-bottom:12px; }
+
+.tms-crud-grid { max-height:42vh; overflow:auto; }
+.tms-crud-grid th { position:sticky; top:0; background:#f7f9fc; z-index:1; }
+
+.tms-main .tms-selection { padding:12px 0; }
+.tms-main .tms-selection .primary-button { width:auto; margin:0; }
+.tms-crud-grid td { padding:6px 10px; }
+.tms-crud-grid .text-button { padding:4px 6px; }
+.tms-main .manifest-edit-actions { align-items:center; }
+.tms-main .manifest-edit-actions .primary-button { width:auto; margin:0; }
+
+.order-parties { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.order-party { min-width:0; border:1px solid #dce2ea; border-radius:6px; padding:10px 12px 12px; margin:0; }
+.order-party legend { padding:0 5px; font-size:15px; font-weight:600; color:#24344c; }
+.order-address-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
+.order-address-fields .address-wide { grid-column:1/-1; }
+.order-address-fields input { min-width:0; width:100%; box-sizing:border-box; padding:7px 8px; border:1px solid #ccd5e2; border-radius:5px; background:white; }
+.address-copy { display:flex; gap:10px; margin:0 0 8px; }
+.address-copy .text-button { padding:0; font-size:12px; }
+.order-section-title { font-size:15px; margin:14px 0 0; }
+@media(max-width:1000px) { .order-parties { grid-template-columns:1fr; } }
+
+.order-header-fields { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.order-party .address-copy { margin:10px 0 0; }
+@media(max-width:800px) { .order-header-fields { grid-template-columns:1fr 1fr; } }

@@ -206,6 +206,7 @@ builder.Services.AddCors(o => o.AddPolicy("wasm-client", policy => policy
 builder.Services.AddScoped<ListRoutePlansQuery>();
 builder.Services.AddScoped<Aurora.Modules.Routing.EquipmentStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.OrderWorkspace>();
+builder.Services.AddScoped<Aurora.Modules.Routing.TmsStore>();
 builder.Services.Configure<PtvSettings>(builder.Configuration.GetSection(PtvSettings.SectionName));
 builder.Services.AddHttpClient("PtvRoadRouting", client => client.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddScoped<OptimizationService>();
@@ -281,6 +282,7 @@ app.MapLoginEndpoints();
 app.MapLauncherEndpoints();
 app.MapRoutingEndpoints();
 app.MapOrderWorkspaceEndpoints();
+app.MapTmsEndpoints();
 
 app.MapGet("/health/live", () => Results.Ok()).AllowAnonymous();
 app.MapGet("/health/ready", async (AuroraDbContext db, CancellationToken ct) =>
