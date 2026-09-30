@@ -95,7 +95,7 @@ dotnet run --project tests/RoadRoutingChecks
 dotnet run --project tests/EquipmentChecks
 ```
 
-`tests/PlannerPreview` is a Blazor harness for eyeballing planner components. Its `/wizard` page exercises the planning flow with simulated PTV responses and stubbed maps.
+`tests/PlannerPreview` is a Blazor harness for inspecting planner components. Its `/aurora/orders` page exercises filtering, selection, and the single-form planner with synthetic data and simulated PTV responses. It does not sign in or persist orders/manifests; use the full API/client for SSO and database verification.
 See `docs/ROUTING-WIZARD-2026-09-23.md` for session storage and recovery details.
 `tests/login-checks.mjs` and `tests/map-checks.mjs` are browser-driven checks;
 `tests/equipment-isolation.sql` asserts that RLS actually blocks cross-tenant reads.

@@ -1,18 +1,19 @@
 @page "/aurora/{WorkspaceView}"
 @attribute [Authorize]
-@inject HttpClient Http
 <PageTitle>Aurora · @Title</PageTitle>
 <div class="tms-workspace">
- <aside class="tms-sidebar"><h2>Aurora</h2><p>@(_company?.Name ?? "Your company")</p><NavLink href="aurora/orders">Orders</NavLink><NavLink href="aurora/manifests">Manifest</NavLink><NavLink href="aurora/fleet">Fleet Management</NavLink></aside>
+ <AuroraSidebar />
  <main class="tms-main"><header class="planner-header"><h1>@Title</h1></header>
- @if(WorkspaceView=="fleet"){<FleetManagement />}
+ @if(WorkspaceView=="route-optimization"){<RouteOptimizationSetup />}
+ else if(WorkspaceView=="fleet"){<FleetManagement />}
  else if(WorkspaceView=="manifests"){<TmsManifests />}
+ else if(WorkspaceView=="terminals"){<Terminals />}
+ else if(WorkspaceView=="customers"){<Customers />}
+ else if(WorkspaceView=="import"){<AuthorizeView Roles="aurora:Admin"><Authorized><WorkspaceImportPage /></Authorized><NotAuthorized><p role="alert">A company administrator is required to replace company data.</p></NotAuthorized></AuthorizeView>}
  else {<TmsOrders />}
  </main>
 </div>
 @code {
  [Parameter] public string WorkspaceView {get;set;}="orders";
- string Title=>WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifest":"Orders";
- WorkspaceTenantDto? _company;
- protected override async Task OnInitializedAsync(){_company=await Http.GetFromJsonAsync<WorkspaceTenantDto>("api/v1/me/tenant");}
+ string Title=>WorkspaceView=="route-optimization"?"Route Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifest":WorkspaceView=="terminals"?"Terminals":WorkspaceView=="customers"?"Customers":WorkspaceView=="import"?"Import":"Orders";
 }

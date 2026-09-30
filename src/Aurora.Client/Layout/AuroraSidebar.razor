@@ -1,0 +1,20 @@
+@inject HttpClient Http
+@inject NavigationManager Navigation
+<aside class="tms-sidebar">
+    <h2>Aurora</h2><p>@(_company?.Name ?? "Your company")</p>
+    @* The planner opened by Start belongs to this entry too. *@
+    <NavLink href="aurora/route-optimization" class="@(OnPlanner ? "active" : null)"><i class="mdi mdi-map-marker-path" aria-hidden="true"></i>Route Optimization</NavLink>
+    <NavLink href="aurora/orders"><i class="mdi mdi-clipboard-text-outline" aria-hidden="true"></i>Orders</NavLink>
+    <NavLink href="aurora/manifests"><i class="mdi mdi-file-document-multiple-outline" aria-hidden="true"></i>Manifest</NavLink>
+    <NavLink href="aurora/fleet"><i class="mdi mdi-truck-outline" aria-hidden="true"></i>Fleet Management</NavLink>
+    <NavLink href="aurora/terminals"><i class="mdi mdi-warehouse" aria-hidden="true"></i>Terminals</NavLink>
+    <NavLink href="aurora/customers"><i class="mdi mdi-account-group-outline" aria-hidden="true"></i>Customers</NavLink>
+</aside>
+@code {
+    private WorkspaceTenantDto? _company;
+    private bool OnPlanner => new Uri(Navigation.Uri).AbsolutePath.StartsWith("/aurora/planning", StringComparison.OrdinalIgnoreCase);
+    protected override async Task OnInitializedAsync()
+    {
+        _company = await Http.GetFromJsonAsync<WorkspaceTenantDto>("api/v1/me/tenant");
+    }
+}

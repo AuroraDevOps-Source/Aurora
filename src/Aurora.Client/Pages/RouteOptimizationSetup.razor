@@ -1,0 +1,97 @@
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@using System.Globalization
+
+@if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+<section class="planning-card route-setup">
+    <div class="route-setup-form">
+        <fieldset class="route-setup-group" disabled="@_busy">
+            <legend>Orders</legend>
+            <label class="field route-setup-terminal">Terminal<select @bind="_terminalId" @bind:after="Load">
+                @if (_terminals.Count == 0) { <option value="">No terminals saved</option> }
+                @foreach (var terminal in _terminals) { <option value="@terminal.Id">@terminal.Code · @terminal.Name</option> }
+            </select></label>
+            <label class="field">Status<select @bind="_status" @bind:after="Load">@foreach (var s in WorkspaceOrderStatus.All) { <option value="@s">@WorkspaceOrderStatus.Label(s)</option> }</select></label>
+            <label class="field">Ship date<input type="date" @bind="_shipDate" @bind:after="Load" /></label>
+        </fieldset>
+        <fieldset class="route-setup-group" disabled="@_busy">
+            <legend>Time window · all trucks</legend>
+            <label class="field route-setup-time">Depart<input type="time" value="@Clock(_departAt)" @onchange="e => _departAt = ParseTime(e, _departAt)" /></label>
+            <label class="field route-setup-time">Return by<input type="time" value="@Clock(_returnBy)" @onchange="e => _returnBy = ParseTime(e, _returnBy)" /></label>
+        </fieldset>
+        <button class="primary-button route-setup-start" disabled="@(!CanStart)" @onclick="Start"><i class="mdi mdi-play" aria-hidden="true"></i>@(_starting ? "Starting…" : "Start")</button>
+    </div>
+    <p class="route-setup-summary" role="status">
+        @if (_terminals.Count == 0 && !_busy) { <span>Add a terminal and assign it to orders before planning routes. <a href="aurora/terminals">Terminals</a></span> }
+        else if (_orders.Count == 0) { <span>@(_busy ? "Loading orders…" : "No orders match these filters.")</span> }
+        else if (!Eligible.Any()) { <span>@_orders.Count orders match, but only unmanifested Ready to Ship orders can be routed.</span> }
+        else
+        {
+            <span><strong>@Eligible.Count() orders</strong> will be routed for <strong>@_shipDate.ToString("ddd, MMM d", CultureInfo.CurrentCulture)</strong> · trucks @TimeWindow</span>
+            @if (Eligible.Count() < _orders.Count) { <span> · @(_orders.Count - Eligible.Count()) already manifested and skipped</span> }
+        }
+    </p>
+    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Scheduled</th><th>Customer</th><th>City</th><th>Status</th><th>Manifest</th></tr></thead><tbody>
+        @foreach (var o in _orders)
+        {
+            <tr @key="(o.SourceId, o.Id)" class="@(CanPlan(o) ? null : "route-setup-skipped")"><td><strong>@o.Id</strong></td><td>@o.ScheduledAt.ToLocalTime().ToString("h:mm tt", CultureInfo.CurrentCulture)</td><td>@o.Customer</td><td>@o.City</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span></td><td>@o.ManifestNumber</td></tr>
+        }
+    </tbody></table></div>
+</section>
+
+@code {
+    private List<TerminalDto> _terminals = [];
+    private List<TmsOrder> _orders = [];
+    private Guid? _terminalId;
+    private string _status = WorkspaceOrderStatus.Ready;
+    private DateOnly _shipDate = DateOnly.FromDateTime(DateTime.Today);
+    private TimeOnly _departAt = new(6, 0), _returnBy = new(18, 0);
+    private string? _error;
+    private bool _busy, _starting;
+
+    private IEnumerable<TmsOrder> Eligible => _orders.Where(CanPlan);
+    private static bool CanPlan(TmsOrder order) => order.Status == WorkspaceOrderStatus.Ready && order.ManifestId is null;
+    private bool CanStart => !_busy && _terminalId is not null && Eligible.Any() && _departAt != _returnBy;
+    private static string Clock(TimeOnly time) => time.ToString("HH:mm", CultureInfo.InvariantCulture);
+    // Browsers send "HH:mm" (or "HH:mm:ss"); a cleared field keeps the previous time.
+    private static TimeOnly ParseTime(ChangeEventArgs e, TimeOnly current) => TimeOnly.TryParse(e.Value?.ToString(), CultureInfo.InvariantCulture, out var time) ? time : current;
+    private string TimeWindow => $"{_departAt.ToString("h:mm tt", CultureInfo.CurrentCulture)} – {_returnBy.ToString("h:mm tt", CultureInfo.CurrentCulture)}{(_returnBy < _departAt ? " next day" : "")}";
+
+    protected override Task OnInitializedAsync() => Run(async () =>
+    {
+        _terminals = await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals") ?? [];
+        _terminalId = _terminals.FirstOrDefault()?.Id;
+        await LoadOrders();
+    });
+    private Task Load() => Run(LoadOrders);
+    private async Task LoadOrders()
+    {
+        if (_terminalId is not { } terminal) { _orders = []; return; }
+        // The ship date is a local calendar day; the API filters scheduled times in UTC.
+        var from = await Utc(_shipDate.ToDateTime(TimeOnly.MinValue));
+        var to = await Utc(_shipDate.ToDateTime(TimeOnly.MaxValue));
+        _orders = await Http.GetFromJsonAsync<List<TmsOrder>>($"api/v1/tms/orders?status={Uri.EscapeDataString(_status)}&terminal={terminal}&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}") ?? [];
+    }
+    private async Task<string> Utc(DateTime local) => await JS.InvokeAsync<string>("auroraWorkspace.utc", local.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture));
+    private Task Start() => Run(async () =>
+    {
+        var orders = Eligible.ToArray();
+        var sources = orders.Select(o => o.SourceId).Distinct().ToArray();
+        if (sources.Length != 1) throw new FormatException("These orders come from more than one planning source. Narrow the filters so one plan uses one source.");
+        _starting = true;
+        using var response = await Http.PostAsJsonAsync("api/v1/aurora/drafts", new CreateOrderDraftDto(sources[0], orders.Select(o => o.Id).ToArray(), _shipDate,
+            Clock(_departAt), Clock(_returnBy)));
+        if (!response.IsSuccessStatusCode) throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "The plan could not be started.");
+        var draft = await response.Content.ReadFromJsonAsync<OrderDraftDto>() ?? throw new FormatException("No planning draft was returned.");
+        Navigation.NavigateTo($"/aurora/planning?draft={draft.Id}");
+    });
+    private async Task Run(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; _starting = false; }
+        finally { _busy = false; }
+    }
+}

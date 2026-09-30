@@ -50,7 +50,7 @@ public static class FleetPlanning
         foreach(var truck in trucks)
         {
             var id=RoutingInput.Text(truck["id"]) ?? "";
-            if(!eligible.TryGetValue(id,out var unit))throw new FormatException($"Truck {id} is no longer available in your terminal's fleet. Start a new selection from Orders.");
+            if(!eligible.TryGetValue(id,out var unit))throw new FormatException($"Truck {id} is no longer available in your terminal's fleet. Start a new plan from Route Optimization.");
             var depot=RoutingInput.Text(truck["start"]?["locationId"]) ?? "";
             var destination=RoutingInput.Text(truck["end"]?["locationId"]) ?? depot;
             if(!locations.Contains(depot) || !locations.Contains(destination))throw new FormatException("Choose valid start and return locations.");

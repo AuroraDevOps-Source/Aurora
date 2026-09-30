@@ -2,7 +2,8 @@ namespace Aurora.Contracts;
 
 public sealed record OrderSourceDto(Guid Id, string Name);
 public sealed record WorkspaceOrderDto(string Id, DateTimeOffset ScheduledAt, string Customer, string City, string Status);
-public sealed record CreateOrderDraftDto(Guid SourceId, string[] OrderIds);
+// ShipDate with DepartAt/ReturnBy ("HH:mm") replaces every truck's shift in the new draft.
+public sealed record CreateOrderDraftDto(Guid SourceId, string[] OrderIds, DateOnly? ShipDate = null, string? DepartAt = null, string? ReturnBy = null);
 public sealed record OrderDraftDto(Guid Id, Guid SourceId, string FileName, string RequestJson, bool Finished);
 public sealed record FinishOrderDraftDto(Guid SessionId);
 public sealed record SavedManifestDto(Guid Id, Guid DraftId, string Vehicle, DateTimeOffset CreatedAt, RouteSummaryDto Route, ManifestDetailsDto? Details = null, int Revision = 0);

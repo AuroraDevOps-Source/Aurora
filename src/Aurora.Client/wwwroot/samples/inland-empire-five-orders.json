@@ -1,0 +1,4252 @@
+{
+  "version": 1,
+  "terminals": [
+    {
+      "code": "ONT",
+      "name": "Ontario Inland Empire",
+      "address": "1500 S Milliken Avenue",
+      "city": "Ontario",
+      "state": "CA",
+      "postalCode": "91761",
+      "country": "US"
+    },
+    {
+      "code": "LAX",
+      "name": "Los Angeles Harbor",
+      "address": "2400 E Pacific Coast Highway",
+      "city": "Wilmington",
+      "state": "CA",
+      "postalCode": "90744",
+      "country": "US"
+    },
+    {
+      "code": "SAN",
+      "name": "San Diego South Bay",
+      "address": "8600 Avenida Costa Norte",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92154",
+      "country": "US"
+    },
+    {
+      "code": "FAT",
+      "name": "Fresno Central Valley",
+      "address": "3100 S Elm Avenue",
+      "city": "Fresno",
+      "state": "CA",
+      "postalCode": "93706",
+      "country": "US"
+    },
+    {
+      "code": "SAC",
+      "name": "Sacramento Capital Region",
+      "address": "4300 Raley Boulevard",
+      "city": "Sacramento",
+      "state": "CA",
+      "postalCode": "95838",
+      "country": "US"
+    }
+  ],
+  "customers": [
+    {
+      "code": "PACIFIC-HOME",
+      "name": "Pacific Home Furnishings",
+      "address": "1840 S Vineyard Avenue",
+      "address2": "",
+      "city": "Ontario",
+      "state": "CA",
+      "postalCode": "91761",
+      "country": "US",
+      "phone": "909-555-0120",
+      "email": "pacific-home@example.com"
+    },
+    {
+      "code": "CITRUS-MARKET",
+      "name": "Citrus Grove Market",
+      "address": "725 E Redlands Boulevard",
+      "address2": "",
+      "city": "Redlands",
+      "state": "CA",
+      "postalCode": "92373",
+      "country": "US",
+      "phone": "909-555-0121",
+      "email": "citrus-market@example.com"
+    },
+    {
+      "code": "SUMMIT-HARDWARE",
+      "name": "Summit Hardware Supply",
+      "address": "1425 S Tippecanoe Avenue",
+      "address2": "",
+      "city": "San Bernardino",
+      "state": "CA",
+      "postalCode": "92408",
+      "country": "US",
+      "phone": "909-555-0122",
+      "email": "summit-hardware@example.com"
+    },
+    {
+      "code": "MISSION-CAFE",
+      "name": "Mission Roasters & Cafe",
+      "address": "3650 Main Street",
+      "address2": "",
+      "city": "Riverside",
+      "state": "CA",
+      "postalCode": "92501",
+      "country": "US",
+      "phone": "909-555-0123",
+      "email": "mission-cafe@example.com"
+    },
+    {
+      "code": "CANYON-OUTDOOR",
+      "name": "Canyon Trail Outfitters",
+      "address": "2180 Railroad Street",
+      "address2": "",
+      "city": "Corona",
+      "state": "CA",
+      "postalCode": "92880",
+      "country": "US",
+      "phone": "909-555-0124",
+      "email": "canyon-outdoor@example.com"
+    },
+    {
+      "code": "HARBOR-LIGHT",
+      "name": "Harbor Light Homewares",
+      "address": "830 S Pacific Avenue",
+      "address2": "",
+      "city": "San Pedro",
+      "state": "CA",
+      "postalCode": "90731",
+      "country": "US",
+      "phone": "916-555-0105",
+      "email": "harbor-light@example.com"
+    },
+    {
+      "code": "SILVER-LAKE",
+      "name": "Silver Lake Provisions",
+      "address": "2810 Sunset Boulevard",
+      "address2": "",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postalCode": "90026",
+      "country": "US",
+      "phone": "916-555-0106",
+      "email": "silver-lake@example.com"
+    },
+    {
+      "code": "COASTLINE-OFFICE",
+      "name": "Coastline Office Supply",
+      "address": "1640 W Carson Street",
+      "address2": "",
+      "city": "Torrance",
+      "state": "CA",
+      "postalCode": "90501",
+      "country": "US",
+      "phone": "916-555-0107",
+      "email": "coastline-office@example.com"
+    },
+    {
+      "code": "BELMONT-BICYCLE",
+      "name": "Belmont Bicycle Works",
+      "address": "4200 E Anaheim Street",
+      "address2": "",
+      "city": "Long Beach",
+      "state": "CA",
+      "postalCode": "90804",
+      "country": "US",
+      "phone": "916-555-0108",
+      "email": "belmont-bicycle@example.com"
+    },
+    {
+      "code": "ARROYO-KITCHEN",
+      "name": "Arroyo Kitchen & Bath",
+      "address": "980 S Raymond Avenue",
+      "address2": "",
+      "city": "Pasadena",
+      "state": "CA",
+      "postalCode": "91105",
+      "country": "US",
+      "phone": "916-555-0109",
+      "email": "arroyo-kitchen@example.com"
+    },
+    {
+      "code": "BAYVIEW-RESTAURANT",
+      "name": "Bayview Restaurant Supply",
+      "address": "690 H Street",
+      "address2": "",
+      "city": "Chula Vista",
+      "state": "CA",
+      "postalCode": "91910",
+      "country": "US",
+      "phone": "916-555-0110",
+      "email": "bayview-restaurant@example.com"
+    },
+    {
+      "code": "TORREY-PINES",
+      "name": "Torrey Pines Outdoor Supply",
+      "address": "1120 Garnet Avenue",
+      "address2": "",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92109",
+      "country": "US",
+      "phone": "916-555-0111",
+      "email": "torrey-pines@example.com"
+    },
+    {
+      "code": "MESA-VERDE",
+      "name": "Mesa Verde Home & Garden",
+      "address": "7850 Clairemont Mesa Boulevard",
+      "address2": "",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92111",
+      "country": "US",
+      "phone": "916-555-0112",
+      "email": "mesa-verde@example.com"
+    },
+    {
+      "code": "SEASIDE-COFFEE",
+      "name": "Seaside Coffee Roasters",
+      "address": "480 N Coast Highway",
+      "address2": "",
+      "city": "Oceanside",
+      "state": "CA",
+      "postalCode": "92054",
+      "country": "US",
+      "phone": "916-555-0113",
+      "email": "seaside-coffee@example.com"
+    },
+    {
+      "code": "PALOMAR-INDUSTRIAL",
+      "name": "Palomar Industrial Supply",
+      "address": "930 W Washington Avenue",
+      "address2": "",
+      "city": "Escondido",
+      "state": "CA",
+      "postalCode": "92025",
+      "country": "US",
+      "phone": "916-555-0114",
+      "email": "palomar-industrial@example.com"
+    },
+    {
+      "code": "SIERRA-ORCHARD",
+      "name": "Sierra Orchard Foods",
+      "address": "1480 G Street",
+      "address2": "",
+      "city": "Fresno",
+      "state": "CA",
+      "postalCode": "93706",
+      "country": "US",
+      "phone": "916-555-0115",
+      "email": "sierra-orchard@example.com"
+    },
+    {
+      "code": "CLOVIS-HOME",
+      "name": "Clovis Home & Lighting",
+      "address": "620 W Shaw Avenue",
+      "address2": "",
+      "city": "Clovis",
+      "state": "CA",
+      "postalCode": "93612",
+      "country": "US",
+      "phone": "916-555-0116",
+      "email": "clovis-home@example.com"
+    },
+    {
+      "code": "VALLEY-AG",
+      "name": "Valley Ag Supply",
+      "address": "1220 S Madera Avenue",
+      "address2": "",
+      "city": "Madera",
+      "state": "CA",
+      "postalCode": "93637",
+      "country": "US",
+      "phone": "916-555-0117",
+      "email": "valley-ag@example.com"
+    },
+    {
+      "code": "KINGS-RIVER",
+      "name": "Kings River Hardware",
+      "address": "850 G Street",
+      "address2": "",
+      "city": "Reedley",
+      "state": "CA",
+      "postalCode": "93654",
+      "country": "US",
+      "phone": "916-555-0118",
+      "email": "kings-river@example.com"
+    },
+    {
+      "code": "SEQUOIA-HOSPITALITY",
+      "name": "Sequoia Hospitality Supply",
+      "address": "2350 S Mooney Boulevard",
+      "address2": "",
+      "city": "Visalia",
+      "state": "CA",
+      "postalCode": "93277",
+      "country": "US",
+      "phone": "916-555-0119",
+      "email": "sequoia-hospitality@example.com"
+    },
+    {
+      "code": "CAPITOL-CITY",
+      "name": "Capitol City Furnishings",
+      "address": "1840 Broadway",
+      "address2": "",
+      "city": "Sacramento",
+      "state": "CA",
+      "postalCode": "95818",
+      "country": "US",
+      "phone": "916-555-0120",
+      "email": "capitol-city@example.com"
+    },
+    {
+      "code": "RIVERBEND-NATURAL",
+      "name": "Riverbend Natural Market",
+      "address": "720 Main Street",
+      "address2": "",
+      "city": "Woodland",
+      "state": "CA",
+      "postalCode": "95695",
+      "country": "US",
+      "phone": "916-555-0121",
+      "email": "riverbend-natural@example.com"
+    },
+    {
+      "code": "FOOTHILL-BUILDERS",
+      "name": "Foothill Builders Supply",
+      "address": "5100 Pacific Street",
+      "address2": "",
+      "city": "Rocklin",
+      "state": "CA",
+      "postalCode": "95677",
+      "country": "US",
+      "phone": "916-555-0122",
+      "email": "foothill-builders@example.com"
+    },
+    {
+      "code": "DELTA-RESTAURANT",
+      "name": "Delta Restaurant Equipment",
+      "address": "9700 Elk Grove Florin Road",
+      "address2": "",
+      "city": "Elk Grove",
+      "state": "CA",
+      "postalCode": "95624",
+      "country": "US",
+      "phone": "916-555-0123",
+      "email": "delta-restaurant@example.com"
+    },
+    {
+      "code": "AMERICAN-RIVER",
+      "name": "American River Outdoor Gear",
+      "address": "810 E Bidwell Street",
+      "address2": "",
+      "city": "Folsom",
+      "state": "CA",
+      "postalCode": "95630",
+      "country": "US",
+      "phone": "916-555-0124",
+      "email": "american-river@example.com"
+    }
+  ],
+  "orders": [
+    {
+      "id": "PRO-260929-4801",
+      "customerCode": "PACIFIC-HOME",
+      "customer": "Pacific Home Furnishings",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Pacific Home Furnishings",
+      "billToAddress": "1840 S Vineyard Avenue",
+      "billToCity": "Ontario",
+      "billToState": "CA",
+      "billToPostalCode": "91761",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9200",
+      "pieces": 4,
+      "weight": 300,
+      "cube": 48,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "1840 S Vineyard Avenue",
+      "address2": "",
+      "city": "Ontario",
+      "state": "CA",
+      "postalCode": "91761",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4802",
+      "customerCode": "CITRUS-MARKET",
+      "customer": "Citrus Grove Market",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Citrus Grove Market",
+      "billToAddress": "725 E Redlands Boulevard",
+      "billToCity": "Redlands",
+      "billToState": "CA",
+      "billToPostalCode": "92373",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9201",
+      "pieces": 7,
+      "weight": 525,
+      "cube": 84,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "725 E Redlands Boulevard",
+      "address2": "",
+      "city": "Redlands",
+      "state": "CA",
+      "postalCode": "92373",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4803",
+      "customerCode": "SUMMIT-HARDWARE",
+      "customer": "Summit Hardware Supply",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Summit Hardware Supply",
+      "billToAddress": "1425 S Tippecanoe Avenue",
+      "billToCity": "San Bernardino",
+      "billToState": "CA",
+      "billToPostalCode": "92408",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9202",
+      "pieces": 10,
+      "weight": 750,
+      "cube": 120,
+      "notes": "Keep upright; do not stack.",
+      "address": "1425 S Tippecanoe Avenue",
+      "address2": "",
+      "city": "San Bernardino",
+      "state": "CA",
+      "postalCode": "92408",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4804",
+      "customerCode": "MISSION-CAFE",
+      "customer": "Mission Roasters & Cafe",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Mission Roasters & Cafe",
+      "billToAddress": "3650 Main Street",
+      "billToCity": "Riverside",
+      "billToState": "CA",
+      "billToPostalCode": "92501",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9203",
+      "pieces": 13,
+      "weight": 975,
+      "cube": 156,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "3650 Main Street",
+      "address2": "",
+      "city": "Riverside",
+      "state": "CA",
+      "postalCode": "92501",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4805",
+      "customerCode": "CANYON-OUTDOOR",
+      "customer": "Canyon Trail Outfitters",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Canyon Trail Outfitters",
+      "billToAddress": "2180 Railroad Street",
+      "billToCity": "Corona",
+      "billToState": "CA",
+      "billToPostalCode": "92880",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9204",
+      "pieces": 16,
+      "weight": 1200,
+      "cube": 192,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "2180 Railroad Street",
+      "address2": "",
+      "city": "Corona",
+      "state": "CA",
+      "postalCode": "92880",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4806",
+      "customerCode": "PACIFIC-HOME",
+      "customer": "Pacific Home Furnishings",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Pacific Home Furnishings",
+      "billToAddress": "1840 S Vineyard Avenue",
+      "billToCity": "Ontario",
+      "billToState": "CA",
+      "billToPostalCode": "91761",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9205",
+      "pieces": 19,
+      "weight": 1425,
+      "cube": 228,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "1840 S Vineyard Avenue",
+      "address2": "",
+      "city": "Ontario",
+      "state": "CA",
+      "postalCode": "91761",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4807",
+      "customerCode": "CITRUS-MARKET",
+      "customer": "Citrus Grove Market",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Citrus Grove Market",
+      "billToAddress": "725 E Redlands Boulevard",
+      "billToCity": "Redlands",
+      "billToState": "CA",
+      "billToPostalCode": "92373",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9206",
+      "pieces": 5,
+      "weight": 375,
+      "cube": 60,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "725 E Redlands Boulevard",
+      "address2": "",
+      "city": "Redlands",
+      "state": "CA",
+      "postalCode": "92373",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4808",
+      "customerCode": "SUMMIT-HARDWARE",
+      "customer": "Summit Hardware Supply",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Summit Hardware Supply",
+      "billToAddress": "1425 S Tippecanoe Avenue",
+      "billToCity": "San Bernardino",
+      "billToState": "CA",
+      "billToPostalCode": "92408",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9207",
+      "pieces": 8,
+      "weight": 600,
+      "cube": 96,
+      "notes": "Keep upright; do not stack.",
+      "address": "1425 S Tippecanoe Avenue",
+      "address2": "",
+      "city": "San Bernardino",
+      "state": "CA",
+      "postalCode": "92408",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4809",
+      "customerCode": "MISSION-CAFE",
+      "customer": "Mission Roasters & Cafe",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Mission Roasters & Cafe",
+      "billToAddress": "3650 Main Street",
+      "billToCity": "Riverside",
+      "billToState": "CA",
+      "billToPostalCode": "92501",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9208",
+      "pieces": 11,
+      "weight": 825,
+      "cube": 132,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "3650 Main Street",
+      "address2": "",
+      "city": "Riverside",
+      "state": "CA",
+      "postalCode": "92501",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4810",
+      "customerCode": "CANYON-OUTDOOR",
+      "customer": "Canyon Trail Outfitters",
+      "terminalCode": "ONT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "1500 S Milliken Avenue",
+      "originCity": "Ontario",
+      "originState": "CA",
+      "originPostalCode": "91761",
+      "originCountry": "US",
+      "billTo": "Canyon Trail Outfitters",
+      "billToAddress": "2180 Railroad Street",
+      "billToCity": "Corona",
+      "billToState": "CA",
+      "billToPostalCode": "92880",
+      "billToCountry": "US",
+      "reference": "PO-ONT-9209",
+      "pieces": 14,
+      "weight": 1050,
+      "cube": 168,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "2180 Railroad Street",
+      "address2": "",
+      "city": "Corona",
+      "state": "CA",
+      "postalCode": "92880",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4811",
+      "customerCode": "HARBOR-LIGHT",
+      "customer": "Harbor Light Homewares",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Harbor Light Homewares",
+      "billToAddress": "830 S Pacific Avenue",
+      "billToCity": "San Pedro",
+      "billToState": "CA",
+      "billToPostalCode": "90731",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9200",
+      "pieces": 5,
+      "weight": 450,
+      "cube": 60,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "830 S Pacific Avenue",
+      "address2": "",
+      "city": "San Pedro",
+      "state": "CA",
+      "postalCode": "90731",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4812",
+      "customerCode": "SILVER-LAKE",
+      "customer": "Silver Lake Provisions",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Silver Lake Provisions",
+      "billToAddress": "2810 Sunset Boulevard",
+      "billToCity": "Los Angeles",
+      "billToState": "CA",
+      "billToPostalCode": "90026",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9201",
+      "pieces": 8,
+      "weight": 720,
+      "cube": 96,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "2810 Sunset Boulevard",
+      "address2": "",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postalCode": "90026",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4813",
+      "customerCode": "COASTLINE-OFFICE",
+      "customer": "Coastline Office Supply",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Coastline Office Supply",
+      "billToAddress": "1640 W Carson Street",
+      "billToCity": "Torrance",
+      "billToState": "CA",
+      "billToPostalCode": "90501",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9202",
+      "pieces": 11,
+      "weight": 990,
+      "cube": 132,
+      "notes": "Keep upright; do not stack.",
+      "address": "1640 W Carson Street",
+      "address2": "",
+      "city": "Torrance",
+      "state": "CA",
+      "postalCode": "90501",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4814",
+      "customerCode": "BELMONT-BICYCLE",
+      "customer": "Belmont Bicycle Works",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Belmont Bicycle Works",
+      "billToAddress": "4200 E Anaheim Street",
+      "billToCity": "Long Beach",
+      "billToState": "CA",
+      "billToPostalCode": "90804",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9203",
+      "pieces": 14,
+      "weight": 1260,
+      "cube": 168,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "4200 E Anaheim Street",
+      "address2": "",
+      "city": "Long Beach",
+      "state": "CA",
+      "postalCode": "90804",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4815",
+      "customerCode": "ARROYO-KITCHEN",
+      "customer": "Arroyo Kitchen & Bath",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Arroyo Kitchen & Bath",
+      "billToAddress": "980 S Raymond Avenue",
+      "billToCity": "Pasadena",
+      "billToState": "CA",
+      "billToPostalCode": "91105",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9204",
+      "pieces": 17,
+      "weight": 1530,
+      "cube": 204,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "980 S Raymond Avenue",
+      "address2": "",
+      "city": "Pasadena",
+      "state": "CA",
+      "postalCode": "91105",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4816",
+      "customerCode": "HARBOR-LIGHT",
+      "customer": "Harbor Light Homewares",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Harbor Light Homewares",
+      "billToAddress": "830 S Pacific Avenue",
+      "billToCity": "San Pedro",
+      "billToState": "CA",
+      "billToPostalCode": "90731",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9205",
+      "pieces": 20,
+      "weight": 1800,
+      "cube": 240,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "830 S Pacific Avenue",
+      "address2": "",
+      "city": "San Pedro",
+      "state": "CA",
+      "postalCode": "90731",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4817",
+      "customerCode": "SILVER-LAKE",
+      "customer": "Silver Lake Provisions",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Silver Lake Provisions",
+      "billToAddress": "2810 Sunset Boulevard",
+      "billToCity": "Los Angeles",
+      "billToState": "CA",
+      "billToPostalCode": "90026",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9206",
+      "pieces": 6,
+      "weight": 540,
+      "cube": 72,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "2810 Sunset Boulevard",
+      "address2": "",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postalCode": "90026",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4818",
+      "customerCode": "COASTLINE-OFFICE",
+      "customer": "Coastline Office Supply",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Coastline Office Supply",
+      "billToAddress": "1640 W Carson Street",
+      "billToCity": "Torrance",
+      "billToState": "CA",
+      "billToPostalCode": "90501",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9207",
+      "pieces": 9,
+      "weight": 810,
+      "cube": 108,
+      "notes": "Keep upright; do not stack.",
+      "address": "1640 W Carson Street",
+      "address2": "",
+      "city": "Torrance",
+      "state": "CA",
+      "postalCode": "90501",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4819",
+      "customerCode": "BELMONT-BICYCLE",
+      "customer": "Belmont Bicycle Works",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Belmont Bicycle Works",
+      "billToAddress": "4200 E Anaheim Street",
+      "billToCity": "Long Beach",
+      "billToState": "CA",
+      "billToPostalCode": "90804",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9208",
+      "pieces": 12,
+      "weight": 1080,
+      "cube": 144,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "4200 E Anaheim Street",
+      "address2": "",
+      "city": "Long Beach",
+      "state": "CA",
+      "postalCode": "90804",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4820",
+      "customerCode": "ARROYO-KITCHEN",
+      "customer": "Arroyo Kitchen & Bath",
+      "terminalCode": "LAX",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "2400 E Pacific Coast Highway",
+      "originCity": "Wilmington",
+      "originState": "CA",
+      "originPostalCode": "90744",
+      "originCountry": "US",
+      "billTo": "Arroyo Kitchen & Bath",
+      "billToAddress": "980 S Raymond Avenue",
+      "billToCity": "Pasadena",
+      "billToState": "CA",
+      "billToPostalCode": "91105",
+      "billToCountry": "US",
+      "reference": "PO-LAX-9209",
+      "pieces": 15,
+      "weight": 1350,
+      "cube": 180,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "980 S Raymond Avenue",
+      "address2": "",
+      "city": "Pasadena",
+      "state": "CA",
+      "postalCode": "91105",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4821",
+      "customerCode": "BAYVIEW-RESTAURANT",
+      "customer": "Bayview Restaurant Supply",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Bayview Restaurant Supply",
+      "billToAddress": "690 H Street",
+      "billToCity": "Chula Vista",
+      "billToState": "CA",
+      "billToPostalCode": "91910",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9200",
+      "pieces": 6,
+      "weight": 630,
+      "cube": 72,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "690 H Street",
+      "address2": "",
+      "city": "Chula Vista",
+      "state": "CA",
+      "postalCode": "91910",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4822",
+      "customerCode": "TORREY-PINES",
+      "customer": "Torrey Pines Outdoor Supply",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Torrey Pines Outdoor Supply",
+      "billToAddress": "1120 Garnet Avenue",
+      "billToCity": "San Diego",
+      "billToState": "CA",
+      "billToPostalCode": "92109",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9201",
+      "pieces": 9,
+      "weight": 945,
+      "cube": 108,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "1120 Garnet Avenue",
+      "address2": "",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92109",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4823",
+      "customerCode": "MESA-VERDE",
+      "customer": "Mesa Verde Home & Garden",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Mesa Verde Home & Garden",
+      "billToAddress": "7850 Clairemont Mesa Boulevard",
+      "billToCity": "San Diego",
+      "billToState": "CA",
+      "billToPostalCode": "92111",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9202",
+      "pieces": 12,
+      "weight": 1260,
+      "cube": 144,
+      "notes": "Keep upright; do not stack.",
+      "address": "7850 Clairemont Mesa Boulevard",
+      "address2": "",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92111",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4824",
+      "customerCode": "SEASIDE-COFFEE",
+      "customer": "Seaside Coffee Roasters",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Seaside Coffee Roasters",
+      "billToAddress": "480 N Coast Highway",
+      "billToCity": "Oceanside",
+      "billToState": "CA",
+      "billToPostalCode": "92054",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9203",
+      "pieces": 15,
+      "weight": 1575,
+      "cube": 180,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "480 N Coast Highway",
+      "address2": "",
+      "city": "Oceanside",
+      "state": "CA",
+      "postalCode": "92054",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4825",
+      "customerCode": "PALOMAR-INDUSTRIAL",
+      "customer": "Palomar Industrial Supply",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Palomar Industrial Supply",
+      "billToAddress": "930 W Washington Avenue",
+      "billToCity": "Escondido",
+      "billToState": "CA",
+      "billToPostalCode": "92025",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9204",
+      "pieces": 18,
+      "weight": 1890,
+      "cube": 216,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "930 W Washington Avenue",
+      "address2": "",
+      "city": "Escondido",
+      "state": "CA",
+      "postalCode": "92025",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4826",
+      "customerCode": "BAYVIEW-RESTAURANT",
+      "customer": "Bayview Restaurant Supply",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Bayview Restaurant Supply",
+      "billToAddress": "690 H Street",
+      "billToCity": "Chula Vista",
+      "billToState": "CA",
+      "billToPostalCode": "91910",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9205",
+      "pieces": 4,
+      "weight": 420,
+      "cube": 48,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "690 H Street",
+      "address2": "",
+      "city": "Chula Vista",
+      "state": "CA",
+      "postalCode": "91910",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4827",
+      "customerCode": "TORREY-PINES",
+      "customer": "Torrey Pines Outdoor Supply",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Torrey Pines Outdoor Supply",
+      "billToAddress": "1120 Garnet Avenue",
+      "billToCity": "San Diego",
+      "billToState": "CA",
+      "billToPostalCode": "92109",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9206",
+      "pieces": 7,
+      "weight": 735,
+      "cube": 84,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "1120 Garnet Avenue",
+      "address2": "",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92109",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4828",
+      "customerCode": "MESA-VERDE",
+      "customer": "Mesa Verde Home & Garden",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Mesa Verde Home & Garden",
+      "billToAddress": "7850 Clairemont Mesa Boulevard",
+      "billToCity": "San Diego",
+      "billToState": "CA",
+      "billToPostalCode": "92111",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9207",
+      "pieces": 10,
+      "weight": 1050,
+      "cube": 120,
+      "notes": "Keep upright; do not stack.",
+      "address": "7850 Clairemont Mesa Boulevard",
+      "address2": "",
+      "city": "San Diego",
+      "state": "CA",
+      "postalCode": "92111",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4829",
+      "customerCode": "SEASIDE-COFFEE",
+      "customer": "Seaside Coffee Roasters",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Seaside Coffee Roasters",
+      "billToAddress": "480 N Coast Highway",
+      "billToCity": "Oceanside",
+      "billToState": "CA",
+      "billToPostalCode": "92054",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9208",
+      "pieces": 13,
+      "weight": 1365,
+      "cube": 156,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "480 N Coast Highway",
+      "address2": "",
+      "city": "Oceanside",
+      "state": "CA",
+      "postalCode": "92054",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4830",
+      "customerCode": "PALOMAR-INDUSTRIAL",
+      "customer": "Palomar Industrial Supply",
+      "terminalCode": "SAN",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "8600 Avenida Costa Norte",
+      "originCity": "San Diego",
+      "originState": "CA",
+      "originPostalCode": "92154",
+      "originCountry": "US",
+      "billTo": "Palomar Industrial Supply",
+      "billToAddress": "930 W Washington Avenue",
+      "billToCity": "Escondido",
+      "billToState": "CA",
+      "billToPostalCode": "92025",
+      "billToCountry": "US",
+      "reference": "PO-SAN-9209",
+      "pieces": 16,
+      "weight": 1680,
+      "cube": 192,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "930 W Washington Avenue",
+      "address2": "",
+      "city": "Escondido",
+      "state": "CA",
+      "postalCode": "92025",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4831",
+      "customerCode": "SIERRA-ORCHARD",
+      "customer": "Sierra Orchard Foods",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Sierra Orchard Foods",
+      "billToAddress": "1480 G Street",
+      "billToCity": "Fresno",
+      "billToState": "CA",
+      "billToPostalCode": "93706",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9200",
+      "pieces": 7,
+      "weight": 840,
+      "cube": 84,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "1480 G Street",
+      "address2": "",
+      "city": "Fresno",
+      "state": "CA",
+      "postalCode": "93706",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4832",
+      "customerCode": "CLOVIS-HOME",
+      "customer": "Clovis Home & Lighting",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Clovis Home & Lighting",
+      "billToAddress": "620 W Shaw Avenue",
+      "billToCity": "Clovis",
+      "billToState": "CA",
+      "billToPostalCode": "93612",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9201",
+      "pieces": 10,
+      "weight": 1200,
+      "cube": 120,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "620 W Shaw Avenue",
+      "address2": "",
+      "city": "Clovis",
+      "state": "CA",
+      "postalCode": "93612",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4833",
+      "customerCode": "VALLEY-AG",
+      "customer": "Valley Ag Supply",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Valley Ag Supply",
+      "billToAddress": "1220 S Madera Avenue",
+      "billToCity": "Madera",
+      "billToState": "CA",
+      "billToPostalCode": "93637",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9202",
+      "pieces": 13,
+      "weight": 1560,
+      "cube": 156,
+      "notes": "Keep upright; do not stack.",
+      "address": "1220 S Madera Avenue",
+      "address2": "",
+      "city": "Madera",
+      "state": "CA",
+      "postalCode": "93637",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4834",
+      "customerCode": "KINGS-RIVER",
+      "customer": "Kings River Hardware",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Kings River Hardware",
+      "billToAddress": "850 G Street",
+      "billToCity": "Reedley",
+      "billToState": "CA",
+      "billToPostalCode": "93654",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9203",
+      "pieces": 16,
+      "weight": 1920,
+      "cube": 192,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "850 G Street",
+      "address2": "",
+      "city": "Reedley",
+      "state": "CA",
+      "postalCode": "93654",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4835",
+      "customerCode": "SEQUOIA-HOSPITALITY",
+      "customer": "Sequoia Hospitality Supply",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Sequoia Hospitality Supply",
+      "billToAddress": "2350 S Mooney Boulevard",
+      "billToCity": "Visalia",
+      "billToState": "CA",
+      "billToPostalCode": "93277",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9204",
+      "pieces": 19,
+      "weight": 2280,
+      "cube": 228,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "2350 S Mooney Boulevard",
+      "address2": "",
+      "city": "Visalia",
+      "state": "CA",
+      "postalCode": "93277",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4836",
+      "customerCode": "SIERRA-ORCHARD",
+      "customer": "Sierra Orchard Foods",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Sierra Orchard Foods",
+      "billToAddress": "1480 G Street",
+      "billToCity": "Fresno",
+      "billToState": "CA",
+      "billToPostalCode": "93706",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9205",
+      "pieces": 5,
+      "weight": 600,
+      "cube": 60,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "1480 G Street",
+      "address2": "",
+      "city": "Fresno",
+      "state": "CA",
+      "postalCode": "93706",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4837",
+      "customerCode": "CLOVIS-HOME",
+      "customer": "Clovis Home & Lighting",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Clovis Home & Lighting",
+      "billToAddress": "620 W Shaw Avenue",
+      "billToCity": "Clovis",
+      "billToState": "CA",
+      "billToPostalCode": "93612",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9206",
+      "pieces": 8,
+      "weight": 960,
+      "cube": 96,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "620 W Shaw Avenue",
+      "address2": "",
+      "city": "Clovis",
+      "state": "CA",
+      "postalCode": "93612",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4838",
+      "customerCode": "VALLEY-AG",
+      "customer": "Valley Ag Supply",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Valley Ag Supply",
+      "billToAddress": "1220 S Madera Avenue",
+      "billToCity": "Madera",
+      "billToState": "CA",
+      "billToPostalCode": "93637",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9207",
+      "pieces": 11,
+      "weight": 1320,
+      "cube": 132,
+      "notes": "Keep upright; do not stack.",
+      "address": "1220 S Madera Avenue",
+      "address2": "",
+      "city": "Madera",
+      "state": "CA",
+      "postalCode": "93637",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4839",
+      "customerCode": "KINGS-RIVER",
+      "customer": "Kings River Hardware",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Kings River Hardware",
+      "billToAddress": "850 G Street",
+      "billToCity": "Reedley",
+      "billToState": "CA",
+      "billToPostalCode": "93654",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9208",
+      "pieces": 14,
+      "weight": 1680,
+      "cube": 168,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "850 G Street",
+      "address2": "",
+      "city": "Reedley",
+      "state": "CA",
+      "postalCode": "93654",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4840",
+      "customerCode": "SEQUOIA-HOSPITALITY",
+      "customer": "Sequoia Hospitality Supply",
+      "terminalCode": "FAT",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "3100 S Elm Avenue",
+      "originCity": "Fresno",
+      "originState": "CA",
+      "originPostalCode": "93706",
+      "originCountry": "US",
+      "billTo": "Sequoia Hospitality Supply",
+      "billToAddress": "2350 S Mooney Boulevard",
+      "billToCity": "Visalia",
+      "billToState": "CA",
+      "billToPostalCode": "93277",
+      "billToCountry": "US",
+      "reference": "PO-FAT-9209",
+      "pieces": 17,
+      "weight": 2040,
+      "cube": 204,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "2350 S Mooney Boulevard",
+      "address2": "",
+      "city": "Visalia",
+      "state": "CA",
+      "postalCode": "93277",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4841",
+      "customerCode": "CAPITOL-CITY",
+      "customer": "Capitol City Furnishings",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Capitol City Furnishings",
+      "billToAddress": "1840 Broadway",
+      "billToCity": "Sacramento",
+      "billToState": "CA",
+      "billToPostalCode": "95818",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9200",
+      "pieces": 8,
+      "weight": 1080,
+      "cube": 96,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "1840 Broadway",
+      "address2": "",
+      "city": "Sacramento",
+      "state": "CA",
+      "postalCode": "95818",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4842",
+      "customerCode": "RIVERBEND-NATURAL",
+      "customer": "Riverbend Natural Market",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Riverbend Natural Market",
+      "billToAddress": "720 Main Street",
+      "billToCity": "Woodland",
+      "billToState": "CA",
+      "billToPostalCode": "95695",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9201",
+      "pieces": 11,
+      "weight": 1485,
+      "cube": 132,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "720 Main Street",
+      "address2": "",
+      "city": "Woodland",
+      "state": "CA",
+      "postalCode": "95695",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4843",
+      "customerCode": "FOOTHILL-BUILDERS",
+      "customer": "Foothill Builders Supply",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Foothill Builders Supply",
+      "billToAddress": "5100 Pacific Street",
+      "billToCity": "Rocklin",
+      "billToState": "CA",
+      "billToPostalCode": "95677",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9202",
+      "pieces": 14,
+      "weight": 1890,
+      "cube": 168,
+      "notes": "Keep upright; do not stack.",
+      "address": "5100 Pacific Street",
+      "address2": "",
+      "city": "Rocklin",
+      "state": "CA",
+      "postalCode": "95677",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4844",
+      "customerCode": "DELTA-RESTAURANT",
+      "customer": "Delta Restaurant Equipment",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Delta Restaurant Equipment",
+      "billToAddress": "9700 Elk Grove Florin Road",
+      "billToCity": "Elk Grove",
+      "billToState": "CA",
+      "billToPostalCode": "95624",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9203",
+      "pieces": 17,
+      "weight": 2295,
+      "cube": 204,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "9700 Elk Grove Florin Road",
+      "address2": "",
+      "city": "Elk Grove",
+      "state": "CA",
+      "postalCode": "95624",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4845",
+      "customerCode": "AMERICAN-RIVER",
+      "customer": "American River Outdoor Gear",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "American River Outdoor Gear",
+      "billToAddress": "810 E Bidwell Street",
+      "billToCity": "Folsom",
+      "billToState": "CA",
+      "billToPostalCode": "95630",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9204",
+      "pieces": 20,
+      "weight": 2700,
+      "cube": 240,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "810 E Bidwell Street",
+      "address2": "",
+      "city": "Folsom",
+      "state": "CA",
+      "postalCode": "95630",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4846",
+      "customerCode": "CAPITOL-CITY",
+      "customer": "Capitol City Furnishings",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Capitol City Furnishings",
+      "billToAddress": "1840 Broadway",
+      "billToCity": "Sacramento",
+      "billToState": "CA",
+      "billToPostalCode": "95818",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9205",
+      "pieces": 6,
+      "weight": 810,
+      "cube": 72,
+      "notes": "Palletized cartons. Liftgate requested.",
+      "address": "1840 Broadway",
+      "address2": "",
+      "city": "Sacramento",
+      "state": "CA",
+      "postalCode": "95818",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4847",
+      "customerCode": "RIVERBEND-NATURAL",
+      "customer": "Riverbend Natural Market",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Riverbend Natural Market",
+      "billToAddress": "720 Main Street",
+      "billToCity": "Woodland",
+      "billToState": "CA",
+      "billToPostalCode": "95695",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9206",
+      "pieces": 9,
+      "weight": 1215,
+      "cube": 108,
+      "notes": "Retail stock replenishment. Check in at receiving.",
+      "address": "720 Main Street",
+      "address2": "",
+      "city": "Woodland",
+      "state": "CA",
+      "postalCode": "95695",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4848",
+      "customerCode": "FOOTHILL-BUILDERS",
+      "customer": "Foothill Builders Supply",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Foothill Builders Supply",
+      "billToAddress": "5100 Pacific Street",
+      "billToCity": "Rocklin",
+      "billToState": "CA",
+      "billToPostalCode": "95677",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9207",
+      "pieces": 12,
+      "weight": 1620,
+      "cube": 144,
+      "notes": "Keep upright; do not stack.",
+      "address": "5100 Pacific Street",
+      "address2": "",
+      "city": "Rocklin",
+      "state": "CA",
+      "postalCode": "95677",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4849",
+      "customerCode": "DELTA-RESTAURANT",
+      "customer": "Delta Restaurant Equipment",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "Delta Restaurant Equipment",
+      "billToAddress": "9700 Elk Grove Florin Road",
+      "billToCity": "Elk Grove",
+      "billToState": "CA",
+      "billToPostalCode": "95624",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9208",
+      "pieces": 15,
+      "weight": 2025,
+      "cube": 180,
+      "notes": "Dock delivery. Pallet jack required.",
+      "address": "9700 Elk Grove Florin Road",
+      "address2": "",
+      "city": "Elk Grove",
+      "state": "CA",
+      "postalCode": "95624",
+      "country": "US"
+    },
+    {
+      "id": "PRO-260929-4850",
+      "customerCode": "AMERICAN-RIVER",
+      "customer": "American River Outdoor Gear",
+      "terminalCode": "SAC",
+      "scheduledAt": "2026-09-29T07:00:00-07:00",
+      "status": "ReadyToRoute",
+      "shipper": "Golden State Wholesale",
+      "originAddress": "4300 Raley Boulevard",
+      "originCity": "Sacramento",
+      "originState": "CA",
+      "originPostalCode": "95838",
+      "originCountry": "US",
+      "billTo": "American River Outdoor Gear",
+      "billToAddress": "810 E Bidwell Street",
+      "billToCity": "Folsom",
+      "billToState": "CA",
+      "billToPostalCode": "95630",
+      "billToCountry": "US",
+      "reference": "PO-SAC-9209",
+      "pieces": 18,
+      "weight": 2430,
+      "cube": 216,
+      "notes": "Shrink-wrapped merchandise. Count cartons on receipt.",
+      "address": "810 E Bidwell Street",
+      "address2": "",
+      "city": "Folsom",
+      "state": "CA",
+      "postalCode": "95630",
+      "country": "US"
+    }
+  ],
+  "manifests": [],
+  "trucks": [
+    {
+      "id": "ONT-240",
+      "alias": "Freightliner M2",
+      "terminal": "ONT",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "ONT-241",
+      "alias": "International MV",
+      "terminal": "ONT",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "ONT-242",
+      "alias": "Isuzu FTR",
+      "terminal": "ONT",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "LAX-250",
+      "alias": "Freightliner M2",
+      "terminal": "LAX",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "LAX-251",
+      "alias": "International MV",
+      "terminal": "LAX",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "LAX-252",
+      "alias": "Isuzu FTR",
+      "terminal": "LAX",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "SAN-260",
+      "alias": "Freightliner M2",
+      "terminal": "SAN",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "SAN-261",
+      "alias": "International MV",
+      "terminal": "SAN",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "SAN-262",
+      "alias": "Isuzu FTR",
+      "terminal": "SAN",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "FAT-270",
+      "alias": "Freightliner M2",
+      "terminal": "FAT",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "FAT-271",
+      "alias": "International MV",
+      "terminal": "FAT",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "FAT-272",
+      "alias": "Isuzu FTR",
+      "terminal": "FAT",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "SAC-280",
+      "alias": "Freightliner M2",
+      "terminal": "SAC",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "SAC-281",
+      "alias": "International MV",
+      "terminal": "SAC",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    },
+    {
+      "id": "SAC-282",
+      "alias": "Isuzu FTR",
+      "terminal": "SAC",
+      "typeCode": "STRAIGHT-26",
+      "available": true,
+      "useForRouting": true,
+      "shiftStart": "07:00",
+      "shiftEnd": "18:00",
+      "utcOffset": "-07:00"
+    }
+  ],
+  "equipmentTypes": [
+    {
+      "code": "STRAIGHT-26",
+      "description": "26-foot straight truck with liftgate",
+      "weight": 12000,
+      "cubes": 1600,
+      "maximumStops": 12,
+      "routingProfile": "USA_5_DELIVERY",
+      "fixedCost": 125,
+      "perHour": 48,
+      "perKilometer": 0.85
+    }
+  ],
+  "planningSources": [
+    {
+      "name": "Ontario Inland Empire deliveries \u2014 September 29",
+      "request": {
+        "settings": {
+          "duration": 1
+        },
+        "locations": [
+          {
+            "id": "ONT-DEPOT",
+            "latitude": 34.045,
+            "longitude": -117.558
+          },
+          {
+            "id": "PACIFIC-HOME",
+            "latitude": 34.039,
+            "longitude": -117.611
+          },
+          {
+            "id": "CITRUS-MARKET",
+            "latitude": 34.059,
+            "longitude": -117.172
+          },
+          {
+            "id": "SUMMIT-HARDWARE",
+            "latitude": 34.074,
+            "longitude": -117.261
+          },
+          {
+            "id": "MISSION-CAFE",
+            "latitude": 33.983,
+            "longitude": -117.374
+          },
+          {
+            "id": "CANYON-OUTDOOR",
+            "latitude": 33.879,
+            "longitude": -117.594
+          }
+        ],
+        "depots": [
+          {
+            "id": "ONT",
+            "locationId": "ONT-DEPOT"
+          }
+        ],
+        "orders": {
+          "deliveries": [
+            {
+              "id": "PRO-260929-4801",
+              "delivery": {
+                "locationId": "PACIFIC-HOME",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 300
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 48
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4802",
+              "delivery": {
+                "locationId": "CITRUS-MARKET",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 525
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 84
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4803",
+              "delivery": {
+                "locationId": "SUMMIT-HARDWARE",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 750
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 120
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4804",
+              "delivery": {
+                "locationId": "MISSION-CAFE",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 975
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 156
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4805",
+              "delivery": {
+                "locationId": "CANYON-OUTDOOR",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1200
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 192
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4806",
+              "delivery": {
+                "locationId": "PACIFIC-HOME",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1425
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 228
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4807",
+              "delivery": {
+                "locationId": "CITRUS-MARKET",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 375
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 60
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4808",
+              "delivery": {
+                "locationId": "SUMMIT-HARDWARE",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 600
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 96
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4809",
+              "delivery": {
+                "locationId": "MISSION-CAFE",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 825
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 132
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4810",
+              "delivery": {
+                "locationId": "CANYON-OUTDOOR",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1050
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 168
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "id": "ONT-240",
+            "start": {
+              "locationId": "ONT-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "ONT-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "ONT-241",
+            "start": {
+              "locationId": "ONT-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "ONT-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "ONT-242",
+            "start": {
+              "locationId": "ONT-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "ONT-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          }
+        ],
+        "reporting": {
+          "terminal": "ONT",
+          "orders": {
+            "PRO-260929-4801": {
+              "shipToName": "Pacific Home Furnishings",
+              "address1": "1840 S Vineyard Avenue",
+              "city": "Ontario",
+              "state": "CA",
+              "postalCode": "91761",
+              "units": 4,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4802": {
+              "shipToName": "Citrus Grove Market",
+              "address1": "725 E Redlands Boulevard",
+              "city": "Redlands",
+              "state": "CA",
+              "postalCode": "92373",
+              "units": 7,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4803": {
+              "shipToName": "Summit Hardware Supply",
+              "address1": "1425 S Tippecanoe Avenue",
+              "city": "San Bernardino",
+              "state": "CA",
+              "postalCode": "92408",
+              "units": 10,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4804": {
+              "shipToName": "Mission Roasters & Cafe",
+              "address1": "3650 Main Street",
+              "city": "Riverside",
+              "state": "CA",
+              "postalCode": "92501",
+              "units": 13,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4805": {
+              "shipToName": "Canyon Trail Outfitters",
+              "address1": "2180 Railroad Street",
+              "city": "Corona",
+              "state": "CA",
+              "postalCode": "92880",
+              "units": 16,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            },
+            "PRO-260929-4806": {
+              "shipToName": "Pacific Home Furnishings",
+              "address1": "1840 S Vineyard Avenue",
+              "city": "Ontario",
+              "state": "CA",
+              "postalCode": "91761",
+              "units": 19,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4807": {
+              "shipToName": "Citrus Grove Market",
+              "address1": "725 E Redlands Boulevard",
+              "city": "Redlands",
+              "state": "CA",
+              "postalCode": "92373",
+              "units": 5,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4808": {
+              "shipToName": "Summit Hardware Supply",
+              "address1": "1425 S Tippecanoe Avenue",
+              "city": "San Bernardino",
+              "state": "CA",
+              "postalCode": "92408",
+              "units": 8,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4809": {
+              "shipToName": "Mission Roasters & Cafe",
+              "address1": "3650 Main Street",
+              "city": "Riverside",
+              "state": "CA",
+              "postalCode": "92501",
+              "units": 11,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4810": {
+              "shipToName": "Canyon Trail Outfitters",
+              "address1": "2180 Railroad Street",
+              "city": "Corona",
+              "state": "CA",
+              "postalCode": "92880",
+              "units": 14,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Los Angeles Harbor deliveries \u2014 September 29",
+      "request": {
+        "settings": {
+          "duration": 1
+        },
+        "locations": [
+          {
+            "id": "LAX-DEPOT",
+            "latitude": 33.792,
+            "longitude": -118.239
+          },
+          {
+            "id": "HARBOR-LIGHT",
+            "latitude": 33.736,
+            "longitude": -118.288
+          },
+          {
+            "id": "SILVER-LAKE",
+            "latitude": 34.081,
+            "longitude": -118.274
+          },
+          {
+            "id": "COASTLINE-OFFICE",
+            "latitude": 33.831,
+            "longitude": -118.307
+          },
+          {
+            "id": "BELMONT-BICYCLE",
+            "latitude": 33.783,
+            "longitude": -118.143
+          },
+          {
+            "id": "ARROYO-KITCHEN",
+            "latitude": 34.129,
+            "longitude": -118.149
+          }
+        ],
+        "depots": [
+          {
+            "id": "LAX",
+            "locationId": "LAX-DEPOT"
+          }
+        ],
+        "orders": {
+          "deliveries": [
+            {
+              "id": "PRO-260929-4811",
+              "delivery": {
+                "locationId": "HARBOR-LIGHT",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 450
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 60
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4812",
+              "delivery": {
+                "locationId": "SILVER-LAKE",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 720
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 96
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4813",
+              "delivery": {
+                "locationId": "COASTLINE-OFFICE",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 990
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 132
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4814",
+              "delivery": {
+                "locationId": "BELMONT-BICYCLE",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1260
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 168
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4815",
+              "delivery": {
+                "locationId": "ARROYO-KITCHEN",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1530
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 204
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4816",
+              "delivery": {
+                "locationId": "HARBOR-LIGHT",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1800
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 240
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4817",
+              "delivery": {
+                "locationId": "SILVER-LAKE",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 540
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 72
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4818",
+              "delivery": {
+                "locationId": "COASTLINE-OFFICE",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 810
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 108
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4819",
+              "delivery": {
+                "locationId": "BELMONT-BICYCLE",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1080
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 144
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4820",
+              "delivery": {
+                "locationId": "ARROYO-KITCHEN",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1350
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 180
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "id": "LAX-250",
+            "start": {
+              "locationId": "LAX-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "LAX-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "LAX-251",
+            "start": {
+              "locationId": "LAX-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "LAX-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "LAX-252",
+            "start": {
+              "locationId": "LAX-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "LAX-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          }
+        ],
+        "reporting": {
+          "terminal": "LAX",
+          "orders": {
+            "PRO-260929-4811": {
+              "shipToName": "Harbor Light Homewares",
+              "address1": "830 S Pacific Avenue",
+              "city": "San Pedro",
+              "state": "CA",
+              "postalCode": "90731",
+              "units": 5,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4812": {
+              "shipToName": "Silver Lake Provisions",
+              "address1": "2810 Sunset Boulevard",
+              "city": "Los Angeles",
+              "state": "CA",
+              "postalCode": "90026",
+              "units": 8,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4813": {
+              "shipToName": "Coastline Office Supply",
+              "address1": "1640 W Carson Street",
+              "city": "Torrance",
+              "state": "CA",
+              "postalCode": "90501",
+              "units": 11,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4814": {
+              "shipToName": "Belmont Bicycle Works",
+              "address1": "4200 E Anaheim Street",
+              "city": "Long Beach",
+              "state": "CA",
+              "postalCode": "90804",
+              "units": 14,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4815": {
+              "shipToName": "Arroyo Kitchen & Bath",
+              "address1": "980 S Raymond Avenue",
+              "city": "Pasadena",
+              "state": "CA",
+              "postalCode": "91105",
+              "units": 17,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            },
+            "PRO-260929-4816": {
+              "shipToName": "Harbor Light Homewares",
+              "address1": "830 S Pacific Avenue",
+              "city": "San Pedro",
+              "state": "CA",
+              "postalCode": "90731",
+              "units": 20,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4817": {
+              "shipToName": "Silver Lake Provisions",
+              "address1": "2810 Sunset Boulevard",
+              "city": "Los Angeles",
+              "state": "CA",
+              "postalCode": "90026",
+              "units": 6,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4818": {
+              "shipToName": "Coastline Office Supply",
+              "address1": "1640 W Carson Street",
+              "city": "Torrance",
+              "state": "CA",
+              "postalCode": "90501",
+              "units": 9,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4819": {
+              "shipToName": "Belmont Bicycle Works",
+              "address1": "4200 E Anaheim Street",
+              "city": "Long Beach",
+              "state": "CA",
+              "postalCode": "90804",
+              "units": 12,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4820": {
+              "shipToName": "Arroyo Kitchen & Bath",
+              "address1": "980 S Raymond Avenue",
+              "city": "Pasadena",
+              "state": "CA",
+              "postalCode": "91105",
+              "units": 15,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "San Diego South Bay deliveries \u2014 September 29",
+      "request": {
+        "settings": {
+          "duration": 1
+        },
+        "locations": [
+          {
+            "id": "SAN-DEPOT",
+            "latitude": 32.561,
+            "longitude": -116.963
+          },
+          {
+            "id": "BAYVIEW-RESTAURANT",
+            "latitude": 32.631,
+            "longitude": -117.084
+          },
+          {
+            "id": "TORREY-PINES",
+            "latitude": 32.8,
+            "longitude": -117.25
+          },
+          {
+            "id": "MESA-VERDE",
+            "latitude": 32.833,
+            "longitude": -117.155
+          },
+          {
+            "id": "SEASIDE-COFFEE",
+            "latitude": 33.199,
+            "longitude": -117.379
+          },
+          {
+            "id": "PALOMAR-INDUSTRIAL",
+            "latitude": 33.127,
+            "longitude": -117.096
+          }
+        ],
+        "depots": [
+          {
+            "id": "SAN",
+            "locationId": "SAN-DEPOT"
+          }
+        ],
+        "orders": {
+          "deliveries": [
+            {
+              "id": "PRO-260929-4821",
+              "delivery": {
+                "locationId": "BAYVIEW-RESTAURANT",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 630
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 72
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4822",
+              "delivery": {
+                "locationId": "TORREY-PINES",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 945
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 108
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4823",
+              "delivery": {
+                "locationId": "MESA-VERDE",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1260
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 144
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4824",
+              "delivery": {
+                "locationId": "SEASIDE-COFFEE",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1575
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 180
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4825",
+              "delivery": {
+                "locationId": "PALOMAR-INDUSTRIAL",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1890
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 216
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4826",
+              "delivery": {
+                "locationId": "BAYVIEW-RESTAURANT",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 420
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 48
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4827",
+              "delivery": {
+                "locationId": "TORREY-PINES",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 735
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 84
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4828",
+              "delivery": {
+                "locationId": "MESA-VERDE",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1050
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 120
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4829",
+              "delivery": {
+                "locationId": "SEASIDE-COFFEE",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1365
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 156
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4830",
+              "delivery": {
+                "locationId": "PALOMAR-INDUSTRIAL",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1680
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 192
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "id": "SAN-260",
+            "start": {
+              "locationId": "SAN-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "SAN-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "SAN-261",
+            "start": {
+              "locationId": "SAN-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "SAN-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "SAN-262",
+            "start": {
+              "locationId": "SAN-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "SAN-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          }
+        ],
+        "reporting": {
+          "terminal": "SAN",
+          "orders": {
+            "PRO-260929-4821": {
+              "shipToName": "Bayview Restaurant Supply",
+              "address1": "690 H Street",
+              "city": "Chula Vista",
+              "state": "CA",
+              "postalCode": "91910",
+              "units": 6,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4822": {
+              "shipToName": "Torrey Pines Outdoor Supply",
+              "address1": "1120 Garnet Avenue",
+              "city": "San Diego",
+              "state": "CA",
+              "postalCode": "92109",
+              "units": 9,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4823": {
+              "shipToName": "Mesa Verde Home & Garden",
+              "address1": "7850 Clairemont Mesa Boulevard",
+              "city": "San Diego",
+              "state": "CA",
+              "postalCode": "92111",
+              "units": 12,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4824": {
+              "shipToName": "Seaside Coffee Roasters",
+              "address1": "480 N Coast Highway",
+              "city": "Oceanside",
+              "state": "CA",
+              "postalCode": "92054",
+              "units": 15,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4825": {
+              "shipToName": "Palomar Industrial Supply",
+              "address1": "930 W Washington Avenue",
+              "city": "Escondido",
+              "state": "CA",
+              "postalCode": "92025",
+              "units": 18,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            },
+            "PRO-260929-4826": {
+              "shipToName": "Bayview Restaurant Supply",
+              "address1": "690 H Street",
+              "city": "Chula Vista",
+              "state": "CA",
+              "postalCode": "91910",
+              "units": 4,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4827": {
+              "shipToName": "Torrey Pines Outdoor Supply",
+              "address1": "1120 Garnet Avenue",
+              "city": "San Diego",
+              "state": "CA",
+              "postalCode": "92109",
+              "units": 7,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4828": {
+              "shipToName": "Mesa Verde Home & Garden",
+              "address1": "7850 Clairemont Mesa Boulevard",
+              "city": "San Diego",
+              "state": "CA",
+              "postalCode": "92111",
+              "units": 10,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4829": {
+              "shipToName": "Seaside Coffee Roasters",
+              "address1": "480 N Coast Highway",
+              "city": "Oceanside",
+              "state": "CA",
+              "postalCode": "92054",
+              "units": 13,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4830": {
+              "shipToName": "Palomar Industrial Supply",
+              "address1": "930 W Washington Avenue",
+              "city": "Escondido",
+              "state": "CA",
+              "postalCode": "92025",
+              "units": 16,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Fresno Central Valley deliveries \u2014 September 29",
+      "request": {
+        "settings": {
+          "duration": 1
+        },
+        "locations": [
+          {
+            "id": "FAT-DEPOT",
+            "latitude": 36.692,
+            "longitude": -119.791
+          },
+          {
+            "id": "SIERRA-ORCHARD",
+            "latitude": 36.729,
+            "longitude": -119.793
+          },
+          {
+            "id": "CLOVIS-HOME",
+            "latitude": 36.808,
+            "longitude": -119.721
+          },
+          {
+            "id": "VALLEY-AG",
+            "latitude": 36.943,
+            "longitude": -120.06
+          },
+          {
+            "id": "KINGS-RIVER",
+            "latitude": 36.595,
+            "longitude": -119.45
+          },
+          {
+            "id": "SEQUOIA-HOSPITALITY",
+            "latitude": 36.309,
+            "longitude": -119.313
+          }
+        ],
+        "depots": [
+          {
+            "id": "FAT",
+            "locationId": "FAT-DEPOT"
+          }
+        ],
+        "orders": {
+          "deliveries": [
+            {
+              "id": "PRO-260929-4831",
+              "delivery": {
+                "locationId": "SIERRA-ORCHARD",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 840
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 84
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4832",
+              "delivery": {
+                "locationId": "CLOVIS-HOME",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1200
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 120
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4833",
+              "delivery": {
+                "locationId": "VALLEY-AG",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1560
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 156
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4834",
+              "delivery": {
+                "locationId": "KINGS-RIVER",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1920
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 192
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4835",
+              "delivery": {
+                "locationId": "SEQUOIA-HOSPITALITY",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 2280
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 228
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4836",
+              "delivery": {
+                "locationId": "SIERRA-ORCHARD",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 600
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 60
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4837",
+              "delivery": {
+                "locationId": "CLOVIS-HOME",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 960
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 96
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4838",
+              "delivery": {
+                "locationId": "VALLEY-AG",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1320
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 132
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4839",
+              "delivery": {
+                "locationId": "KINGS-RIVER",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1680
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 168
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4840",
+              "delivery": {
+                "locationId": "SEQUOIA-HOSPITALITY",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 2040
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 204
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "id": "FAT-270",
+            "start": {
+              "locationId": "FAT-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "FAT-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "FAT-271",
+            "start": {
+              "locationId": "FAT-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "FAT-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "FAT-272",
+            "start": {
+              "locationId": "FAT-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "FAT-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          }
+        ],
+        "reporting": {
+          "terminal": "FAT",
+          "orders": {
+            "PRO-260929-4831": {
+              "shipToName": "Sierra Orchard Foods",
+              "address1": "1480 G Street",
+              "city": "Fresno",
+              "state": "CA",
+              "postalCode": "93706",
+              "units": 7,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4832": {
+              "shipToName": "Clovis Home & Lighting",
+              "address1": "620 W Shaw Avenue",
+              "city": "Clovis",
+              "state": "CA",
+              "postalCode": "93612",
+              "units": 10,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4833": {
+              "shipToName": "Valley Ag Supply",
+              "address1": "1220 S Madera Avenue",
+              "city": "Madera",
+              "state": "CA",
+              "postalCode": "93637",
+              "units": 13,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4834": {
+              "shipToName": "Kings River Hardware",
+              "address1": "850 G Street",
+              "city": "Reedley",
+              "state": "CA",
+              "postalCode": "93654",
+              "units": 16,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4835": {
+              "shipToName": "Sequoia Hospitality Supply",
+              "address1": "2350 S Mooney Boulevard",
+              "city": "Visalia",
+              "state": "CA",
+              "postalCode": "93277",
+              "units": 19,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            },
+            "PRO-260929-4836": {
+              "shipToName": "Sierra Orchard Foods",
+              "address1": "1480 G Street",
+              "city": "Fresno",
+              "state": "CA",
+              "postalCode": "93706",
+              "units": 5,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4837": {
+              "shipToName": "Clovis Home & Lighting",
+              "address1": "620 W Shaw Avenue",
+              "city": "Clovis",
+              "state": "CA",
+              "postalCode": "93612",
+              "units": 8,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4838": {
+              "shipToName": "Valley Ag Supply",
+              "address1": "1220 S Madera Avenue",
+              "city": "Madera",
+              "state": "CA",
+              "postalCode": "93637",
+              "units": 11,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4839": {
+              "shipToName": "Kings River Hardware",
+              "address1": "850 G Street",
+              "city": "Reedley",
+              "state": "CA",
+              "postalCode": "93654",
+              "units": 14,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4840": {
+              "shipToName": "Sequoia Hospitality Supply",
+              "address1": "2350 S Mooney Boulevard",
+              "city": "Visalia",
+              "state": "CA",
+              "postalCode": "93277",
+              "units": 17,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Sacramento Capital Region deliveries \u2014 September 29",
+      "request": {
+        "settings": {
+          "duration": 1
+        },
+        "locations": [
+          {
+            "id": "SAC-DEPOT",
+            "latitude": 38.647,
+            "longitude": -121.43
+          },
+          {
+            "id": "CAPITOL-CITY",
+            "latitude": 38.559,
+            "longitude": -121.491
+          },
+          {
+            "id": "RIVERBEND-NATURAL",
+            "latitude": 38.678,
+            "longitude": -121.773
+          },
+          {
+            "id": "FOOTHILL-BUILDERS",
+            "latitude": 38.787,
+            "longitude": -121.234
+          },
+          {
+            "id": "DELTA-RESTAURANT",
+            "latitude": 38.409,
+            "longitude": -121.371
+          },
+          {
+            "id": "AMERICAN-RIVER",
+            "latitude": 38.67,
+            "longitude": -121.157
+          }
+        ],
+        "depots": [
+          {
+            "id": "SAC",
+            "locationId": "SAC-DEPOT"
+          }
+        ],
+        "orders": {
+          "deliveries": [
+            {
+              "id": "PRO-260929-4841",
+              "delivery": {
+                "locationId": "CAPITOL-CITY",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1080
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 96
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4842",
+              "delivery": {
+                "locationId": "RIVERBEND-NATURAL",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1485
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 132
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4843",
+              "delivery": {
+                "locationId": "FOOTHILL-BUILDERS",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1890
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 168
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4844",
+              "delivery": {
+                "locationId": "DELTA-RESTAURANT",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 2295
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 204
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4845",
+              "delivery": {
+                "locationId": "AMERICAN-RIVER",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 2700
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 240
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4846",
+              "delivery": {
+                "locationId": "CAPITOL-CITY",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 810
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 72
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4847",
+              "delivery": {
+                "locationId": "RIVERBEND-NATURAL",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1215
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 108
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4848",
+              "delivery": {
+                "locationId": "FOOTHILL-BUILDERS",
+                "duration": 1200
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 1620
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 144
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4849",
+              "delivery": {
+                "locationId": "DELTA-RESTAURANT",
+                "duration": 1500
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 2025
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 180
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRO-260929-4850",
+              "delivery": {
+                "locationId": "AMERICAN-RIVER",
+                "duration": 900
+              },
+              "properties": {
+                "loads": [
+                  {
+                    "dimension": "weight",
+                    "value": 2430
+                  },
+                  {
+                    "dimension": "volume",
+                    "value": 216
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "id": "SAC-280",
+            "start": {
+              "locationId": "SAC-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "SAC-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "SAC-281",
+            "start": {
+              "locationId": "SAC-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "SAC-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          },
+          {
+            "id": "SAC-282",
+            "start": {
+              "locationId": "SAC-DEPOT",
+              "earliestStartTime": "2026-09-29T07:00:00-07:00"
+            },
+            "end": {
+              "locationId": "SAC-DEPOT",
+              "latestEndTime": "2026-09-29T18:00:00-07:00"
+            },
+            "routing": {
+              "profile": "USA_5_DELIVERY",
+              "trafficMode": "AVERAGE"
+            },
+            "constraints": {
+              "maximumLoads": [
+                {
+                  "dimension": "weight",
+                  "value": 12000
+                },
+                {
+                  "dimension": "volume",
+                  "value": 1600
+                }
+              ]
+            },
+            "costs": {
+              "fixed": 125,
+              "perHour": 48,
+              "perKilometer": 0.85
+            }
+          }
+        ],
+        "reporting": {
+          "terminal": "SAC",
+          "orders": {
+            "PRO-260929-4841": {
+              "shipToName": "Capitol City Furnishings",
+              "address1": "1840 Broadway",
+              "city": "Sacramento",
+              "state": "CA",
+              "postalCode": "95818",
+              "units": 8,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4842": {
+              "shipToName": "Riverbend Natural Market",
+              "address1": "720 Main Street",
+              "city": "Woodland",
+              "state": "CA",
+              "postalCode": "95695",
+              "units": 11,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4843": {
+              "shipToName": "Foothill Builders Supply",
+              "address1": "5100 Pacific Street",
+              "city": "Rocklin",
+              "state": "CA",
+              "postalCode": "95677",
+              "units": 14,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4844": {
+              "shipToName": "Delta Restaurant Equipment",
+              "address1": "9700 Elk Grove Florin Road",
+              "city": "Elk Grove",
+              "state": "CA",
+              "postalCode": "95624",
+              "units": 17,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4845": {
+              "shipToName": "American River Outdoor Gear",
+              "address1": "810 E Bidwell Street",
+              "city": "Folsom",
+              "state": "CA",
+              "postalCode": "95630",
+              "units": 20,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            },
+            "PRO-260929-4846": {
+              "shipToName": "Capitol City Furnishings",
+              "address1": "1840 Broadway",
+              "city": "Sacramento",
+              "state": "CA",
+              "postalCode": "95818",
+              "units": 6,
+              "specialInstructions": "Palletized cartons. Liftgate requested."
+            },
+            "PRO-260929-4847": {
+              "shipToName": "Riverbend Natural Market",
+              "address1": "720 Main Street",
+              "city": "Woodland",
+              "state": "CA",
+              "postalCode": "95695",
+              "units": 9,
+              "specialInstructions": "Retail stock replenishment. Check in at receiving."
+            },
+            "PRO-260929-4848": {
+              "shipToName": "Foothill Builders Supply",
+              "address1": "5100 Pacific Street",
+              "city": "Rocklin",
+              "state": "CA",
+              "postalCode": "95677",
+              "units": 12,
+              "specialInstructions": "Keep upright; do not stack."
+            },
+            "PRO-260929-4849": {
+              "shipToName": "Delta Restaurant Equipment",
+              "address1": "9700 Elk Grove Florin Road",
+              "city": "Elk Grove",
+              "state": "CA",
+              "postalCode": "95624",
+              "units": 15,
+              "specialInstructions": "Dock delivery. Pallet jack required."
+            },
+            "PRO-260929-4850": {
+              "shipToName": "American River Outdoor Gear",
+              "address1": "810 E Bidwell Street",
+              "city": "Folsom",
+              "state": "CA",
+              "postalCode": "95630",
+              "units": 18,
+              "specialInstructions": "Shrink-wrapped merchandise. Count cartons on receipt."
+            }
+          }
+        }
+      }
+    }
+  ]
+}

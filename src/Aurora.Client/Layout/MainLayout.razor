@@ -13,7 +13,7 @@
             @* Always-visible product header. The three entries are whatever this tenant has
                licensed, so a customer without FreightOps simply never sees it. *@
             <MudAppBar Elevation="0" Fixed="true" Class="aurora-appbar">
-                <MudText Typo="Typo.h6" Class="aurora-brand">Aurora</MudText>
+                <MudText Typo="Typo.h6" Class="aurora-brand"><span class="aurora-mark" aria-hidden="true"></span>Aurora</MudText>
 
                 <nav class="aurora-product-nav" aria-label="Products">
                     @foreach (var product in _products)
@@ -27,6 +27,9 @@
                 </nav>
 
                 <MudText Typo="Typo.body2" Class="aurora-user ml-auto">@context.User.Identity?.Name</MudText>
+                <MudMenu Icon="@Icons.Material.Filled.Settings" aria-label="Settings" Color="Color.Inherit" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem Disabled="@(!context.User.IsInRole("aurora:Admin"))" OnClick="@(() => Navigation.NavigateTo("/aurora/import"))">Import</MudMenuItem>
+                </MudMenu>
             </MudAppBar>
         </Authorized>
     </AuthorizeView>

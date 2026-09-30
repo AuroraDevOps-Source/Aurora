@@ -3,6 +3,9 @@ window.routeMap = (() => {
     let bounds;
     let routes = [];
     let droppedPoints = [];
+    let droppedMarkers = [];
+    let showDropped = true;
+    let showRoutes = true;
     let roadMode = false;
     let selectedVehicle = null;
 
@@ -12,6 +15,9 @@ window.routeMap = (() => {
         bounds = null;
         routes = [];
         droppedPoints = [];
+        droppedMarkers = [];
+        showDropped = true;
+        showRoutes = true;
         roadMode = false;
         selectedVehicle = null;
     }
@@ -100,9 +106,10 @@ window.routeMap = (() => {
             allPoints.push(point);
             droppedPoints.push(point);
             const icon = L.divIcon({ className: '', html: `<span class="map-dropped">${orders.length > 1 ? orders.length : '!'}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-            L.marker(point, { icon, zIndexOffset: 1000 })
+            const marker = L.marker(point, { icon, zIndexOffset: 1000 })
                 .addTo(map)
                 .bindPopup(`<strong>${orders.length} unscheduled order(s)</strong><br>` + orders.map(order => `<strong>${escapeHtml(order.orderId)}</strong><br><small>${escapeHtml(order.reason)}</small>`).join('<hr>'));
+            droppedMarkers.push(marker);
         });
 
         bounds = allPoints.length ? L.latLngBounds(allPoints) : null;
@@ -110,17 +117,23 @@ window.routeMap = (() => {
         setTimeout(() => map?.invalidateSize(), 50);
     }
 
-    function filter(vehicle) {
+    function filter(vehicle, includeDropped = true, includeRoutes = true) {
         if (!map) return;
         selectedVehicle = vehicle;
+        showDropped = includeDropped;
+        showRoutes = includeRoutes;
         const points = [];
         routes.forEach(route => {
-            const visible = !vehicle || route.vehicle === vehicle;
+            const visible = showRoutes && (!vehicle || route.vehicle === vehicle);
             if (visible) { route.layer.addTo(map); points.push(...(roadMode && route.roadPoints ? route.roadPoints : route.points)); }
             else map.removeLayer(route.layer);
         });
-        // Keep all dropped markers, but focus a selected route rather than distant rejected stops.
-        if (!vehicle || !points.length) points.push(...droppedPoints);
+        droppedMarkers.forEach(marker => {
+            if (showDropped) marker.addTo(map);
+            else map.removeLayer(marker);
+        });
+        // Fit everything the planner chose to show, including distant unrouted orders.
+        if (showDropped) points.push(...droppedPoints);
         bounds = points.length ? L.latLngBounds(points) : null;
         fit();
     }
@@ -137,7 +150,7 @@ window.routeMap = (() => {
             // Never present a straight-line fallback as road directions.
             route.line.setLatLngs(useRoads ? (route.roadPoints || []) : route.points);
         });
-        filter(selectedVehicle);
+        filter(selectedVehicle, showDropped, showRoutes);
     }
 
     function fit() {

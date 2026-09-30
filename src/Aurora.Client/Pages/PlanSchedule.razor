@@ -1,0 +1,28 @@
+@using System.Globalization
+@* Read-only: the ship date and truck hours come from the Route Optimization start screen.
+   Individual trucks can still be adjusted on the Fleet and Planning tab. *@
+<section class="planning-card plan-schedule" aria-label="Truck schedule">
+    <div><span>Ship date</span><strong>@_date</strong></div>
+    <div><span>Truck hours</span><strong>@_hours</strong></div>
+    @if (_offset is not null) { <div><span>UTC offset</span><strong>@_offset</strong></div> }
+</section>
+@code {
+    [Parameter] public string SourceJson { get; set; } = "{}";
+    private string? _loaded, _offset;
+    private string _date = "—", _hours = "—";
+    protected override void OnParametersSet()
+    {
+        if (_loaded == SourceJson) return;
+        _loaded = SourceJson;
+        var root = RoutingInput.Parse(SourceJson);
+        var trucks = RoutingInput.Items(root["vehicles"]).Concat(RoutingInput.Items(root["reporting"]?["unavailableVehicles"])).ToArray();
+        var start = RoutingInput.Time(trucks.FirstOrDefault()?["start"]?["earliestStartTime"]);
+        var end = RoutingInput.Time(trucks.FirstOrDefault()?["end"]?["latestEndTime"]);
+        if (start is null || end is null) { _date = _hours = "—"; _offset = null; return; }
+        var mixed = trucks.Any(t => RoutingInput.Time(t["start"]?["earliestStartTime"]) != start || RoutingInput.Time(t["end"]?["latestEndTime"]) != end);
+        _date = start.Value.ToString("ddd, MMM d", CultureInfo.CurrentCulture);
+        _hours = mixed ? "Varies by truck" : $"{Clock(start.Value)} – {Clock(end.Value)}{(end.Value.Date > start.Value.Date ? " next day" : "")}";
+        _offset = start.Value.ToString("zzz", CultureInfo.InvariantCulture);
+    }
+    private static string Clock(DateTimeOffset time) => time.ToString("h:mm tt", CultureInfo.CurrentCulture);
+}

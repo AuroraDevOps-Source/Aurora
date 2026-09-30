@@ -226,3 +226,36 @@ foreach (var unsafeReturn in new[] { "https://untrusted.example/connect/authoriz
     Check(Aurora.Client.AuthenticationNavigation.AuthorizationReturnPath(unsafeReturn) is null,
         "login refuses unsafe return path " + unsafeReturn);
 Console.WriteLine($"{count} checks including HTTP request flow passed.");
+
+var customerInput = RoutingInput.Parse(json);
+var extraOrder = (JsonObject)customerInput["orders"]!["deliveries"]![0]!.DeepClone();
+extraOrder["id"] = "SECOND_NORTH";
+customerInput["orders"]!["deliveries"]!.AsArray().Add(extraOrder);
+customerInput["reporting"]!["orders"]!["SECOND_NORTH"] = customerInput["reporting"]!["orders"]!["TEST_NORTH"]!.DeepClone();
+customerInput["reporting"]!["orders"]!["TEST_SOUTH"]!["shipToName"] = "Synthetic north appointment";
+var customerJson = customerInput.ToJsonString();
+var customers = PlanningCustomers.Read(customerJson);
+var northCustomer = customers.Single(c => c.OrderIds.Contains("SECOND_NORTH"));
+Check(northCustomer.OrderIds.Count == 2 && customers.Count == 3, "customer grouping joins multiple PROs but separates same-name destinations");
+var customerUpdated = PlannerEdits.CustomerAppointment(customerJson, northCustomer.Key, "2030-01-01T10:00:00-06:00", "2030-01-01T11:00:00-06:00", true, 20, false);
+var customerRoot = RoutingInput.Parse(customerUpdated);
+Check(northCustomer.OrderIds.All(id => RoutingInput.Describe(customerRoot, id)!.Windows[0].EarliestStart!.Value.Hour == 10), "customer appointment updates every selected order at the destination");
+Check(RoutingInput.Describe(customerRoot, "TEST_SOUTH")!.Windows[0].EarliestStart!.Value.Hour == 9, "customer appointment leaves other destinations unchanged");
+var customerDeleted = RoutingInput.Parse(PlannerEdits.CustomerAppointment(customerUpdated, northCustomer.Key, null, null, false, null, true));
+Check(northCustomer.OrderIds.All(id => RoutingInput.Appointment(RoutingInput.ReportOrder(customerDeleted, id)) is null), "delete removes the customer appointment from every linked order");
+Check(RoutingInput.Describe(customerInput, "TEST_NORTH")!.Windows[0].EarliestStart!.Value.Hour == 9, "customer edits leave original inputs unchanged");
+var isolated = PlannerEdits.CustomerAppointment(customerJson, northCustomer.Key, "2030-01-01T10:00:00-06:00", "2030-01-01T11:00:00-06:00", true, null, false, true);
+Check(PlanningCustomers.Read(isolated).Single(c => c.Key == northCustomer.Key).OrderIds.Count == 2, "customer identity survives isolated location copies");
+Reject(() => PlannerEdits.CustomerAppointment(customerJson, northCustomer.Key, "2030-01-01T12:00:00-06:00", "2030-01-01T11:00:00-06:00", true, null, false), "invalid customer window is rejected");
+var shiftInput = RoutingInput.Parse(json);
+shiftInput["reporting"]!["unavailableVehicles"] = new JsonArray(shiftInput["vehicles"]![1]!.DeepClone());
+shiftInput["vehicles"]!.AsArray().RemoveAt(1);
+var zone = RoutingInput.Text(shiftInput["vehicles"]![0]!["start"]!["earliestStartTime"])![^6..];
+var shipDay = RoutingInput.Parse(PlannerEdits.FleetDay(shiftInput.ToJsonString(), new DateOnly(2031, 3, 4), "06:00", "18:00"));
+Check(RoutingInput.Items(shipDay["vehicles"]).Concat(RoutingInput.Items(shipDay["reporting"]?["unavailableVehicles"])).All(t => RoutingInput.Text(t["start"]?["earliestStartTime"]) == $"2031-03-04T06:00:00{zone}" && RoutingInput.Text(t["end"]?["latestEndTime"]) == $"2031-03-04T18:00:00{zone}"), "ship date and time window apply to every truck in its own offset");
+Check(shipDay["vehicles"]!.AsArray().Count == 1 && JsonNode.DeepEquals(shipDay["vehicles"]![0]!["costs"], shiftInput["vehicles"]![0]!["costs"]), "ship-day schedule preserves availability and truck costs");
+var overnightDay = RoutingInput.Parse(PlannerEdits.FleetDay(json, new DateOnly(2031, 3, 4), "20:00", "05:00"));
+Check(RoutingInput.Items(overnightDay["vehicles"]).All(t => RoutingInput.Text(t["end"]?["latestEndTime"]) == $"2031-03-05T05:00:00{zone}"), "time window ending before departure returns the next day");
+Reject(() => PlannerEdits.FleetDay(json, new DateOnly(2031, 3, 4), "06:00", "06:00"), "equal departure and return rejected");
+Reject(() => PlannerEdits.FleetDay(json, new DateOnly(2031, 3, 4), "6am", "18:00"), "malformed truck time rejected");
+Console.WriteLine($"{count} checks including customer appointments and overall schedules passed.");

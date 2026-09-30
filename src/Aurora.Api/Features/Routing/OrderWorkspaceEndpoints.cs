@@ -16,6 +16,7 @@ public static class OrderWorkspaceEndpoints
         group.MapPost("/drafts", (CreateOrderDraftDto input,HttpContext context,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.CreateDraft(input,PlanningSessions.Owner(context.User),ct))));
         group.MapGet("/drafts/{id:guid}", (Guid id,HttpContext context,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.Draft(id,PlanningSessions.Owner(context.User),ct))));
         group.MapGet("/manifests", (OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.Manifests(ct))));
+        group.MapGet("/manifests/{id:guid}", (Guid id,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.Manifest(id,ct))));
         group.MapPut("/manifests/{id:guid}", (Guid id,UpdateManifestDto input,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.UpdateManifest(id,input,ct))));
         group.MapPost("/drafts/{id:guid}/finish", (Guid id,FinishOrderDraftDto input,HttpContext context,OrderWorkspace store,PlanningSessions sessions,CancellationToken ct)=>Guard(async()=>
         {

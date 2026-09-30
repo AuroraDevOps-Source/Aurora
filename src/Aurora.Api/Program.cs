@@ -207,6 +207,9 @@ builder.Services.AddScoped<ListRoutePlansQuery>();
 builder.Services.AddScoped<Aurora.Modules.Routing.EquipmentStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.OrderWorkspace>();
 builder.Services.AddScoped<Aurora.Modules.Routing.TmsStore>();
+builder.Services.AddScoped<Aurora.Modules.Routing.TerminalStore>();
+builder.Services.AddScoped<Aurora.Modules.Routing.WorkspaceImportStore>();
+builder.Services.AddScoped<Aurora.Modules.Routing.CustomerStore>();
 builder.Services.Configure<PtvSettings>(builder.Configuration.GetSection(PtvSettings.SectionName));
 builder.Services.AddHttpClient("PtvRoadRouting", client => client.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddScoped<OptimizationService>();
@@ -283,6 +286,7 @@ app.MapLauncherEndpoints();
 app.MapRoutingEndpoints();
 app.MapOrderWorkspaceEndpoints();
 app.MapTmsEndpoints();
+app.MapWorkspaceImportEndpoints();
 
 app.MapGet("/health/live", () => Results.Ok()).AllowAnonymous();
 app.MapGet("/health/ready", async (AuroraDbContext db, CancellationToken ct) =>

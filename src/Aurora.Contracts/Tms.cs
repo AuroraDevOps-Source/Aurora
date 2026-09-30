@@ -4,6 +4,10 @@ public sealed class TmsOrder
 {
     public Guid SourceId { get; set; }
     public string Id { get; set; } = "";
+    public Guid? TerminalId { get; set; }
+    public string? TerminalCode { get; set; }
+    public Guid? CustomerId { get; set; }
+    public string? CustomerCode { get; set; }
     public DateTimeOffset ScheduledAt { get; set; } = DateTimeOffset.Now;
     public string Customer { get; set; } = "";
     public string Address { get; set; } = "";

@@ -9,7 +9,7 @@
             <div class="catalog-body">
                 @if (_error is not null) { <div class="alert" role="alert">@_error</div> }
                 @if (_message is not null) { <p role="status">@_message</p> }
-                <div class="planning-tools"><button class="outline-button" @onclick="() => _showUnits = false">Equipment types (@_catalog.Types.Count)</button><button class="outline-button" @onclick="() => _showUnits = true">Individual units (@_catalog.Units.Count)</button><button class="text-button" @onclick="LoadSamples" disabled="@(_busy || !_loaded)">Add spreadsheet samples</button></div>
+                <div class="planning-tools"><button class="outline-button" aria-pressed="@(!_showUnits)" @onclick="() => _showUnits = false">Equipment types (@_catalog.Types.Count)</button><button class="outline-button" aria-pressed="@_showUnits" @onclick="() => _showUnits = true">Individual units (@_catalog.Units.Count)</button><button class="text-button" @onclick="LoadSamples" disabled="@(_busy || !_loaded)">Add spreadsheet samples</button></div>
                 <p class="file-format">Sample records are labeled TEST and saved only when added. Dimensions are stored in feet, weight in pounds and volume in cubic feet. Review sample values before use.</p>
                 <fieldset disabled="@(_busy || !_loaded)">
                 @if (!_showUnits)

@@ -16,7 +16,9 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       'Cube',COALESCE((SELECT l->'value' FROM jsonb_array_elements(s.request#>'{orders,deliveries}') d CROSS JOIN LATERAL jsonb_array_elements(d#>'{properties,loads}') l WHERE d->>'id'=o.id AND l->>'dimension'='volume' LIMIT 1),'0'::jsonb),
       'Pieces',COALESCE(s.request->'reporting'->'orders'->o.id->'units','0'::jsonb),
       'Notes',COALESCE(s.request->'reporting'->'orders'->o.id->>'specialInstructions','')) || o.details || jsonb_build_object('SourceId',o.source_id,'Id',o.id,'ScheduledAt',o.scheduled_at,
-      'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,
+      'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,'TerminalId',o.terminal_id,
+      'TerminalCode',(SELECT code FROM aurora_terminal t WHERE (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id)),
+      'CustomerId',o.customer_id,'CustomerCode',(SELECT code FROM aurora_customer c WHERE (c.tenant_id,c.id)=(o.tenant_id,o.customer_id)),
       'ManifestId',m.id,'ManifestNumber',m.number,'StopNumber',a.stop_number))::text
       FROM aurora_order o JOIN aurora_order_source s ON (s.tenant_id,s.id)=(o.tenant_id,o.source_id) LEFT JOIN aurora_manifest_order a ON (a.tenant_id,a.source_id,a.order_id)=(o.tenant_id,o.source_id,o.id)
       LEFT JOIN aurora_manifest m ON (m.tenant_id,m.id)=(a.tenant_id,a.manifest_id)
@@ -28,10 +30,10 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       'OrderCount',(SELECT count(*) FROM aurora_manifest_order a WHERE a.tenant_id=m.tenant_id AND a.manifest_id=m.id))::text
       FROM aurora_manifest m WHERE m.tenant_id=@TenantId AND m.deleted_at IS NULL
       """;
-    public async Task<List<TmsOrder>> Orders(DateTimeOffset? from,DateTimeOffset? to,string? status,string? search,Guid? manifest,CancellationToken ct)
+    public async Task<List<TmsOrder>> Orders(DateTimeOffset? from,DateTimeOffset? to,string? status,string? search,Guid? manifest,CancellationToken ct,Guid? terminal=null)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
-        var rows=await db.QueryAsync<string>(new CommandDefinition(OrderSql+" AND (@from IS NULL OR o.scheduled_at>=@from) AND (@to IS NULL OR o.scheduled_at<=@to) AND (@status IS NULL OR o.status=@status) AND (@manifest IS NULL OR a.manifest_id=@manifest) AND (@search IS NULL OR concat_ws(' ',o.id,o.customer,o.city,o.details->>'Reference') ILIKE '%'||@search||'%') ORDER BY a.stop_number NULLS LAST,o.scheduled_at,o.id",new {tenant.TenantId,from=from?.ToUniversalTime(),to=to?.ToUniversalTime(),status=string.IsNullOrEmpty(status)?null:status,search=string.IsNullOrWhiteSpace(search)?null:search,manifest},cancellationToken:ct));
+        var rows=await db.QueryAsync<string>(new CommandDefinition(OrderSql+" AND (@from IS NULL OR o.scheduled_at>=@from) AND (@to IS NULL OR o.scheduled_at<=@to) AND (@status IS NULL OR o.status=@status) AND (@terminal IS NULL OR o.terminal_id=@terminal) AND (@manifest IS NULL OR a.manifest_id=@manifest) AND (@search IS NULL OR concat_ws(' ',o.id,o.customer,o.city,o.details->>'Reference') ILIKE '%'||@search||'%') ORDER BY a.stop_number NULLS LAST,o.scheduled_at,o.id",new {tenant.TenantId,from=from?.ToUniversalTime(),to=to?.ToUniversalTime(),status=string.IsNullOrEmpty(status)?null:status,search=string.IsNullOrWhiteSpace(search)?null:search,manifest,terminal},cancellationToken:ct));
         return rows.Select(x=>JsonSerializer.Deserialize<TmsOrder>(x)!).ToList();
     }
     public async Task<List<TmsManifest>> Manifests(CancellationToken ct)
@@ -44,10 +46,14 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
     {
         item.Validate(); item.ScheduledAt=item.ScheduledAt.ToUniversalTime();
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
+        if (item.TerminalId is {} terminalId && await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_terminal WHERE tenant_id=@TenantId AND id=@terminalId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,terminalId},tx,cancellationToken:ct)) is null)
+            throw new FormatException("Choose a saved terminal from your company.");
+        if (item.CustomerId is {} customerId && await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_customer WHERE tenant_id=@TenantId AND id=@customerId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,customerId},tx,cancellationToken:ct)) is null)
+            throw new FormatException("Choose a saved customer from your company.");
         if(create) {
             if(item.Status=="Routed" || item.Status=="Dispatched" || item.Status=="InTransit" || item.Status=="OutForDelivery") throw new FormatException("Assign the order to a manifest to set that status.");
             item.SourceId=await db.ExecuteScalarAsync<Guid>(new CommandDefinition("INSERT INTO aurora_order_source(tenant_id,id,name,request) VALUES(@TenantId,gen_random_uuid(),'Manual orders','{}') ON CONFLICT(tenant_id,name) DO UPDATE SET name=excluded.name RETURNING id",new{tenant.TenantId},tx,cancellationToken:ct));
-            await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order(tenant_id,source_id,id,scheduled_at,customer,city,status,details) VALUES(@TenantId,@SourceId,@Id,@ScheduledAt,@Customer,@City,@Status,CAST(@json AS jsonb))",new{tenant.TenantId,item.SourceId,item.Id,item.ScheduledAt,item.Customer,item.City,item.Status,json=JsonSerializer.Serialize(item)},tx,cancellationToken:ct));
+            await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order(tenant_id,source_id,id,scheduled_at,customer,city,status,terminal_id,customer_id,details) VALUES(@TenantId,@SourceId,@Id,@ScheduledAt,@Customer,@City,@Status,@TerminalId,@CustomerId,CAST(@json AS jsonb))",new{tenant.TenantId,item.SourceId,item.Id,item.ScheduledAt,item.Customer,item.City,item.Status,item.TerminalId,item.CustomerId,json=JsonSerializer.Serialize(item)},tx,cancellationToken:ct));
         } else {
             // Lock the owning manifest before its order, matching membership operations.
             var mid=await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT manifest_id FROM aurora_manifest_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND order_id=@Id",new{tenant.TenantId,item.SourceId,item.Id},tx,cancellationToken:ct));
@@ -57,7 +63,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
             var assigned=await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_manifest_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND order_id=@Id)",new{tenant.TenantId,item.SourceId,item.Id},tx,cancellationToken:ct));
             if(assigned && (mid is null || item.Status!=current)) throw new FormatException("Manifest assignment controls this order's status. Refresh and try again.");
             if(!assigned && new[]{"Routed","Dispatched","InTransit","OutForDelivery"}.Contains(item.Status)) throw new FormatException("Assign the order to a manifest to set that status.");
-            Check(await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order SET scheduled_at=@ScheduledAt,customer=@Customer,city=@City,status=@Status,details=CAST(@json AS jsonb),revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@Id AND revision=@Revision AND deleted_at IS NULL",new{tenant.TenantId,item.SourceId,item.Id,item.ScheduledAt,item.Customer,item.City,item.Status,item.Revision,json=JsonSerializer.Serialize(item)},tx,cancellationToken:ct)));
+            Check(await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order SET scheduled_at=@ScheduledAt,customer=@Customer,city=@City,status=@Status,terminal_id=@TerminalId,customer_id=@CustomerId,details=CAST(@json AS jsonb),revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@Id AND revision=@Revision AND deleted_at IS NULL",new{tenant.TenantId,item.SourceId,item.Id,item.ScheduledAt,item.Customer,item.City,item.Status,item.TerminalId,item.CustomerId,item.Revision,json=JsonSerializer.Serialize(item)},tx,cancellationToken:ct)));
         }
         await tx.CommitAsync(ct);
     }

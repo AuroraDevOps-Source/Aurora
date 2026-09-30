@@ -1,0 +1,78 @@
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<section class="planning-card workspace-import-card">
+    <div class="import-heading"><h2>Replace company data</h2><a href="samples/workspace-import.json" download="aurora-import-example.json">Download example JSON</a></div>
+    <p class="import-warning">This replaces all orders, manifests, trucks, terminals, customers, and saved planning drafts for your company. User accounts, company settings, and other companies are kept. Existing equipment types are kept; definitions in the file update matching types.</p>
+    <fieldset class="tms-edit-fields" disabled="@_busy">
+        <label class="field">JSON file (up to 25 MB)<InputFile OnChange="SelectFile" accept=".json,application/json" /></label>
+        @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+        @if (_busy) { <p role="status">@_progress</p> }
+        @if (_summary is {} summary)
+        {
+            <div class="import-counts" aria-label="Records in file"><span><strong>@summary.Orders</strong> orders</span><span><strong>@summary.Manifests</strong> manifests</span><span><strong>@summary.Trucks</strong> trucks</span><span><strong>@summary.Terminals</strong> terminals</span><span><strong>@summary.Customers</strong> customers</span></div>
+            <p class="compact-feedback">@_fileName is valid. Replacing data cannot be undone from this screen.</p>
+        }
+        @if (_completed) { <p role="status">Import complete. Your company’s records have been replaced.</p> }
+        <div class="compact-form-actions">
+            @if (!_completed) { <button class="primary-button" disabled="@(_busy || _summary is null || _json is null)" @onclick="Replace">Replace company data</button> }
+            <button class="outline-button" @onclick="@(() => Navigation.NavigateTo("/aurora/orders",forceLoad:true))">@(_completed ? "Open orders" : "Cancel")</button>
+        </div>
+    </fieldset>
+    <details class="import-format-help"><summary>File format</summary><p>Use version 1 with terminals, customers, orders, manifests, and trucks arrays. Empty arrays clear that collection. Orders reference customerCode and terminalCode; trucks reference terminal and typeCode; manifests reference truckId and orderIds. Include equipmentTypes for new truck capacities. Optional planningSources carry the routing request needed for route optimization.</p></details>
+</section>
+
+@code {
+    private readonly CancellationTokenSource _lifetime=new();
+    private string? _json,_fileName,_error;
+    private string _progress="";
+    private ImportSummary? _summary;
+    private bool _busy,_completed;
+    private async Task SelectFile(InputFileChangeEventArgs args)
+    {
+        if(_busy)return;
+        _busy=true;_summary=null;_json=null;_error=null;_completed=false;_progress="Validating file…";
+        try
+        {
+            var file=args.File;
+            if(!file.Name.EndsWith(".json",StringComparison.OrdinalIgnoreCase))throw new FormatException("Choose a .json file.");
+            await using var stream=file.OpenReadStream(WorkspaceImport.MaxBytes,_lifetime.Token);
+            using var reader=new StreamReader(stream);
+            var json=await reader.ReadToEndAsync(_lifetime.Token);
+            WorkspaceImport.Parse(json);
+            using var response=await Http.PostAsync("api/v1/tms/import/validate",new StringContent(json,System.Text.Encoding.UTF8,"application/json"),_lifetime.Token);
+            await Check(response);
+            _summary=await response.Content.ReadFromJsonAsync<ImportSummary>(cancellationToken:_lifetime.Token);
+            _json=json;_fileName=file.Name;
+        }
+        catch(OperationCanceledException) when(!_lifetime.IsCancellationRequested) {_error="The request timed out. Check Orders before retrying; a replacement may have completed.";_summary=null;_json=null;}
+        catch(OperationCanceledException) {}
+        catch(Exception ex) {_error=ex.Message;}
+        finally {_busy=false;}
+    }
+    private async Task Replace()
+    {
+        if(_busy || _json is null || _summary is null)return;
+        _busy=true;_error=null;_progress="Replacing company data…";
+        try
+        {
+            using var request=new HttpRequestMessage(HttpMethod.Post,"api/v1/tms/import/replace") { Content=new StringContent(_json,System.Text.Encoding.UTF8,"application/json") };
+            request.Headers.Add("X-Aurora-Replace","company-data");
+            using var response=await Http.SendAsync(request,_lifetime.Token);
+            await Check(response);_completed=true;_json=null;_summary=null;
+        }
+        catch(HttpRequestException) {_error="The connection was interrupted. Check Orders before retrying; the import may have completed.";_summary=null;_json=null;}
+        catch(OperationCanceledException) when(!_lifetime.IsCancellationRequested) {_error="The request timed out. Check Orders before retrying; a replacement may have completed.";_summary=null;_json=null;}
+        catch(OperationCanceledException) {}
+        catch(Exception ex) {_error=ex.Message;}
+        finally {_busy=false;}
+    }
+    private static async Task Check(HttpResponseMessage response)
+    {
+        if(response.IsSuccessStatusCode)return;
+        if(response.StatusCode==System.Net.HttpStatusCode.Forbidden)throw new FormatException("A company administrator is required to import data.");
+        throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Import failed.");
+    }
+    public void Dispose() { _lifetime.Cancel();_lifetime.Dispose(); }
+}

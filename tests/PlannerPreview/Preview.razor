@@ -1,8 +1,19 @@
 @page "/"
 @page "/wizard"
+@page "/planner"
+@page "/aurora/{WorkspaceView}"
+@page "/aurora/manifests/new"
+@page "/aurora/manifests/{ManifestId:guid}"
 @using Microsoft.AspNetCore.Components.Web
 @inject NavigationManager Navigation
-<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="stylesheet" href="/css/route-optimization.css" /><HeadOutlet /></head><body><p style="padding:8px 24px;background:#fff3cd;margin:0">Local preview: simulated PTV responses; maps are stubbed.</p>
-@if (new Uri(Navigation.Uri).AbsolutePath == "/wizard") { <Aurora.Client.Pages.Routing @rendermode="new InteractiveServerRenderMode(prerender: false)" /> }
+<!DOCTYPE html><html><head><base href="/" /><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@@mdi/font@7.4.47/css/materialdesignicons.min.css" /><link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" /><style>:root{--mud-typography-default-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;--mud-typography-default-size:.875rem;--mud-typography-default-lineheight:1.43;--mud-palette-text-primary:#2d3748;--mud-palette-background:#f0f2f5}</style><link rel="stylesheet" href="/css/route-optimization.css" /><link rel="stylesheet" href="/css/app.css" /><HeadOutlet /></head><body><p style="padding:8px 24px;background:#fff3cd;margin:0">Local UI preview: synthetic orders and simulated PTV responses. The full application uses SSO; this test harness does not sign in.</p>
+@if (CurrentManifestId is not null || new Uri(Navigation.Uri).AbsolutePath == "/aurora/manifests/new") {
+<div class="tms-workspace"><Aurora.Client.Layout.AuroraSidebar @rendermode="new InteractiveServerRenderMode(prerender: false)" /><main class="tms-main"><Aurora.Client.Pages.TmsManifests ManifestId="CurrentManifestId" NewManifest="@(CurrentManifestId is null)" @rendermode="new InteractiveServerRenderMode(prerender: false)" /></main></div>
+}
+else if (CurrentView == "planning" || new Uri(Navigation.Uri).AbsolutePath is "/wizard" or "/planner") {
+<div class="tms-workspace"><Aurora.Client.Layout.AuroraSidebar @rendermode="new InteractiveServerRenderMode(prerender: false)" /><main class="tms-main planning-workspace"><Aurora.Client.Pages.Routing @rendermode="new InteractiveServerRenderMode(prerender: false)" /></main></div>
+}
+else if (CurrentView is not null) { <Aurora.Client.Pages.AuroraWorkspace WorkspaceView="@CurrentView" @rendermode="new InteractiveServerRenderMode(prerender: false)" /> }
 else { <Harness @rendermode="RenderMode.InteractiveServer" /> }
-<script>window.routeMap={dispose:()=>{},render:()=>{},filter:()=>{},setMode:()=>{}};</script><script src="_framework/blazor.web.js"></script></body></html>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="/js/map.js"></script><script src="/js/workspace.js"></script><script src="_framework/blazor.web.js"></script></body></html>
+@code { [Parameter] public Guid? ManifestId { get;set; } [Parameter] public string? WorkspaceView { get; set; } private Guid? CurrentManifestId => new Uri(Navigation.Uri).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries) is ["aurora", "manifests", var id] && Guid.TryParse(id,out var parsed) ? parsed : null; private string? CurrentView => new Uri(Navigation.Uri).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries) is ["aurora", var view] ? view : null; }

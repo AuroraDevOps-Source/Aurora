@@ -1,0 +1,55 @@
+@inject IJSRuntime JS
+<div class="customer-dropdown">
+    <label class="field" for="@_inputId">@Label</label>
+    <div class="customer-dropdown-control">
+        <input id="@_inputId" @ref="_input" role="combobox" autocomplete="off" placeholder="Type a customer name or code…" @bind:get="_text" @bind:set="Search" @bind:event="oninput" @onfocus="Open" @onblur="Close" @onkeydown="KeyDown" disabled="@Disabled" aria-autocomplete="list" aria-expanded="@(_open ? "true" : "false")" aria-controls="@_listId" aria-activedescendant="@(_open && _active>=0 ? $"{_listId}-{_active}" : null)" />
+        <button type="button" aria-label="Show customers" disabled="@Disabled" @onmousedown:preventDefault @onclick="Toggle">▾</button>
+    </div>
+    @if(_open)
+    {
+        <div id="@_listId" class="customer-dropdown-options" role="listbox" aria-label="Customer choices">
+            @{ var options=Matches.ToArray(); }
+            @for(var i=0;i<options.Length;i++)
+            {
+                var item=options[i];
+                <button type="button" role="option" tabindex="-1" id="@($"{_listId}-{i}")" aria-selected="@(i==_active ? "true":"false")" @onmousedown:preventDefault @onclick="()=>Choose(item)"><strong>@item.Label</strong>@if(!string.IsNullOrEmpty(item.Detail)){<small>@item.Detail</small>}</button>
+            }
+            @if(options.Length==0){<p role="status">@EmptyText</p>}
+            @if(MatchCount>50){<p>Type more to narrow @MatchCount customers.</p>}
+        </div>
+    }
+</div>
+@code {
+    public sealed record Option(string Value,string Label,string Detail);
+    [Parameter] public string Label {get;set;}="Customer";
+    [Parameter] public string EmptyText {get;set;}="No matching customers.";
+    [Parameter] public IEnumerable<Option> Options {get;set;}=[];
+    [Parameter] public string? Value {get;set;}
+    [Parameter] public EventCallback<string?> ValueChanged {get;set;}
+    [Parameter] public bool Disabled {get;set;}
+    private readonly string _inputId="customer-input-"+Guid.NewGuid().ToString("N");
+    private readonly string _listId="customer-list-"+Guid.NewGuid().ToString("N");
+    private ElementReference _input;
+    private string _text="";
+    private string? _lastValue;
+    private bool _open,_filter;
+    private int _active=-1;
+    private IEnumerable<Option> Filtered=>Options.Where(o=>!_filter || $"{o.Label} {o.Detail}".Contains(_text.Trim(),StringComparison.OrdinalIgnoreCase));
+    private int MatchCount=>Filtered.Count();
+    private IEnumerable<Option> Matches=>Filtered.Take(50);
+    protected override void OnParametersSet(){if(Value!=_lastValue){_lastValue=Value;_text=Options.FirstOrDefault(o=>o.Value==Value)?.Label ?? "";}}
+    private void Open(){_open=true;_filter=false;_active=-1;}
+    private void Close(){_open=false;_active=-1;}
+    private async Task Toggle(){if(_open)Close();else{await _input.FocusAsync();Open();}}
+    private async Task Search(string? text){_text=text ?? "";_filter=true;_open=true;_active=-1;_lastValue=null;await ValueChanged.InvokeAsync(null);}
+    private async Task Choose(Option option){_text=option.Label;_lastValue=option.Value;Close();await ValueChanged.InvokeAsync(option.Value);}
+    private async Task KeyDown(KeyboardEventArgs e)
+    {
+        if(e.Key=="Escape"){Close();return;}
+        var options=Matches.ToArray();
+        if(e.Key=="Enter" && _open){if(_active>=0 && _active<options.Length)await Choose(options[_active]);else if(options.Length==1)await Choose(options[0]);return;}
+        if(e.Key is not ("ArrowDown" or "ArrowUp"))return;
+        _open=true;_active=options.Length==0 ? -1 : Math.Clamp(_active+(e.Key=="ArrowDown" ? 1:-1),0,options.Length-1);
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender){if(_open && _active>=0)await JS.InvokeVoidAsync("auroraWorkspace.scrollOption",$"{_listId}-{_active}");}
+}

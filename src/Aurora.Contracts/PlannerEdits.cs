@@ -1,9 +1,42 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 
 namespace Aurora.Contracts;
 
 public static class PlannerEdits
 {
+    // Puts every truck on one ship date with the same local hours, keeping each truck's own UTC offset.
+    // A return at or before departure is an overnight shift, as with saved truck shifts.
+    public static string FleetDay(string json, DateOnly date, string departAt, string returnBy)
+    {
+        if (!TimeOnly.TryParseExact(departAt, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var depart) ||
+            !TimeOnly.TryParseExact(returnBy, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var back))
+            throw new FormatException("Enter truck departure and return times as HH:mm.");
+        if (depart == back) throw new FormatException("Trucks must return at a different time than they depart.");
+        var root = RoutingInput.Parse(json);
+        var trucks = RoutingInput.Items(root["vehicles"]).Concat(RoutingInput.Items(root["reporting"]?["unavailableVehicles"])).ToArray();
+        if (trucks.Length == 0) throw new FormatException("There are no trucks in this plan.");
+        foreach (var truck in trucks)
+        {
+            var offset = RoutingInput.Time(truck["start"]?["earliestStartTime"])?.Offset
+                ?? throw new FormatException($"Truck {RoutingInput.Text(truck["id"])} has no dated shift to take its UTC offset from.");
+            var start = new DateTimeOffset(date.ToDateTime(depart), offset);
+            var end = new DateTimeOffset((back > depart ? date : date.AddDays(1)).ToDateTime(back), offset);
+            truck["start"]!["earliestStartTime"] = start.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
+            truck["end"]!["latestEndTime"] = end.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
+        }
+        return root.ToJsonString();
+    }
+
+    public static string CustomerAppointment(string json, string customerKey, string? start, string? end, bool confirmed, double? serviceMinutes, bool clear, bool replaceNativeWindows = false)
+    {
+        var customer = PlanningCustomers.Read(json).SingleOrDefault(c => c.Key == customerKey)
+            ?? throw new FormatException("Choose a customer from this plan.");
+        foreach (var id in customer.OrderIds)
+            json = Appointment(json, id, start, end, confirmed, serviceMinutes, clear, replaceNativeWindows);
+        return json;
+    }
+
     public static string Appointment(string json, string id, string? start, string? end, bool confirmed, double? serviceMinutes, bool clear, bool replaceNativeWindows = false)
     {
         var root = RoutingInput.Parse(json);

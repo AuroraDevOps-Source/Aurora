@@ -13,23 +13,24 @@ internal static class AuroraTheme
         {
             Primary = "#2563eb",
             Secondary = "#2d3748",
-            Background = "#f0f2f5",
+            Background = "#f3f5f9",
             Surface = "#ffffff",
-            AppbarBackground = "#2d3748",
+            AppbarBackground = "#111b2e",
             AppbarText = "#ffffff",
-            DrawerBackground = "#2d3748",
+            DrawerBackground = "#111b2e",
             DrawerText = "#ffffff",
-            TextPrimary = "#2d3748",
-            TextSecondary = "#6b7280",
-            Divider = "#e5e7eb",
-            LinesDefault = "#d1d5db",
-            TableLines = "#e5e7eb",
+            TextPrimary = "#1f2a3c",
+            TextSecondary = "#64748b",
+            Divider = "#e3e8ef",
+            LinesDefault = "#cbd5e1",
+            TableLines = "#e3e8ef",
             Success = "#15803d",
             Warning = "#b45309",
             Error = "#dc2626",
             Info = "#2563eb"
         },
-        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "8px" },
+        // A 48px bar leaves more of a laptop screen for order grids than MudBlazor's 64px default.
+        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "8px", AppbarHeight = "48px" },
         Typography = new Typography
         {
             Default = new DefaultTypography { FontFamily = Fonts },

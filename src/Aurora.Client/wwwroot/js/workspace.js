@@ -1,6 +1,12 @@
 window.auroraWorkspace = (() => {
     let popup, onFocus, onStorage;
     return {
+        showEditor(dialog, dotnet) {
+            dialog.addEventListener('cancel', event => { event.preventDefault(); dotnet.invokeMethodAsync('Close').catch(() => {}); });
+            if (!dialog.open) dialog.showModal();
+        },
+        closeEditor(dialog) { if (dialog?.open) dialog.close(); },
+        scrollOption(id) { document.getElementById(id)?.scrollIntoView({ block: 'nearest' }); },
         open() { popup = window.open('about:blank', '_blank', 'popup,width=1350,height=920,resizable=yes,scrollbars=yes'); },
         navigate(url) { if (popup && !popup.closed) popup.location.replace(new URL(url, window.location.origin).href); },
         cancel() { if (popup && !popup.closed && popup.location.href === 'about:blank') popup.close(); },

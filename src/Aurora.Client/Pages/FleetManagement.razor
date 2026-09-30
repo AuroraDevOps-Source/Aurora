@@ -8,7 +8,7 @@
     <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Truck</th><th>Terminal</th><th>Type</th><th>Default shift</th><th>Plate</th><th>Status</th><th></th></tr></thead><tbody>
         @foreach(var truck in _fleet.Units.Where(u=>u.UseForRouting && $"{u.Id} {u.Alias} {u.Terminal} {u.Plate}".Contains(_filter,StringComparison.OrdinalIgnoreCase)))
         {
-            <tr><td><strong>@truck.Id</strong><small>@truck.Alias</small></td><td>@truck.Terminal</td><td>@truck.TypeCode</td><td>@truck.ShiftStart–@truck.ShiftEnd (@truck.UtcOffset)</td><td>@truck.Plate @truck.PlateState</td><td>@(truck.Available ? "Available" : "Unavailable")</td><td><button class="text-button" @onclick="()=>Edit(truck)">Edit @truck.Id</button></td></tr>
+            <tr><td><strong>@truck.Id</strong><small>@truck.Alias</small></td><td>@truck.Terminal</td><td>@truck.TypeCode</td><td>@truck.ShiftStart–@truck.ShiftEnd (@truck.UtcOffset)</td><td>@truck.Plate @truck.PlateState</td><td><span class="status-badge @(truck.Available ? "status-available" : "status-unavailable")">@(truck.Available ? "Available" : "Unavailable")</span></td><td><button class="text-button" @onclick="()=>Edit(truck)">Edit @truck.Id</button></td></tr>
         }
     </tbody></table></div>
     @if(!_fleet.Units.Any(u=>u.UseForRouting)) { <p class="empty-state">Add your first truck. Equipment types define its capacity, routing profile, and operating costs.</p> }
@@ -16,7 +16,7 @@
 </section>
 @if(_editing)
 {
-    <div class="modal-backdrop"><section class="variation-modal" role="dialog" aria-modal="true" aria-labelledby="truck-title"><header class="modal-header"><div><h2 id="truck-title">@(_existing ? "Edit truck" : "Add truck")</h2><p>Saved only for your company.</p></div><button class="modal-close" aria-label="Close truck editor" @onclick="()=>_editing=false" disabled="@_saving">×</button></header>
+    <div class="modal-backdrop"><section class="variation-modal truck-modal" role="dialog" aria-modal="true" aria-labelledby="truck-title"><header class="modal-header"><div><h2 id="truck-title">@(_existing ? "Edit truck" : "Add truck")</h2><p>Saved only for your company.</p></div><button class="modal-close" aria-label="Close truck editor" @onclick="()=>_editing=false" disabled="@_saving">×</button></header>
     <div class="catalog-body">
         @if(_error is not null) { <p class="alert" role="alert">@_error</p> }
         <fieldset disabled="@_saving"><div class="editor-grid">
@@ -26,7 +26,7 @@
             <label class="field">Default departure (HH:mm)<input @bind="_truck.ShiftStart" placeholder="08:00" /></label><label class="field">Latest return (HH:mm)<input @bind="_truck.ShiftEnd" placeholder="18:00" /></label><label class="field">UTC offset<input @bind="_truck.UtcOffset" placeholder="-04:00" /></label>
             <label><input type="checkbox" @bind="_truck.Available" /> Available for planning</label>
         </div><label class="field">Notes / maintenance<textarea @bind="_truck.Notes"></textarea></label></fieldset>
-        <p class="preview-footnote">Earlier return times mean an overnight shift. Review the offset when daylight saving time changes. Daily hours and availability can be adjusted in the wizard.</p>
+        <p class="preview-footnote">Earlier return times mean an overnight shift. Review the offset when daylight saving time changes. Daily hours and availability can be adjusted in the planner.</p>
     </div><footer class="modal-footer"><button class="outline-button" @onclick="()=>_editing=false" disabled="@_saving">Cancel</button><button class="primary-button" @onclick="Save" disabled="@_saving">@(_saving ? "Saving…" : "Save truck")</button></footer></section></div>
 }
 <EquipmentCatalog IsOpen="_catalogOpen" OnClose="CloseCatalog" />

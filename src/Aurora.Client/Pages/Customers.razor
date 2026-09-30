@@ -1,0 +1,68 @@
+@inject HttpClient Http
+
+@if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+@if (_message is not null) { <p class="compact-feedback" role="status">@_message</p> }
+<section class="planning-card terminal-card">
+    <div class="terminal-toolbar">
+        <label class="field">Search customers<input @bind="_search" @bind:event="oninput" placeholder="Code, name, city" /></label>
+        <span>@Visible.Count() customers</span>
+        <button class="primary-button" disabled="@(_busy || _edit is not null)" @onclick="New">Add customer</button>
+    </div>
+    @if (_edit is {} item)
+    {
+        <EditPopup Title="@(_new ? "Add customer" : $"Edit customer · {item.Code}")" Busy="_busy" OnClose="Cancel">
+@if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+            <fieldset disabled="@_busy" class="tms-edit-fields">
+                <div class="terminal-fields">
+                    <label class="field">Code<input @bind="item.Code" maxlength="80" disabled="@(!_new)" /></label>
+                    <label class="field terminal-name">Name<input @bind="item.Name" maxlength="200" /></label>
+                    <label class="field terminal-address">Address<input @bind="item.Address" maxlength="200" /></label>
+                    <label class="field terminal-address">Address 2<input @bind="item.Address2" maxlength="200" /></label>
+                    <label class="field">City<input @bind="item.City" maxlength="200" /></label>
+                    <label class="field">State / province<input @bind="item.State" maxlength="200" /></label>
+                    <label class="field">ZIP / postal code<input @bind="item.PostalCode" maxlength="200" /></label>
+                    <label class="field">Country<input @bind="item.Country" maxlength="200" /></label>
+                    <label class="field terminal-name">Email<input type="email" @bind="item.Email" maxlength="200" /></label>
+                    <label class="field">Phone<input @bind="item.Phone" maxlength="200" /></label>
+                </div>
+                <div class="compact-form-actions"><button class="primary-button" @onclick="Save">Save customer</button><button class="outline-button" @onclick="Cancel">Cancel</button></div>
+            </fieldset>
+        </EditPopup>
+    }
+    @if (_delete is {} deleting)
+    {
+        <div class="terminal-delete" role="alert"><span>Delete <strong>@deleting.Code · @deleting.Name</strong>?</span><button class="outline-button" disabled="@_busy" @onclick="Delete">Delete customer</button><button class="text-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button></div>
+    }
+    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>Code</th><th>Name</th><th>Address</th><th>City</th><th>State</th><th>ZIP</th><th>Country</th><th></th></tr></thead><tbody>
+        @foreach (var customer in Visible)
+        {
+            <tr @key="customer.Id"><td><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>Edit(customer)">@customer.Code</button></td><td>@customer.Name</td><td>@customer.Address</td><td>@customer.City</td><td>@customer.State</td><td>@customer.PostalCode</td><td>@customer.Country</td><td><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_delete=customer">Delete</button></td></tr>
+        }
+        @if (!Visible.Any()) { <tr><td colspan="8">@(_busy ? "Loading customers…" : "No matching customers.")</td></tr> }
+    </tbody></table></div>
+</section>
+
+@code {
+    private List<CustomerDto> _customers = [];
+    private CustomerDto? _edit, _delete;
+    private string _search = "";
+    private string? _error, _message;
+    private bool _new, _busy;
+    private IEnumerable<CustomerDto> Visible => _customers.Where(t => $"{t.Code} {t.Name} {t.City}".Contains(_search, StringComparison.OrdinalIgnoreCase));
+    protected override async Task OnInitializedAsync() => await Run(Load);
+    private async Task Load() => _customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/v1/tms/customers") ?? [];
+    private void New() { _edit = new(); _new = true; _delete = null; _error = _message = null; }
+    private void Edit(CustomerDto t) { _edit = System.Text.Json.JsonSerializer.Deserialize<CustomerDto>(System.Text.Json.JsonSerializer.Serialize(t)); _new = false; _delete = null; _error = _message = null; }
+    private void Cancel() { _edit = null; _error = null; }
+    private async Task Run(Func<Task> action) { if (_busy) return; _busy = true; _error = null; try { await action(); } catch(Exception ex) { _error = ex.Message; } finally { _busy = false; } }
+    private static async Task Check(HttpResponseMessage response) { if (!response.IsSuccessStatusCode) throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Request failed."); }
+    private Task Save() => Run(async () => {
+        _edit!.Validate();
+        using var response = _new ? await Http.PostAsJsonAsync("api/v1/tms/customers", _edit) : await Http.PutAsJsonAsync("api/v1/tms/customers", _edit);
+        await Check(response); _edit = null; _message = "Customer saved."; await Load();
+    });
+    private Task Delete() => Run(async () => {
+        using var response = await Http.DeleteAsync($"api/v1/tms/customers/{_delete!.Id}?revision={_delete.Revision}");
+        await Check(response); _delete = null; _message = "Customer deleted."; await Load();
+    });
+}

@@ -1,0 +1,11 @@
+@page "/aurora/manifests/new"
+@page "/aurora/manifests/{ManifestId:guid}"
+@attribute [Authorize]
+@layout PlanningLayout
+
+<PageTitle>@(ManifestId is null ? "Add manifest" : "Manifest") · Aurora</PageTitle>
+<TmsManifests ManifestId="ManifestId" NewManifest="@(ManifestId is null)" />
+
+@code {
+    [Parameter] public Guid? ManifestId { get; set; }
+}

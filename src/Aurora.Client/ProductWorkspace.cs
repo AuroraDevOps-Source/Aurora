@@ -26,7 +26,7 @@ public static class ProductWorkspace
         "/workspace/freightops" => FreightOps,
         "/workspace/hub" => Hub,
         "/workspace/auroratms" => AuroraTms,
-        "/" or "/routing" or "/aurora/orders" or "/aurora/manifests" or "/aurora/fleet" => Aurora,
+        "/" or "/routing" or "/aurora/orders" or "/aurora/manifests" or "/aurora/fleet" or "/aurora/planning" => Aurora,
         _ => null
     };
 

@@ -21,7 +21,8 @@ public partial class Routing
             using var response = await Http.PostAsJsonAsync($"api/v1/aurora/drafts/{draft}/finish", new FinishOrderDraftDto(session));
             if (!response.IsSuccessStatusCode) throw new FormatException((await ReadApiError(response)).Error);
             _workspaceFinished = true;
-            await JS.InvokeVoidAsync("auroraWorkspace.finish");
+            try { await JS.InvokeVoidAsync("auroraWorkspace.changed"); } catch (JSException) { }
+            Navigation.NavigateTo("/aurora/manifests");
         }
         catch (Exception ex)
         {
@@ -30,40 +31,35 @@ public partial class Routing
         }
         finally { _savingManifest = false; }
     }
-    private int _step = 1;
-    private bool _keepAssignments, _stopping, _disposed;
+    private bool _stopping, _disposed;
     private bool _reusePrevious = true;
     private Guid? _sessionId;
     private string? _resultInputJson;
     private PlanningSessionDto? _session;
-    private void ApplyFleet(string json) => SetInput(json, _sourceName);
-    private async Task GoToStep(int step)
+    private void ApplyFleet(string json)
     {
-        if (IsWorking) return;
-        if (step == 3 && _completedSessionId is null && CanOptimize) { await Optimize(); return; }
-        await JS.InvokeVoidAsync("routeMap.dispose");
-        if (step == 4) _result = _previousResult;
-        _step = step;
-        _renderMap = step == 4 && _result is not null;
+        SetInput(json, _sourceName, preserveResult: true);
+        _setupMessage = "Truck settings updated. Optimize routes to calculate the new schedule.";
     }
     private async Task<bool> StartPlanning(string json, string fileName, bool quick)
     {
         if (IsWorking) return false;
         var inputs = RoutingInput.Parse(json);
         inputs["settings"] ??= new JsonObject();
-        inputs["settings"]!["duration"] = 60;
+        var duration = quick ? 5 : (int.TryParse(RoutingInput.Text(inputs["settings"]?["duration"]), out var configuredDuration) ? configuredDuration : 60);
+        inputs["settings"]!["duration"] = duration;
         json = inputs.ToJsonString();
-        SetInput(json, fileName);
-        _busy = true; _error = null; _step = 3; _variationOpen = false;
+        SetInput(json, fileName, preserveResult: true);
+        _busy = true; _error = null;
         _sessionId = Guid.NewGuid(); _session = null;
-        _busyLabel = "Submitting your plan...";
+        _busyLabel = "Submitting your plan..."; _setupMessage = null;
         StateHasChanged();
         var id = _sessionId.Value;
         try
         {
             await JS.InvokeVoidAsync("sessionStorage.setItem", PlanningStorageKey, id.ToString());
             using var response = await Http.PostAsJsonAsync("api/v1/routing/sessions",
-                new StartPlanningDto(id, fileName, json, CanQuickUpdate && _reusePrevious ? _previousResult!.RawResponse : null, 60, _keepAssignments && _reusePrevious, WorkspaceDraftId));
+                new StartPlanningDto(id, fileName, json, CanQuickUpdate && (quick || _reusePrevious) ? _previousResult!.RawResponse : null, (int)duration, false, WorkspaceDraftId));
             if (!response.IsSuccessStatusCode)
             {
                 var error = await ReadApiError(response);
@@ -95,7 +91,7 @@ public partial class Routing
             }
             _session = await response.Content.ReadFromJsonAsync<PlanningSessionDto>(cancellationToken: ct);
             if (_session is null) throw new InvalidOperationException("The planning session was empty.");
-            if (restoreInputs && !string.IsNullOrEmpty(_session.RequestJson)) SetInput(_session.RequestJson, _session.FileName);
+            if (restoreInputs && !string.IsNullOrEmpty(_session.RequestJson)) SetInput(_session.RequestJson, _session.FileName, preserveResult: true);
             restoreInputs = false;
             _busyLabel = _session.Status switch { "QUEUING" => "Waiting for a planning slot", "PREPARING" => "Preparing travel times", "RUNNING" => "Searching for a better plan", "STOPPING" => "Stopping and retrieving the best plan", _ => _session.Status };
             if (_session.Status == "SUBMITTING") { _error = _session.Warning; return false; }
@@ -110,8 +106,8 @@ public partial class Routing
                 await JS.InvokeVoidAsync("routeMap.dispose");
                 _resultInputJson = string.IsNullOrEmpty(_session.RequestJson) ? _sourceJson : _session.RequestJson;
                 _result = result; _previousResult = result; _completedSessionId = id;
-                _sessionId = null; _step = 3; _selectedVehicle = result.Routes.FirstOrDefault()?.Vehicle; _tab = ResultTab.Manifest;
-                _renderMap = false; _error = null;
+                _sessionId = null; _selectedVehicle = null; _tab = ResultTab.Manifest;
+                _section = PlannerSection.Results; _renderMap = true; _error = null; _setupMessage = "Optimization complete. Review the manifests and unrouted orders in Results.";
                 StateHasChanged(); return true;
             }
             StateHasChanged();
@@ -122,7 +118,7 @@ public partial class Routing
     private async Task ResumePlanning()
     {
         if (_busy) return;
-        _busy = true; _error = null; _step = 3;
+        _busy = true; _error = null;
         try { await MonitorPlanning(); }
         catch (OperationCanceledException) { }
         catch (Exception ex) { _error = "Could not reconnect. The PTV job has not been resubmitted. " + ex.Message; }

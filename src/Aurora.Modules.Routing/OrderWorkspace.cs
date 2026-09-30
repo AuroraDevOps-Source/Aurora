@@ -47,6 +47,14 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         var source = Guid.NewGuid();
         var added = await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order_source(tenant_id,id,name,request) VALUES (@TenantId,@source,@Name,CAST(@RequestJson AS jsonb)) ON CONFLICT(tenant_id,name) DO NOTHING", new { tenant.TenantId, source, input.Name, input.RequestJson }, tx, cancellationToken:ct));
         if(added == 0) { await tx.CommitAsync(ct); return; }
+        Guid? terminalId = null;
+        var terminalCode = RoutingInput.Text(root["reporting"]?["terminal"])?.Trim();
+        if (!string.IsNullOrWhiteSpace(terminalCode))
+        {
+            if (terminalCode.Length > 80) throw new FormatException("Terminal codes allow up to 80 characters.");
+            terminalId = await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("INSERT INTO aurora_terminal(tenant_id,code,name) VALUES(@TenantId,@terminalCode,@terminalCode) ON CONFLICT(tenant_id,lower(code)) DO UPDATE SET code=aurora_terminal.code WHERE aurora_terminal.deleted_at IS NULL RETURNING id", new {tenant.TenantId,terminalCode},tx,cancellationToken:ct));
+            if (terminalId is null) throw new FormatException("The imported terminal has been deleted. Use an active terminal code.");
+        }
         foreach(var id in ids)
         {
             var report = RoutingInput.ReportOrder(root,id);
@@ -55,7 +63,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
                 ?? throw new FormatException($"Order {id} needs a dated appointment or vehicle shift.")).ToUniversalTime();
             var customer = RoutingInput.Text(RoutingInput.Get(report,"carrierConsigneeName") ?? RoutingInput.Get(report,"shipToName")) ?? id;
             var city = RoutingInput.Text(RoutingInput.Get(report,"city")) ?? "";
-            await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order(tenant_id,source_id,id,scheduled_at,customer,city) VALUES (@TenantId,@source,@id,@time,@customer,@city)", new {tenant.TenantId,source,id,time,customer,city},tx,cancellationToken:ct));
+            await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order(tenant_id,source_id,id,scheduled_at,customer,city,terminal_id) VALUES (@TenantId,@source,@id,@time,@customer,@city,@terminalId)", new {tenant.TenantId,source,id,time,customer,city,terminalId},tx,cancellationToken:ct));
         }
         await tx.CommitAsync(ct);
     }
@@ -82,7 +90,16 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
     {
         await using var db = await factory.OpenConnectionAsync(ct);
         var json = await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT request::text FROM aurora_order_source WHERE tenant_id=@TenantId AND id=@SourceId",new{tenant.TenantId,input.SourceId},cancellationToken:ct)) ?? throw new FormatException("Import not found.");
-        var selected = FleetPlanning.Build(SelectOrders(json,input.OrderIds), await new EquipmentStore(factory, tenant).List(ct));
+        var selectedJson = RoutingInput.Parse(SelectOrders(json,input.OrderIds));
+        var terminals = (await db.QueryAsync<string?>(new CommandDefinition("SELECT t.code FROM aurora_order o LEFT JOIN aurora_terminal t ON (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id) AND t.deleted_at IS NULL WHERE o.tenant_id=@TenantId AND o.source_id=@SourceId AND o.id=ANY(@OrderIds) AND o.deleted_at IS NULL", new {tenant.TenantId,input.SourceId,input.OrderIds},cancellationToken:ct))).Distinct().ToArray();
+        if (terminals.Length != 1 || terminals[0] is null) throw new FormatException("Select orders assigned to one terminal. Set Terminal on the orders first.");
+        var importedTerminal = RoutingInput.Text(selectedJson["reporting"]?["terminal"])?.Trim();
+        if (!string.Equals(importedTerminal, terminals[0], StringComparison.OrdinalIgnoreCase))
+            throw new FormatException("These orders use an imported depot for a different terminal. Import matching terminal/depot data before planning them.");
+        if (selectedJson["reporting"] is not JsonObject) selectedJson["reporting"] = new JsonObject();
+        selectedJson["reporting"]!["terminal"] = terminals[0];
+        var selected = FleetPlanning.Build(selectedJson.ToJsonString(), await new EquipmentStore(factory, tenant).List(ct));
+        if (input.ShipDate is { } shipDate) selected = PlannerEdits.FleetDay(selected, shipDate, input.DepartAt ?? "06:00", input.ReturnBy ?? "18:00");
         var available = await db.QueryAsync<string>(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@OrderIds) AND status='ReadyToRoute' AND deleted_at IS NULL",new{tenant.TenantId,input.SourceId,input.OrderIds},cancellationToken:ct));
         if(available.Count()!=input.OrderIds.Length) throw new FormatException("Some selected orders are already manifested. Refresh the grid.");
         var id=Guid.NewGuid();
@@ -97,8 +114,8 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
     public async Task<string> ValidateDraft(Guid id,string owner,string request,CancellationToken ct)
     {
         var draft=await Draft(id,owner,ct);
-        if(draft.Finished) throw new FormatException("This draft has already been finished. Start a new selection from Orders.");
-        if(!OrderIds(draft.RequestJson).ToHashSet(StringComparer.Ordinal).SetEquals(OrderIds(request))) throw new FormatException("The wizard must keep the orders selected in the grid. Start a new selection to change them.");
+        if(draft.Finished) throw new FormatException("This draft has already been finished. Start a new plan from Route Optimization.");
+        if(!OrderIds(draft.RequestJson).ToHashSet(StringComparer.Ordinal).SetEquals(OrderIds(request))) throw new FormatException("The plan must keep the orders it started with. Start a new plan from Route Optimization to change them.");
         var terminal=RoutingInput.Text(RoutingInput.Parse(draft.RequestJson)["reporting"]?["terminal"]) ?? "";
         return FleetPlanning.ApplySavedFleet(request,await new EquipmentStore(factory,tenant).List(ct),terminal);
     }
@@ -106,8 +123,16 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
     {
         await using var db=await factory.OpenConnectionAsync(ct);
         var rows=await db.QueryAsync<ManifestRow>(new CommandDefinition("SELECT id, draft_id AS DraftId, vehicle, created_at AS CreatedAt, data::text AS Data FROM aurora_manifest WHERE tenant_id=@TenantId AND draft_id IS NOT NULL AND deleted_at IS NULL ORDER BY created_at DESC,vehicle",new{tenant.TenantId},cancellationToken:ct));
-        return rows.Select(r=>new SavedManifestDto(r.Id,r.DraftId,r.Vehicle,new DateTimeOffset(r.CreatedAt),JsonSerializer.Deserialize<RouteSummaryDto>(r.Data)!, JsonNode.Parse(r.Data)?["ManifestDetails"]?.Deserialize<ManifestDetailsDto>(), JsonNode.Parse(r.Data)?["ManifestRevision"]?.GetValue<int>() ?? 0)).ToArray();
+        return rows.Select(Saved).ToArray();
     }
+    // Only manifests created by route optimization carry a route; manual manifests report not found.
+    public async Task<SavedManifestDto> Manifest(Guid id, CancellationToken ct)
+    {
+        await using var db=await factory.OpenConnectionAsync(ct);
+        var row=await db.QuerySingleOrDefaultAsync<ManifestRow>(new CommandDefinition("SELECT id, draft_id AS DraftId, vehicle, created_at AS CreatedAt, data::text AS Data FROM aurora_manifest WHERE tenant_id=@TenantId AND id=@id AND draft_id IS NOT NULL AND deleted_at IS NULL",new{tenant.TenantId,id},cancellationToken:ct));
+        return row is null ? throw new KeyNotFoundException("This manifest was not created by route optimization.") : Saved(row);
+    }
+    private static SavedManifestDto Saved(ManifestRow r)=>new(r.Id,r.DraftId,r.Vehicle,new DateTimeOffset(r.CreatedAt),JsonSerializer.Deserialize<RouteSummaryDto>(r.Data)!, JsonNode.Parse(r.Data)?["ManifestDetails"]?.Deserialize<ManifestDetailsDto>(), JsonNode.Parse(r.Data)?["ManifestRevision"]?.GetValue<int>() ?? 0);
     public async Task<SavedManifestDto> UpdateManifest(Guid id, UpdateManifestDto input, CancellationToken ct)
     {
         if (input.Details is null) throw new FormatException("Manifest details are required.");

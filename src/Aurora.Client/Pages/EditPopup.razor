@@ -1,0 +1,26 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+<dialog @ref="_dialog" class="dispatch-dialog @Class" aria-labelledby="@_titleId">
+    <header class="dispatch-dialog-header"><h2 id="@_titleId">@Title</h2><button type="button" class="modal-close" aria-label="Close editor" disabled="@Busy" @onclick="Close">×</button></header>
+    <div class="dispatch-dialog-body">@ChildContent</div>
+</dialog>
+@code {
+    [Parameter] public string Title {get;set;}="Edit";
+    [Parameter] public string? Class {get;set;}
+    [Parameter] public bool Busy {get;set;}
+    [Parameter] public EventCallback OnClose {get;set;}
+    [Parameter] public RenderFragment? ChildContent {get;set;}
+    private ElementReference _dialog;
+    private readonly string _titleId="editor-"+Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<EditPopup>? _reference;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(firstRender) { _reference=DotNetObjectReference.Create(this);await JS.InvokeVoidAsync("auroraWorkspace.showEditor",_dialog,_reference); }
+    }
+    [JSInvokable] public Task Close()=>Busy ? Task.CompletedTask : OnClose.InvokeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        try {await JS.InvokeVoidAsync("auroraWorkspace.closeEditor",_dialog);} catch(JSException){} catch(TaskCanceledException){}
+        _reference?.Dispose();
+    }
+}
