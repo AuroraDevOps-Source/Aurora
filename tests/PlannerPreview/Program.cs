@@ -19,7 +19,15 @@ public sealed class PreviewHttp : HttpMessageHandler
     private EquipmentCatalogDto catalog = System.Text.Json.JsonSerializer.Deserialize<EquipmentCatalogDto>(File.ReadAllText("../../src/Aurora.Client/wwwroot/samples/equipment-catalog.json"))!;
     private static readonly Guid SourceId = Guid.Parse("995d9abf-0de3-4e69-81ea-74e86a356db0");
     private readonly Dictionary<Guid, OrderDraftDto> drafts = [];
-    private readonly List<TmsOrder> orders = new[] { "NORTH", "SOUTH", "EARLY" }.Select(x => new TmsOrder { SourceId = SourceId, Id = "TEST_" + x, Customer = "Synthetic " + x.ToLowerInvariant() + " appointment", City = "Kansas City", ScheduledAt = DateTimeOffset.Now, Status = WorkspaceOrderStatus.Ready }).ToList();
+    private readonly List<TmsOrder> orders = new[] { ("NORTH", "64116", ""), ("SOUTH", "63101", ""), ("EARLY", "64105", OrderServiceTypes.Consolidation) }.Select(x => new TmsOrder { SourceId = SourceId, Id = "TEST_" + x.Item1, Customer = "Synthetic " + x.Item1.ToLowerInvariant() + " appointment", City = x.Item2.StartsWith("63") ? "St. Louis" : "Kansas City", PostalCode = x.Item2, ServiceType = x.Item3, TerminalId = SourceId, ScheduledAt = DateTimeOffset.Now, Status = WorkspaceOrderStatus.Ready }).ToList();
+    // Preview network: KC hub and STL spoke in MIDWEST, DEN hub in MOUNTAIN, and an agent near KC.
+    private static readonly TerminalDto[] Nodes =
+    [
+        new() { Id = SourceId, Code = "KC", Name = "Kansas City", Address = "100 Depot Road", City = "Kansas City", State = "MO", PostalCode = "64101", Country = "US", Region = "MIDWEST", RoutingRole = NodeVocabulary.Hub, ServiceArea = "640-641, 660-662", Latitude = 39.124, Longitude = -94.555, OperatingHours = "Mon-Fri 05:00-20:00" },
+        new() { Id = Guid.Parse("2f1d6f64-3a4b-4c1f-9d7e-1a2b3c4d5e01"), Code = "STL", Name = "St. Louis", Address = "2200 Chouteau Ave", City = "St. Louis", State = "MO", PostalCode = "63103", Country = "US", Region = "MIDWEST", RoutingRole = NodeVocabulary.Spoke, ServiceArea = "630-631", Latitude = 38.627, Longitude = -90.214 },
+        new() { Id = Guid.Parse("2f1d6f64-3a4b-4c1f-9d7e-1a2b3c4d5e02"), Code = "DEN", Name = "Denver", Address = "4800 Race St", City = "Denver", State = "CO", PostalCode = "80216", Country = "US", Region = "MOUNTAIN", RoutingRole = NodeVocabulary.Hub, ServiceArea = "800-802", Latitude = 39.781, Longitude = -104.963 },
+        new() { Id = Guid.Parse("2f1d6f64-3a4b-4c1f-9d7e-1a2b3c4d5e03"), Code = "MCI-AIR", Name = "KC Airport Cargo", Address = "1 International Square", City = "Kansas City", State = "MO", PostalCode = "64153", Country = "US", NodeType = "Airport", Functions = ["Cross-Dock"], Latitude = 39.298, Longitude = -94.714 },
+    ];
     private readonly Dictionary<Guid, (StartPlanningDto Input, DateTimeOffset Start, bool Stopped)> sessions = [];
     private static RouteSummaryDto[] PreviewRoutes() => new[] { ("TEST_TRUCK_1", "TEST_NORTH", 39.15, -94.55), ("TEST_TRUCK_2", "TEST_SOUTH", 39.10, -94.56) }.Select(x =>
         new RouteSummaryDto(x.Item1, 1, 1, 15, 1800, 110, 50, 20, "DEMO", 32400, 2700, 1, 1, 100, 10,
@@ -41,7 +49,7 @@ public sealed class PreviewHttp : HttpMessageHandler
             return new(HttpStatusCode.BadRequest) { Content = JsonContent.Create(new ApiErrorDto("This UI preview does not save orders or manifests. Use the full application with its configured database.")) };
         if (apiPath == "/api/v1/me/tenant") return new(HttpStatusCode.OK) { Content = JsonContent.Create(new WorkspaceTenantDto(SourceId, "Synthetic preview company")) };
         if (apiPath == "/api/v1/tms/terminals" && request.Method == HttpMethod.Get)
-            return new(HttpStatusCode.OK) { Content = JsonContent.Create(new[] { new TerminalDto { Id=SourceId, Code="KC", Name="Kansas City", Address="100 Depot Road", City="Kansas City", State="MO", PostalCode="64101", Country="US" } }) };
+            return new(HttpStatusCode.OK) { Content = JsonContent.Create(Nodes) };
         if (apiPath == "/api/v1/tms/customers" && request.Method == HttpMethod.Get)
             return new(HttpStatusCode.OK) { Content = JsonContent.Create(new[] { new CustomerDto { Id=SourceId, Code="ACME", Name="Acme Distribution", Address="123 Customer Avenue", City="Kansas City", State="MO", PostalCode="64101", Country="US" } }) };
         if (apiPath == "/api/v1/tms/orders" && request.Method == HttpMethod.Get)
@@ -50,6 +58,7 @@ public sealed class PreviewHttp : HttpMessageHandler
             var status = query.GetValueOrDefault("status").ToString(); var search = query.GetValueOrDefault("search").ToString();
             DateTimeOffset? from = DateTimeOffset.TryParse(query.GetValueOrDefault("from"), out var begin) ? begin : null;
             DateTimeOffset? to = DateTimeOffset.TryParse(query.GetValueOrDefault("to"), out var end) ? end : null;
+            foreach (var order in orders) order.OptimizationDraftId = drafts.Values.FirstOrDefault(d => !d.Finished && !d.Cancelled && RoutingInput.Items(RoutingInput.Parse(d.RequestJson)["orders"]?["deliveries"]).Any(x => RoutingInput.Text(x["id"]) == order.Id))?.Id;
             return new(HttpStatusCode.OK) { Content = JsonContent.Create(orders.Where(o => (status == "" || o.Status == status) && string.Join(" ", o.Id, o.Customer, o.City).Contains(search, StringComparison.OrdinalIgnoreCase) && (from is null || o.ScheduledAt >= from) && (to is null || o.ScheduledAt <= to)).ToArray()) };
         }
         if (apiPath.StartsWith("/api/v1/aurora/manifests/") && request.Method == HttpMethod.Get)
@@ -60,11 +69,20 @@ public sealed class PreviewHttp : HttpMessageHandler
             var input = (await request.Content!.ReadFromJsonAsync<CreateOrderDraftDto>(ct))!;
             var root = RoutingInput.Parse(await File.ReadAllTextAsync("../../src/Aurora.Client/wwwroot/samples/appointment-test.json", ct));
             root["orders"]!["deliveries"] = new System.Text.Json.Nodes.JsonArray(RoutingInput.Items(root["orders"]?["deliveries"]).Where(o => input.OrderIds.Contains(RoutingInput.Text(o["id"]))).Select(o => o.DeepClone()).ToArray());
-            var json = root.ToJsonString();
+            var assignments = orders.Where(o => input.OrderIds.Contains(o.Id)).Select(o => PlanningBatches.Classify(o, Nodes[0], Nodes)).ToArray();
+            var batch = PlanningBatch.For(input.Batch, assignments);
+            var destinations = assignments.Where(a => a.DestinationNodeId is not null).ToDictionary(a => a.OrderId, a => Nodes.Single(n => n.Id == a.DestinationNodeId));
+            var json = PlanningBatches.ApplyDestinations(root.ToJsonString(), destinations);
             if (input.ShipDate is { } shipDate) json = PlannerEdits.FleetDay(json, shipDate, input.DepartAt ?? "06:00", input.ReturnBy ?? "18:00");
-            var draft = new OrderDraftDto(Guid.NewGuid(), SourceId, "Selected orders", json, false);
+            var draft = new OrderDraftDto(Guid.NewGuid(), SourceId, $"{PlanningBatch.Label(batch)} · KC" + (input.ShipDate is { } day ? $" · {day:MMM d}" : ""), json, false, batch);
             drafts[draft.Id] = draft;
             return new(HttpStatusCode.OK) { Content = JsonContent.Create(draft) };
+        }
+        if (apiPath.StartsWith("/api/v1/aurora/drafts/") && apiPath.EndsWith("/cancel") && request.Method == HttpMethod.Post)
+        {
+            var draftId = Guid.Parse(apiPath.Split('/')[5]);
+            if (drafts.TryGetValue(draftId, out var open)) drafts[draftId] = open with { Cancelled = true };
+            return new(HttpStatusCode.OK);
         }
         if (apiPath.StartsWith("/api/v1/aurora/drafts/") && request.Method == HttpMethod.Get)
         {

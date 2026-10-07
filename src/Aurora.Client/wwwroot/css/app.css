@@ -258,18 +258,21 @@ code { color: var(--ink); }
 .order-dialog .manifest-edit-actions { margin-top:6px; gap:8px; }
 
 /* Route Optimization setup: order filters and one truck time window, then Start opens the planner. */
-.route-setup-form { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px 20px; }
+.tms-workspace.tms-route-setup { height:calc(100dvh - var(--mud-appbar-height, 48px)); min-height:0; }
+.tms-route-setup > .tms-main { display:flex; flex-direction:column; min-height:0; overflow:auto; padding-bottom:14px; }
+.tms-route-setup .planner-header { flex-shrink:0; }
+.tms-route-setup .route-setup { display:flex; flex-direction:column; flex:1; min-height:240px; margin-bottom:0; gap:14px; }
+.route-setup > .tms-crud-grid { flex:1; min-height:0; max-height:none; overflow:auto; }
+.route-setup-form { flex-shrink:0; display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px 20px; }
 .route-setup-group { display:flex; align-items:flex-end; gap:8px 10px; min-width:0; margin:0; padding:0; border:0; }
 .route-setup-group + .route-setup-group { padding-left:20px; border-left:1px solid var(--line); }
 .route-setup-group legend { padding:0 0 4px; color:var(--blue-dark); font-size:var(--fs-xs); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
-.route-setup-group .field { width:150px; }
-.route-setup-group .route-setup-terminal { width:220px; }
+.route-setup-group .field { width:140px; }
+.route-setup-group .route-setup-terminal { width:200px; }
 .route-setup-group .route-setup-time { width:120px; }
 .route-setup-group select, .route-setup-group input { width:100%; }
 .route-setup-start { margin-left:auto; min-width:100px; }
 .route-setup-start .mdi { font-size:16px; line-height:1; }
-.route-setup-summary { margin:14px 0 8px; color:var(--muted); font-size:var(--fs); }
-.route-setup-summary strong { color:var(--ink); }
 .route-setup-skipped td { color:#94a3b8; }
 @media(max-width:700px) { .route-setup-group { flex-wrap:wrap; } .route-setup-group + .route-setup-group { padding-left:0; border-left:0; } .route-setup-start { margin-left:0; } }
 
@@ -312,3 +315,22 @@ code { color: var(--ink); }
 @media(max-width:1100px) { .manifest-orders.with-map { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:850px) { .manifest-screen .manifest-edit-grid, .manifest-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:500px) { .manifest-screen .manifest-edit-grid { grid-template-columns:1fr; } }
+
+/* Nova 1.5 planning workflow: batches, node attributes, and the optimization lock. */
+.status-badge + .status-badge { margin-left:4px; }
+.status-optimizing { background:#fdf1d6; color:#92400e; }
+.batch-general { background:#e7efff; color:#1d4ed8; }
+.batch-linehaul { background:#efe9fe; color:#6d28d9; }
+.batch-consolidation { background:#d8f4ee; color:#0f766e; }
+.manifest-table td .status-badge + small { display:block; margin-top:2px; }
+.node-dialog { width:min(920px,calc(100vw - 32px)); }
+.node-options { grid-column:span 2; display:flex; flex-wrap:wrap; gap:4px 14px; margin:0; padding:6px 10px 8px; border:1px solid var(--line); border-radius:6px; font-size:var(--fs); }
+.node-options legend { padding:0 4px; color:#56657b; font-size:var(--fs-sm); font-weight:500; }
+.node-options label { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.node-options input[type=checkbox] { width:auto; flex:none; }
+.node-hint { color:var(--muted); font-size:var(--fs-xs); font-weight:400; }
+.node-hint.invalid { color:var(--red); }
+.node-area { max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.route-accept { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border:1px solid var(--line); border-radius:5px; background:white; color:var(--ink); font-size:var(--fs-xs); font-weight:600; cursor:pointer; }
+.cancelled-notice { border-color:#f2c7cc; border-left-color:var(--red); background:#fff1f2; }
+.planner-confirm { margin:0 0 10px; }

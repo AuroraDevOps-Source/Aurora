@@ -49,6 +49,12 @@ public sealed class WorkspaceImport
         foreach(var t in Trucks) { t.Validate(); if(t.Terminal.Length > 80) throw new FormatException("Truck terminal codes allow 80 characters."); }
         foreach(var t in EquipmentTypes) t.Validate();
         Unique(Terminals.Select(t=>t.Code), "terminal codes", StringComparer.OrdinalIgnoreCase);
+        if(Terminals.Where(t=>t.RoutingRole==NodeVocabulary.Hub && t.Region.Trim().Length>0).GroupBy(t=>t.Region.Trim().ToUpperInvariant()).FirstOrDefault(g=>g.Count()>1) is {} hubs)
+            throw new FormatException($"Region {hubs.Key} has more than one hub. A region has one hub.");
+        Unique(Terminals.Where(t=>t.Id!=Guid.Empty).Select(t=>t.Id.ToString()), "terminal ids");
+        var nodeIds=Terminals.Where(t=>t.Id!=Guid.Empty).Select(t=>t.Id).ToHashSet();
+        foreach(var t in Terminals) if(t.RouteViaNodeId is {} via && !nodeIds.Contains(via)) throw new FormatException($"Terminal {t.Code} routes via an id that is not a terminal in this file.");
+        foreach(var o in Orders) if(new[]{o.PickupNodeId,o.DeliverToNodeId}.OfType<Guid>().Any(id=>!nodeIds.Contains(id))) throw new FormatException($"Order {o.Id} references a pick-up or deliver-to node that is not a terminal id in this file.");
         Unique(Orders.Select(o=>o.Id), "order IDs");
         Unique(Trucks.Select(t=>t.Id), "truck IDs");
         Unique(EquipmentTypes.Select(t=>t.Code), "equipment type codes");

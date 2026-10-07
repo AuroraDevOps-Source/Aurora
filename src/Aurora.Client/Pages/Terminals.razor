@@ -4,38 +4,50 @@
 @if (_message is not null) { <p class="compact-feedback" role="status">@_message</p> }
 <section class="planning-card terminal-card">
     <div class="terminal-toolbar">
-        <label class="field">Search terminals<input @bind="_search" @bind:event="oninput" placeholder="Code, name, city" /></label>
-        <span>@Visible.Count() terminals</span>
-        <button class="primary-button" disabled="@(_busy || _edit is not null)" @onclick="New">Add terminal</button>
+        <label class="field">Search nodes<input @bind="_search" @bind:event="oninput" placeholder="Code, name, city, region, type" /></label>
+        <span>@Visible.Count() nodes</span>
+        <button class="primary-button" disabled="@(_busy || _edit is not null)" @onclick="New">Add node</button>
     </div>
     @if (_edit is {} item)
     {
-        <EditPopup Title="@(_new ? "Add terminal" : $"Edit terminal · {item.Code}")" Busy="_busy" OnClose="Cancel">
+        <EditPopup Title="@(_new ? "Add transportation node" : $"Edit node · {item.Code}")" Busy="_busy" OnClose="Cancel" Class="node-dialog">
 @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
             <fieldset disabled="@_busy" class="tms-edit-fields">
                 <div class="terminal-fields">
                     <label class="field">Code<input @bind="item.Code" maxlength="80" disabled="@(!_new)" /></label>
                     <label class="field terminal-name">Name<input @bind="item.Name" maxlength="200" /></label>
+                    <label class="field">Node type<select @bind="item.NodeType">@foreach (var type in NodeVocabulary.Types) { <option value="@type">@type</option> }</select></label>
+                    <label class="field">Routing role<select @bind="item.RoutingRole"><option value="">None</option>@foreach (var role in NodeVocabulary.Roles) { <option value="@role">@role</option> }</select></label>
+                    <label class="field">Region<input @bind="item.Region" maxlength="200" placeholder="e.g. SOCAL" list="node-regions" /></label>
+                    <label class="field">Route via<select @bind="item.RouteViaNodeId"><option value="">Region hub (default)</option>@foreach (var node in _terminals.Where(n => n.Id != item.Id)) { <option value="@node.Id">@node.Code · @node.Name</option> }</select></label>
                     <label class="field terminal-address">Address<input @bind="item.Address" maxlength="200" /></label>
                     <label class="field">City<input @bind="item.City" maxlength="200" /></label>
                     <label class="field">State / province<input @bind="item.State" maxlength="200" /></label>
                     <label class="field">ZIP / postal code<input @bind="item.PostalCode" maxlength="200" /></label>
                     <label class="field">Country<input @bind="item.Country" maxlength="200" /></label>
+                    <label class="field">Latitude<input type="number" step="any" @bind="item.Latitude" /></label>
+                    <label class="field">Longitude<input type="number" step="any" @bind="item.Longitude" /></label>
+                    <label class="field">Operating days / hours<input @bind="item.OperatingHours" maxlength="200" placeholder="Mon–Fri 06:00–18:00" /></label>
+                    <label class="field">Owner<input @bind="item.Owner" maxlength="200" placeholder="Company or agent account" /></label>
+                    <fieldset class="node-options"><legend>Functions</legend>@foreach (var f in NodeVocabulary.Functions) { <label><input type="checkbox" checked="@item.Functions.Contains(f)" @onchange="e => Toggle(item, f, e.Value is true, functions: true)" />@f</label> }</fieldset>
+                    <fieldset class="node-options"><legend>Special services</legend>@foreach (var s in NodeVocabulary.Services) { <label><input type="checkbox" checked="@item.Services.Contains(s)" @onchange="e => Toggle(item, s, e.Value is true, functions: false)" />@s</label> }</fieldset>
+                    <label class="field terminal-address">Direct service area<textarea @bind="item.ServiceArea" @bind:event="oninput" rows="2" maxlength="4000" placeholder="ZIP codes, prefixes, or ranges: 917, 923-925, 91700-91799"></textarea><small class="@(AreaError(item) is null ? "node-hint" : "node-hint invalid")">@(AreaError(item) ?? "Hub and Spoke nodes need a service area. Orders delivering outside it become line haul.")</small></label>
                 </div>
-                <div class="compact-form-actions"><button class="primary-button" @onclick="Save">Save terminal</button><button class="outline-button" @onclick="Cancel">Cancel</button></div>
+                <datalist id="node-regions">@foreach (var region in _terminals.Select(n => n.Region.Trim()).Where(r => r.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)) { <option value="@region" /> }</datalist>
+                <div class="compact-form-actions"><button class="primary-button" @onclick="Save">Save node</button><button class="outline-button" @onclick="Cancel">Cancel</button></div>
             </fieldset>
         </EditPopup>
     }
     @if (_delete is {} deleting)
     {
-        <div class="terminal-delete" role="alert"><span>Delete <strong>@deleting.Code · @deleting.Name</strong>?</span><button class="outline-button" disabled="@_busy" @onclick="Delete">Delete terminal</button><button class="text-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button></div>
+        <div class="terminal-delete" role="alert"><span>Delete <strong>@deleting.Code · @deleting.Name</strong>?</span><button class="outline-button" disabled="@_busy" @onclick="Delete">Delete node</button><button class="text-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button></div>
     }
-    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>Code</th><th>Name</th><th>Address</th><th>City</th><th>State</th><th>ZIP</th><th>Country</th><th></th></tr></thead><tbody>
-        @foreach (var terminal in Visible)
+    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Region</th><th>Role</th><th>City</th><th>State</th><th>Service area</th><th>Position</th><th></th></tr></thead><tbody>
+        @foreach (var node in Visible)
         {
-            <tr @key="terminal.Id"><td><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>Edit(terminal)">@terminal.Code</button></td><td>@terminal.Name</td><td>@terminal.Address</td><td>@terminal.City</td><td>@terminal.State</td><td>@terminal.PostalCode</td><td>@terminal.Country</td><td><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_delete=terminal">Delete</button></td></tr>
+            <tr @key="node.Id"><td><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>Edit(node)">@node.Code</button></td><td>@node.Name</td><td>@node.NodeType</td><td>@Dash(node.Region)</td><td>@if (node.RoutingRole.Length > 0) { <span class="status-badge @(node.RoutingRole == NodeVocabulary.Hub ? "status-routed" : "status-ready")">@node.RoutingRole</span> } else { <span>—</span> }</td><td>@node.City</td><td>@node.State</td><td class="node-area" title="@node.ServiceArea">@Dash(node.ServiceArea)</td><td>@(node.Latitude is null ? "Missing" : "✓")</td><td><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_delete=node">Delete</button></td></tr>
         }
-        @if (!Visible.Any()) { <tr><td colspan="8">@(_busy ? "Loading terminals…" : "No matching terminals.")</td></tr> }
+        @if (!Visible.Any()) { <tr><td colspan="10">@(_busy ? "Loading nodes…" : "No matching nodes.")</td></tr> }
     </tbody></table></div>
 </section>
 
@@ -45,7 +57,15 @@
     private string _search = "";
     private string? _error, _message;
     private bool _new, _busy;
-    private IEnumerable<TerminalDto> Visible => _terminals.Where(t => $"{t.Code} {t.Name} {t.City}".Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<TerminalDto> Visible => _terminals.Where(t => $"{t.Code} {t.Name} {t.City} {t.Region} {t.NodeType}".Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private static string Dash(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    private static string? AreaError(TerminalDto node) { try { ServiceArea.Parse(node.ServiceArea); return null; } catch (FormatException ex) { return ex.Message; } }
+    private static void Toggle(TerminalDto node, string value, bool on, bool functions)
+    {
+        var current = functions ? node.Functions : node.Services;
+        var next = on ? current.Append(value).Distinct().ToArray() : current.Where(v => v != value).ToArray();
+        if (functions) node.Functions = next; else node.Services = next;
+    }
     protected override async Task OnInitializedAsync() => await Run(Load);
     private async Task Load() => _terminals = await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals") ?? [];
     private void New() { _edit = new(); _new = true; _delete = null; _error = _message = null; }
@@ -56,10 +76,10 @@
     private Task Save() => Run(async () => {
         _edit!.Validate();
         using var response = _new ? await Http.PostAsJsonAsync("api/v1/tms/terminals", _edit) : await Http.PutAsJsonAsync("api/v1/tms/terminals", _edit);
-        await Check(response); _edit = null; _message = "Terminal saved."; await Load();
+        await Check(response); _edit = null; _message = "Node saved."; await Load();
     });
     private Task Delete() => Run(async () => {
         using var response = await Http.DeleteAsync($"api/v1/tms/terminals/{_delete!.Id}?revision={_delete.Revision}");
-        await Check(response); _delete = null; _message = "Terminal deleted."; await Load();
+        await Check(response); _delete = null; _message = "Node deleted."; await Load();
     });
 }

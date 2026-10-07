@@ -18,10 +18,11 @@ public static class OrderWorkspaceEndpoints
         group.MapGet("/manifests", (OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.Manifests(ct))));
         group.MapGet("/manifests/{id:guid}", (Guid id,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.Manifest(id,ct))));
         group.MapPut("/manifests/{id:guid}", (Guid id,UpdateManifestDto input,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>Results.Ok(await store.UpdateManifest(id,input,ct))));
+        group.MapPost("/drafts/{id:guid}/cancel", (Guid id,HttpContext context,OrderWorkspace store,CancellationToken ct)=>Guard(async()=>{ await store.CancelDraft(id,PlanningSessions.Owner(context.User),ct); return Results.Ok(); }));
         group.MapPost("/drafts/{id:guid}/finish", (Guid id,FinishOrderDraftDto input,HttpContext context,OrderWorkspace store,PlanningSessions sessions,CancellationToken ct)=>Guard(async()=>
         {
             var result=await sessions.Completed(input.SessionId,id,context.User,ct);
-            return Results.Ok(await store.Finish(id,input.SessionId,PlanningSessions.Owner(context.User),result,ct));
+            return Results.Ok(await store.Finish(id,input.SessionId,PlanningSessions.Owner(context.User),result,ct,input.Vehicles));
         }));
     }
     private static async Task<IResult> Guard(Func<Task<IResult>> action)

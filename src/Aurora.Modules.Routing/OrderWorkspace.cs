@@ -88,6 +88,8 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
     private sealed record OrderRow(string Id, DateTime ScheduledAt, string Customer, string City, string Status);
     public async Task<OrderDraftDto> CreateDraft(CreateOrderDraftDto input, string owner, CancellationToken ct)
     {
+        if (input.Batch is not null && !PlanningBatch.All.Contains(input.Batch)) throw new FormatException("Unknown planning batch.");
+        if (input.OrderIds is not { Length: > 0 }) throw new FormatException("Select at least one order to plan.");
         await using var db = await factory.OpenConnectionAsync(ct);
         var json = await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT request::text FROM aurora_order_source WHERE tenant_id=@TenantId AND id=@SourceId",new{tenant.TenantId,input.SourceId},cancellationToken:ct)) ?? throw new FormatException("Import not found.");
         var selectedJson = RoutingInput.Parse(SelectOrders(json,input.OrderIds));
@@ -98,26 +100,50 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
             throw new FormatException("These orders use an imported depot for a different terminal. Import matching terminal/depot data before planning them.");
         if (selectedJson["reporting"] is not JsonObject) selectedJson["reporting"] = new JsonObject();
         selectedJson["reporting"]!["terminal"] = terminals[0];
+        // Re-classify on the server: the batch decides which orders go to a node instead of the consignee.
+        var nodes = await new TerminalStore(factory, tenant).List(ct);
+        var active = nodes.FirstOrDefault(n => string.Equals(n.Code, terminals[0], StringComparison.OrdinalIgnoreCase)) ?? throw new FormatException("The orders' terminal is no longer saved.");
+        var orders = await new TmsStore(factory, tenant).OrdersById(input.SourceId, input.OrderIds, ct);
+        var assignments = orders.Select(o => PlanningBatches.Classify(o, active, nodes)).ToArray();
+        var batch = PlanningBatch.For(input.Batch, assignments);
+        if (input.Batch is not null && assignments.FirstOrDefault(a => a.Batch != input.Batch) is { } moved)
+            throw new FormatException($"Order {moved.OrderId} now belongs to the {PlanningBatch.Label(moved.Batch)} batch. Refresh Route Optimization and start again.");
+        var destinations = assignments.Where(a => a.DestinationNodeId is not null).ToDictionary(a => a.OrderId, a => nodes.Single(n => n.Id == a.DestinationNodeId));
+        selectedJson = RoutingInput.Parse(PlanningBatches.ApplyDestinations(selectedJson.ToJsonString(), destinations));
         var selected = FleetPlanning.Build(selectedJson.ToJsonString(), await new EquipmentStore(factory, tenant).List(ct));
         if (input.ShipDate is { } shipDate) selected = PlannerEdits.FleetDay(selected, shipDate, input.DepartAt ?? "06:00", input.ReturnBy ?? "18:00");
-        var available = await db.QueryAsync<string>(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@OrderIds) AND status='ReadyToRoute' AND deleted_at IS NULL",new{tenant.TenantId,input.SourceId,input.OrderIds},cancellationToken:ct));
+        var name = $"{PlanningBatch.Label(batch)} · {terminals[0]}" + (input.ShipDate is { } day ? $" · {day:MMM d}" : "");
+        await using var tx = await db.BeginTransactionAsync(ct);
+        // Lock the order rows so two planners cannot open plans on the same freight at once.
+        var available = await db.QueryAsync<string>(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@OrderIds) AND status='ReadyToRoute' AND deleted_at IS NULL FOR UPDATE",new{tenant.TenantId,input.SourceId,input.OrderIds},tx,cancellationToken:ct));
         if(available.Count()!=input.OrderIds.Length) throw new FormatException("Some selected orders are already manifested. Refresh the grid.");
+        var inProcess = await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT count(*) FROM aurora_order o WHERE o.tenant_id=@TenantId AND o.source_id=@SourceId AND o.id=ANY(@OrderIds) AND " + PlanningLock.DraftForOrder + " IS NOT NULL",new{tenant.TenantId,input.SourceId,input.OrderIds},tx,cancellationToken:ct));
+        if(inProcess>0) throw new FormatException($"{inProcess} of these orders are already in another open plan (Optimization in Process). Refresh Route Optimization.");
         var id=Guid.NewGuid();
-        await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_planning_draft(tenant_id,id,owner_id,source_id,order_ids,request) VALUES (@TenantId,@id,@owner,@SourceId,@OrderIds,CAST(@selected AS jsonb))",new{tenant.TenantId,id,owner,input.SourceId,input.OrderIds,selected},cancellationToken:ct));
-        return new(id,input.SourceId,"Selected orders.json",selected,false);
+        await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_planning_draft(tenant_id,id,owner_id,source_id,order_ids,request,name,batch) VALUES (@TenantId,@id,@owner,@SourceId,@OrderIds,CAST(@selected AS jsonb),@name,@batch)",new{tenant.TenantId,id,owner,input.SourceId,input.OrderIds,selected,name,batch},tx,cancellationToken:ct));
+        await tx.CommitAsync(ct);
+        return new(id,input.SourceId,name,selected,false,batch);
+    }
+    // Releases the plan's orders for other plans. Finished plans cannot be cancelled.
+    public async Task CancelDraft(Guid id,string owner,CancellationToken ct)
+    {
+        await using var db=await factory.OpenConnectionAsync(ct);
+        var changed=await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_planning_draft SET cancelled_at=now() WHERE tenant_id=@TenantId AND id=@id AND owner_id=@owner AND finished_session IS NULL AND cancelled_at IS NULL",new{tenant.TenantId,id,owner},cancellationToken:ct));
+        if(changed==0 && (await Draft(id,owner,ct)).Finished) throw new FormatException("This plan already created manifests and cannot be cancelled.");
     }
     public async Task<OrderDraftDto> Draft(Guid id,string owner,CancellationToken ct)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
-        return await db.QuerySingleOrDefaultAsync<OrderDraftDto>(new CommandDefinition("SELECT id, source_id AS SourceId, 'Selected orders.json' AS FileName, request::text AS RequestJson, finished_session IS NOT NULL AS Finished FROM aurora_planning_draft WHERE tenant_id=@TenantId AND id=@id AND owner_id=@owner",new{tenant.TenantId,id,owner},cancellationToken:ct)) ?? throw new KeyNotFoundException("Planning draft not found.");
+        return await db.QuerySingleOrDefaultAsync<OrderDraftDto>(new CommandDefinition("SELECT id, source_id AS SourceId, name AS FileName, request::text AS RequestJson, finished_session IS NOT NULL AS Finished, batch AS Batch, cancelled_at IS NOT NULL AS Cancelled FROM aurora_planning_draft WHERE tenant_id=@TenantId AND id=@id AND owner_id=@owner",new{tenant.TenantId,id,owner},cancellationToken:ct)) ?? throw new KeyNotFoundException("Planning draft not found.");
     }
     public async Task<string> ValidateDraft(Guid id,string owner,string request,CancellationToken ct)
     {
         var draft=await Draft(id,owner,ct);
         if(draft.Finished) throw new FormatException("This draft has already been finished. Start a new plan from Route Optimization.");
+        if(draft.Cancelled) throw new FormatException("This plan was cancelled. Start a new plan from Route Optimization.");
         if(!OrderIds(draft.RequestJson).ToHashSet(StringComparer.Ordinal).SetEquals(OrderIds(request))) throw new FormatException("The plan must keep the orders it started with. Start a new plan from Route Optimization to change them.");
         var terminal=RoutingInput.Text(RoutingInput.Parse(draft.RequestJson)["reporting"]?["terminal"]) ?? "";
-        return FleetPlanning.ApplySavedFleet(request,await new EquipmentStore(factory,tenant).List(ct),terminal);
+        return PlannerEdits.FitTrafficMode(FleetPlanning.ApplySavedFleet(request,await new EquipmentStore(factory,tenant).List(ct),terminal));
     }
     public async Task<IReadOnlyList<SavedManifestDto>> Manifests(CancellationToken ct)
     {
@@ -166,18 +192,21 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         if(routes.Count==0 || used.Count != result.Summary?.Scheduled) throw new FormatException("Result does not contain a complete scheduled-order manifest. Review the result before saving.");
         return routes;
     }
-    public async Task<IReadOnlyList<SavedManifestDto>> Finish(Guid draftId,Guid session,string owner,OptimizationResultDto result,CancellationToken ct)
+    public async Task<IReadOnlyList<SavedManifestDto>> Finish(Guid draftId,Guid session,string owner,OptimizationResultDto result,CancellationToken ct,string[]? vehicles=null)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
-        var draft=await db.QuerySingleOrDefaultAsync<DraftRow>(new CommandDefinition("SELECT source_id AS SourceId, order_ids AS OrderIds, finished_session AS FinishedSession FROM aurora_planning_draft WHERE tenant_id=@TenantId AND id=@draftId AND owner_id=@owner FOR UPDATE",new{tenant.TenantId,draftId,owner},tx,cancellationToken:ct)) ?? throw new KeyNotFoundException("Draft not found.");
+        var draft=await db.QuerySingleOrDefaultAsync<DraftRow>(new CommandDefinition("SELECT source_id AS SourceId, order_ids AS OrderIds, finished_session AS FinishedSession, cancelled_at IS NOT NULL AS Cancelled FROM aurora_planning_draft WHERE tenant_id=@TenantId AND id=@draftId AND owner_id=@owner FOR UPDATE",new{tenant.TenantId,draftId,owner},tx,cancellationToken:ct)) ?? throw new KeyNotFoundException("Draft not found.");
         if(draft.FinishedSession is not null)
         {
             if(draft.FinishedSession!=session) throw new FormatException("This draft already created manifests from another result.");
             await tx.CommitAsync(ct);
             return (await Manifests(ct)).Where(m=>m.DraftId==draftId).ToArray();
         }
-        var assignments=Assignments(result,draft.OrderIds);
+        if(draft.Cancelled) throw new FormatException("This plan was cancelled. Start a new plan from Route Optimization.");
+        // Accepting only some routes leaves the other orders Ready to Ship; finishing releases the plan's lock.
+        var assignments=Assignments(result,draft.OrderIds).Where(a=>vehicles is not { Length: > 0 } || vehicles.Contains(a.Route.Vehicle,StringComparer.Ordinal)).ToList();
+        if(assignments.Count==0) throw new FormatException("Select at least one route to create manifests.");
         var scheduled=assignments.SelectMany(a=>a.Orders).Order(StringComparer.Ordinal).ToArray();
         var states=await db.QueryAsync<string>(new CommandDefinition("SELECT status FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@scheduled) AND deleted_at IS NULL ORDER BY id FOR UPDATE",new{tenant.TenantId,draft.SourceId,scheduled},tx,cancellationToken:ct));
         if(states.Count()!=scheduled.Length || states.Any(s=>s!=WorkspaceOrderStatus.Ready)) throw new FormatException("Another plan already manifested some orders. Refresh Orders and plan the remaining orders.");
@@ -195,5 +224,5 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         await tx.CommitAsync(ct);
         return (await Manifests(ct)).Where(m=>m.DraftId==draftId).ToArray();
     }
-    private sealed class DraftRow { public Guid SourceId { get; set; } public string[] OrderIds { get; set; } = []; public Guid? FinishedSession { get; set; } }
+    private sealed class DraftRow { public Guid SourceId { get; set; } public string[] OrderIds { get; set; } = []; public Guid? FinishedSession { get; set; } public bool Cancelled { get; set; } }
 }

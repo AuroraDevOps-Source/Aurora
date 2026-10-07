@@ -8,7 +8,7 @@ namespace Aurora.Modules.Routing;
 
 public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext tenant)
 {
-    const string OrderSql = """
+    const string OrderSql = $$"""
       SELECT (jsonb_build_object('Address',COALESCE(s.request->'reporting'->'orders'->o.id->>'address1',''),
       'State',COALESCE(s.request->'reporting'->'orders'->o.id->>'state',''),
       'PostalCode',COALESCE(s.request->'reporting'->'orders'->o.id->>'postalCode',''),
@@ -19,7 +19,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,'TerminalId',o.terminal_id,
       'TerminalCode',(SELECT code FROM aurora_terminal t WHERE (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id)),
       'CustomerId',o.customer_id,'CustomerCode',(SELECT code FROM aurora_customer c WHERE (c.tenant_id,c.id)=(o.tenant_id,o.customer_id)),
-      'ManifestId',m.id,'ManifestNumber',m.number,'StopNumber',a.stop_number))::text
+      'ManifestId',m.id,'ManifestNumber',m.number,'StopNumber',a.stop_number,'OptimizationDraftId',{{PlanningLock.DraftForOrder}}))::text
       FROM aurora_order o JOIN aurora_order_source s ON (s.tenant_id,s.id)=(o.tenant_id,o.source_id) LEFT JOIN aurora_manifest_order a ON (a.tenant_id,a.source_id,a.order_id)=(o.tenant_id,o.source_id,o.id)
       LEFT JOIN aurora_manifest m ON (m.tenant_id,m.id)=(a.tenant_id,a.manifest_id)
       WHERE o.tenant_id=@TenantId AND o.deleted_at IS NULL
@@ -36,6 +36,12 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
         var rows=await db.QueryAsync<string>(new CommandDefinition(OrderSql+" AND (@from IS NULL OR o.scheduled_at>=@from) AND (@to IS NULL OR o.scheduled_at<=@to) AND (@status IS NULL OR o.status=@status) AND (@terminal IS NULL OR o.terminal_id=@terminal) AND (@manifest IS NULL OR a.manifest_id=@manifest) AND (@search IS NULL OR concat_ws(' ',o.id,o.customer,o.city,o.details->>'Reference') ILIKE '%'||@search||'%') ORDER BY a.stop_number NULLS LAST,o.scheduled_at,o.id",new {tenant.TenantId,from=from?.ToUniversalTime(),to=to?.ToUniversalTime(),status=string.IsNullOrEmpty(status)?null:status,search=string.IsNullOrWhiteSpace(search)?null:search,manifest,terminal},cancellationToken:ct));
         return rows.Select(x=>JsonSerializer.Deserialize<TmsOrder>(x)!).ToList();
     }
+    public async Task<List<TmsOrder>> OrdersById(Guid source,string[] ids,CancellationToken ct)
+    {
+        await using var db=await factory.OpenConnectionAsync(ct);
+        var rows=await db.QueryAsync<string>(new CommandDefinition(OrderSql+" AND o.source_id=@source AND o.id=ANY(@ids)",new {tenant.TenantId,source,ids},cancellationToken:ct));
+        return rows.Select(x=>JsonSerializer.Deserialize<TmsOrder>(x)!).ToList();
+    }
     public async Task<List<TmsManifest>> Manifests(CancellationToken ct)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
@@ -48,6 +54,10 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
         if (item.TerminalId is {} terminalId && await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_terminal WHERE tenant_id=@TenantId AND id=@terminalId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,terminalId},tx,cancellationToken:ct)) is null)
             throw new FormatException("Choose a saved terminal from your company.");
+        foreach (var nodeId in new[] { item.PickupNodeId, item.DeliverToNodeId }.OfType<Guid>())
+            if (await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_terminal WHERE tenant_id=@TenantId AND id=@nodeId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,nodeId},tx,cancellationToken:ct)) is null)
+                throw new FormatException("Choose pick-up and deliver-to nodes from your transportation nodes.");
+        item.OptimizationDraftId=null;
         if (item.CustomerId is {} customerId && await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_customer WHERE tenant_id=@TenantId AND id=@customerId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,customerId},tx,cancellationToken:ct)) is null)
             throw new FormatException("Choose a saved customer from your company.");
         if(create) {

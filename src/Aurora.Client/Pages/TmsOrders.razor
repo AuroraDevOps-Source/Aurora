@@ -11,7 +11,7 @@
  </div>
  <div class="tms-selection"><strong>@_orders.Count orders</strong><button class="outline-button" @onclick="Load" disabled="@_busy">Apply filters</button><button class="text-button" @onclick="Clear" disabled="@_busy">Clear filters</button><button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
  <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Scheduled</th><th>Customer</th><th>City</th><th>Status</th><th>Manifest</th><th></th></tr></thead><tbody>
- @foreach(var o in _orders){<tr><td><button class="text-button" @onclick="()=>Edit(o)" disabled="@(_edit is not null || _busy)">@o.Id</button></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span></td><td>@o.ManifestNumber</td><td><button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></tr>}
+ @foreach(var o in _orders){<tr><td><button class="text-button" @onclick="()=>Edit(o)" disabled="@(_edit is not null || _busy)">@o.Id</button></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span>@if(o.OptimizationDraftId is not null){<span class="status-badge status-optimizing" title="An open route optimization plan holds this order.">Optimization in Process</span>}</td><td>@o.ManifestNumber</td><td><button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></tr>}
  </tbody></table></div>
  @if(_orders.Count==0){<p>No orders match these filters.</p>}
 </section>
@@ -25,6 +25,9 @@
 <label class="field">Status<select @bind="e.Status" disabled="@(e.ManifestId is not null)">@foreach(var s in WorkspaceOrderStatus.All.Where(s=>e.ManifestId is not null || !new[]{"Routed","Dispatched","InTransit","OutForDelivery"}.Contains(s))){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
 <label class="field">Reference<input @bind="e.Reference" maxlength="200" /></label>
 <label class="field">Terminal<select @bind="e.TerminalId"><option value="">Unassigned</option>@foreach(var terminal in _terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
+<label class="field">Service type<select @bind="e.ServiceType"><option value="">Standard</option>@foreach(var s in OrderServiceTypes.All){<option value="@s">@s</option>}</select></label>
+<label class="field">Pick up at<select @bind="e.PickupNodeId"><option value="">Shipper address</option>@foreach(var node in _terminals){<option value="@node.Id">@node.Code · @node.Name (@node.NodeType)</option>}</select></label>
+<label class="field order-deliver-to">Deliver to<select @bind="e.DeliverToNodeId"><option value="">Consignee address</option>@foreach(var node in _terminals){<option value="@node.Id">@node.Code · @node.Name (@node.NodeType)</option>}</select></label>
 </div>
 <CustomerDropdown Label="Customer" Options="@CustomerOptions" Value="@(e.CustomerId?.ToString())" ValueChanged="ChooseCustomer" />
 <div class="order-parties">

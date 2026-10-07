@@ -70,8 +70,9 @@ public sealed class WorkspaceImportStore(NpgsqlConnectionFactory factory, ITenan
         }
         foreach(var t in data.Terminals)
         {
-            var id=Guid.NewGuid();terminals.Add(t.Code,id);
-            await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_terminal(tenant_id,id,code,name,address,city,state,postal_code,country) VALUES(@TenantId,@id,@Code,@Name,@Address,@City,@State,@PostalCode,@Country)",new {tenant.TenantId,id,t.Code,t.Name,t.Address,t.City,t.State,t.PostalCode,t.Country},tx,cancellationToken:ct));
+            // A file-provided id lets orders and other nodes reference this node (deliver to, route via).
+            var id=t.Id!=Guid.Empty ? t.Id : Guid.NewGuid();terminals.Add(t.Code,id);
+            t.Id=id;await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_terminal(tenant_id,id,code,name,address,city,state,postal_code,country,details) VALUES(@TenantId,@id,@Code,@Name,@Address,@City,@State,@PostalCode,@Country,CAST(@details AS jsonb))",new {tenant.TenantId,id,t.Code,t.Name,t.Address,t.City,t.State,t.PostalCode,t.Country,details=JsonSerializer.Serialize(t)},tx,cancellationToken:ct));
         }
         foreach(var type in data.EquipmentTypes)
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO routing_equipment_type(tenant_id,code,data) VALUES(@TenantId,@Code,CAST(@json AS jsonb)) ON CONFLICT(tenant_id,code) DO UPDATE SET data=excluded.data,updated_utc=now()",new {tenant.TenantId,type.Code,json=JsonSerializer.Serialize(type)},tx,cancellationToken:ct));
@@ -79,6 +80,8 @@ public sealed class WorkspaceImportStore(NpgsqlConnectionFactory factory, ITenan
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO routing_equipment_unit(tenant_id,id,type_code,data) VALUES(@TenantId,@Id,@TypeCode,CAST(@json AS jsonb))",new {tenant.TenantId,truck.Id,truck.TypeCode,json=JsonSerializer.Serialize(truck)},tx,cancellationToken:ct));
         foreach(var source in sources)
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order_source(tenant_id,id,name,request) VALUES(@TenantId,@Id,@Name,CAST(@Json AS jsonb))",new {tenant.TenantId,source.Id,source.Name,source.Json},tx,cancellationToken:ct));
+        // Terminals without coordinates take them from their planning source depot (as migration 0017 did).
+        await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_terminal t SET details=t.details || jsonb_build_object('Latitude',(l->>'latitude')::double precision,'Longitude',(l->>'longitude')::double precision) FROM aurora_order_source s, jsonb_array_elements(CASE WHEN jsonb_typeof(s.request->'locations')='array' THEN s.request->'locations' ELSE '[]'::jsonb END) l WHERE t.tenant_id=@TenantId AND s.tenant_id=@TenantId AND lower(trim(s.request#>>'{reporting,terminal}'))=lower(t.code) AND l->>'id'=s.request#>>'{depots,0,locationId}' AND t.details->'Latitude' IS NULL",new {tenant.TenantId},tx,cancellationToken:ct));
         foreach(var order in data.Orders)
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_order(tenant_id,source_id,id,scheduled_at,customer,city,status,terminal_id,customer_id,details) VALUES(@TenantId,@source,@Id,@time,@Customer,@City,@Status,@terminalId,@customerId,CAST(@json AS jsonb))",new {tenant.TenantId,source=orderSources[order.Id],order.Id,time=order.ScheduledAt.ToUniversalTime(),order.Customer,order.City,order.Status,terminalId=terminals[order.TerminalCode!],customerId=customers[order.CustomerCode!],json=JsonSerializer.Serialize(order)},tx,cancellationToken:ct));
         foreach(var manifest in data.Manifests)

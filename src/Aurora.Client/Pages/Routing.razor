@@ -15,10 +15,11 @@
     <header class="planner-header">
         <div>
             <h1>Route Optimization</h1>
-            <p>Plan deliveries, balance your fleet, and review every route.</p>
+            <p>@(_planName ?? "Plan deliveries, balance your fleet, and review every route.")</p>
         </div>
         <div class="planner-header-actions">
-            <button class="primary-button" @onclick="FinishWorkspace" disabled="@(IsWorking || _appointmentEditing || _workspaceFinished || _completedSessionId is null || _result?.Summary?.Scheduled is not > 0)">@(_savingManifest ? "Saving…" : "Create Manifest")</button>
+            <button class="text-button" @onclick="() => _confirmCancel = true" disabled="@(IsWorking || _workspaceFinished || _planCancelled || WorkspaceDraftId is null)">Cancel plan</button>
+            <button class="primary-button" @onclick="FinishWorkspace" disabled="@(IsWorking || _appointmentEditing || _workspaceFinished || _planCancelled || _completedSessionId is null || _result?.Summary?.Scheduled is not > 0 || AcceptedRoutes == 0)">@(_savingManifest ? "Saving…" : AcceptedRoutes > 0 && _result is not null && AcceptedRoutes < _result.Routes.Count ? $"Create {AcceptedRoutes} manifests" : "Create Manifest")</button>
             <button class="primary-button" disabled="@(!CanOptimize)" @onclick="() => Optimize()">@(_busy ? "Optimizing..." : "Optimize")</button>
         </div>
     </header>
@@ -31,6 +32,8 @@
 
     @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert planner-alert" role="alert">@_error</div> }
     @if (_workspaceFinished) { <div class="finish-notice">Manifests saved. <a href="/aurora/manifests">View manifests</a>.</div> }
+    @if (_planCancelled) { <div class="finish-notice cancelled-notice">This plan was cancelled and its orders were released. <a href="/aurora/route-optimization">Start a new plan</a>.</div> }
+    @if (_confirmCancel) { <div class="terminal-delete planner-confirm" role="alert"><span>Cancel this plan and release its orders for other plans?</span><button class="primary-button" @onclick="CancelPlan">Cancel plan</button><button class="outline-button" @onclick="() => _confirmCancel = false">Keep planning</button></div> }
     @if (_sessionId is not null && !_busy) { <button class="outline-button" @onclick="ResumePlanning">Reconnect to this plan</button> }
     @if (_busy)
     {
@@ -159,6 +162,7 @@ else
                             var costPerStop = route.ManifestStops > 0 ? (route.Cost / route.ManifestStops).ToString("C2") : "N/A";
                             <details class="route-card @(_selectedVehicle == route.Vehicle ? "map-selected" : "")" open="@(_result.Routes.Count <= 4)" @key="route.Vehicle">
                                 <summary>
+                                    <label class="route-accept" title="Create a manifest for this route" @onclick:stopPropagation><input type="checkbox" checked="@_accepted.Contains(route.Vehicle)" disabled="@(_workspaceFinished || _planCancelled)" @onchange="e => Accept(route.Vehicle, e.Value is true)" />Include</label>
                                     <span class="route-swatch" style="background:@color"></span>
                                     <span class="truck-icon">▰</span>
                                     <strong>@route.Vehicle</strong>
@@ -424,7 +428,7 @@ else
 
     private enum ResultTab { Manifest, Summary, LeftOff }
     private bool IsWorking => _busy || _savingManifest || _sessionId is not null;
-    private bool CanOptimize => !_workspaceFinished && !_appointmentEditing && !IsWorking && _draft is { Orders: > 0, Trucks: > 0 };
+    private bool CanOptimize => !_workspaceFinished && !_planCancelled && !_appointmentEditing && !IsWorking && _draft is { Orders: > 0, Trucks: > 0 };
 
     private void SetInput(string json, string fileName, bool preserveResult = false)
     {
@@ -461,6 +465,8 @@ else
                     var selection = await Http.GetFromJsonAsync<OrderDraftDto>($"api/v1/aurora/drafts/{draftId}");
                     if (selection is null) throw new FormatException("Selection not found.");
                     _workspaceFinished = selection.Finished;
+                    _planCancelled = selection.Cancelled;
+                    _planName = selection.FileName;
                     if (_workspaceFinished) { StateHasChanged(); return; }
                     SetInput(selection.RequestJson, selection.FileName);
                 }

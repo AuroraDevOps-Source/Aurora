@@ -259,3 +259,37 @@ Check(RoutingInput.Items(overnightDay["vehicles"]).All(t => RoutingInput.Text(t[
 Reject(() => PlannerEdits.FleetDay(json, new DateOnly(2031, 3, 4), "06:00", "06:00"), "equal departure and return rejected");
 Reject(() => PlannerEdits.FleetDay(json, new DateOnly(2031, 3, 4), "6am", "18:00"), "malformed truck time rejected");
 Console.WriteLine($"{count} checks including customer appointments and overall schedules passed.");
+
+// Transportation network: service areas, planning batches, and routing to a node instead of the consignee.
+var area = ServiceArea.Parse(string.Join(Environment.NewLine, "917, 923-925", "90001-90099"));
+Check(area.Contains("91761") && area.Contains("92410") && area.Contains("90044") && !area.Contains("92601") && !area.Contains("90100") && !area.Contains(""), "service area matches prefixes and ranges");
+Reject(() => ServiceArea.Parse("917-91"), "malformed service area range rejected");
+TerminalDto Node(string code, string zip, string region, string role, string area, double lat) => new() { Id = Guid.NewGuid(), Code = code, Name = code + " node", PostalCode = zip, Region = region, RoutingRole = role, ServiceArea = area, Latitude = lat, Longitude = -118 };
+var ont = Node("ONT", "91761", "SOCAL", "Spoke", "917, 923-925", 34.0);
+var lax = Node("LAX", "90744", "SOCAL", "Hub", "900-908", 33.8);
+var sac = Node("SAC", "95838", "NORCAL", "Hub", "956-958", 38.6);
+var fat = Node("FAT", "93706", "NORCAL", "Spoke", "932, 936-937", 36.7);
+var agent = Node("AGT", "92410", "", "", "", 34.1);
+agent.NodeType = "Agent Facility";
+var network = new[] { ont, lax, sac, fat, agent };
+BatchAssignment Batch(string zip, string service = "", Guid? deliverTo = null) => PlanningBatches.Classify(new TmsOrder { Id = "P-" + zip, PostalCode = zip, ServiceType = service, DeliverToNodeId = deliverTo }, ont, network);
+Check(Batch("91761") is { Batch: PlanningBatch.General, DestinationNodeId: null }, "local consignee is general routing");
+Check(Batch("92410", OrderServiceTypes.Consolidation) is { Batch: PlanningBatch.Consolidation }, "local consolidation job is its own batch");
+Check(Batch("90044") is { Batch: PlanningBatch.LineHaul } b1 && b1.DestinationNodeId == lax.Id, "other service area in the region is line haul to that node");
+Check(Batch("93650") is { Batch: PlanningBatch.LineHaul } b2 && b2.DestinationNodeId == sac.Id, "out-of-region freight routes via that region's hub");
+Check(Batch("59101") is { Batch: PlanningBatch.General, Reason: "Outside every service area" }, "freight outside every service area stays in general routing");
+Check(Batch("91761", deliverTo: agent.Id) is { Batch: PlanningBatch.General } b3 && b3.DestinationNodeId == agent.Id, "deliver-to node inside the service area routes to the node");
+Check(Batch("91761", deliverTo: fat.Id) is { Batch: PlanningBatch.LineHaul } b4 && b4.DestinationNodeId == sac.Id, "deliver-to node in another region is line haul via its hub");
+var redirected = RoutingInput.Parse(PlanningBatches.ApplyDestinations(json, new Dictionary<string, TerminalDto> { ["TEST_NORTH"] = lax }));
+Check(RoutingInput.Text(RoutingInput.Items(redirected["orders"]!["deliveries"]).Single(d => RoutingInput.Text(d["id"]) == "TEST_NORTH")["delivery"]!["locationId"]) == "NODE-LAX"
+    && RoutingInput.Items(redirected["locations"]).Any(l => RoutingInput.Text(l["id"]) == "NODE-LAX")
+    && RoutingInput.Text(redirected["reporting"]!["orders"]!["TEST_NORTH"]!["deliverToNode"]) == "LAX", "redirected order is delivered to the node location");
+Check(RoutingInput.Text(RoutingInput.Items(redirected["orders"]!["deliveries"]).Single(d => RoutingInput.Text(d["id"]) == "TEST_SOUTH")["delivery"]!["locationId"]) != "NODE-LAX", "other orders keep their consignee location");
+Reject(() => PlanningBatches.ApplyDestinations(json, new Dictionary<string, TerminalDto> { ["TEST_NORTH"] = new() { Code = "NOPOS", Name = "No position" } }), "node without coordinates cannot receive orders");
+Reject(() => new TerminalDto { Code = "HUB", Name = "Hub", RoutingRole = "Hub" }.Validate(), "hub without a service area rejected");
+Check(PlanningBatch.For(null, [Batch("91761"), Batch("91762")]) == PlanningBatch.General && PlanningBatch.For(null, [Batch("91761"), Batch("90044")]) == PlanningBatch.Mixed && PlanningBatch.For(PlanningBatch.LineHaul, [Batch("90044")]) == PlanningBatch.LineHaul, "unfiltered plans are named for their one batch, else mixed");
+Check(!RoutingInput.Items(redirected["locations"]).Any(l => RoutingInput.Text(l["id"]) == "NORTH") && RoutingInput.Items(redirected["locations"]).Any(l => RoutingInput.Text(l["id"]) == "SOUTH"), "redirected order's unused consignee location is removed");
+Check(RoutingInput.Items(RoutingInput.Parse(PlannerEdits.FitTrafficMode(json))["vehicles"]).All(v => RoutingInput.Text(v["routing"]!["trafficMode"]) == "AVERAGE"), "regional plan keeps average traffic");
+var longHaul = PlanningBatches.ApplyDestinations(json, new Dictionary<string, TerminalDto> { ["TEST_NORTH"] = new() { Code = "LAX", Name = "Los Angeles", Latitude = 33.79, Longitude = -118.24 } });
+Check(RoutingInput.Items(RoutingInput.Parse(PlannerEdits.FitTrafficMode(longHaul))["vehicles"]).All(v => RoutingInput.Text(v["routing"]!["trafficMode"]) == "CONSTANT"), "plan spanning more than 650 km uses constant traffic");
+Console.WriteLine($"{count} checks including transportation network batches passed.");

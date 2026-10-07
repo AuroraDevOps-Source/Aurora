@@ -1,7 +1,7 @@
 @page "/aurora/{WorkspaceView}"
 @attribute [Authorize]
 <PageTitle>Aurora · @Title</PageTitle>
-<div class="tms-workspace">
+<div class="tms-workspace @(WorkspaceView == "route-optimization" ? "tms-route-setup" : null)">
  <AuroraSidebar />
  <main class="tms-main"><header class="planner-header"><h1>@Title</h1></header>
  @if(WorkspaceView=="route-optimization"){<RouteOptimizationSetup />}
@@ -15,5 +15,5 @@
 </div>
 @code {
  [Parameter] public string WorkspaceView {get;set;}="orders";
- string Title=>WorkspaceView=="route-optimization"?"Route Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifest":WorkspaceView=="terminals"?"Terminals":WorkspaceView=="customers"?"Customers":WorkspaceView=="import"?"Import":"Orders";
+ string Title=>WorkspaceView=="route-optimization"?"Route Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifest":WorkspaceView=="terminals"?"Transportation Nodes":WorkspaceView=="customers"?"Customers":WorkspaceView=="import"?"Import":"Orders";
 }

@@ -40,6 +40,12 @@ public sealed class TmsOrder
     public Guid? ManifestId { get; set; }
     public string? ManifestNumber { get; set; }
     public int? StopNumber { get; set; }
+    // Where the freight is actually picked up / delivered when an agent, airport, or other node handles it.
+    public Guid? PickupNodeId { get; set; }
+    public Guid? DeliverToNodeId { get; set; }
+    public string ServiceType { get; set; } = "";
+    // Read-only: the open plan holding this order ("Optimization in Process").
+    public Guid? OptimizationDraftId { get; set; }
     public void CopyBillTo(bool fromShipper)
     {
         BillTo = fromShipper ? Shipper : Customer;
@@ -55,6 +61,8 @@ public sealed class TmsOrder
         if(!WorkspaceOrderStatus.All.Contains(Status)) throw new FormatException("Unknown order status.");
         if(new[]{Id,Customer,Address,City,State,PostalCode,Shipper,OriginAddress,OriginCity,OriginState,OriginPostalCode,BillTo,Reference,Address2,Country,OriginAddress2,OriginCountry,BillToAddress,BillToAddress2,BillToCity,BillToState,BillToPostalCode,BillToCountry}.Any(v=>v is null || v.Length>200) || Notes is null || Notes.Length>4000) throw new FormatException("Fields allow 200 characters; notes allow 4,000.");
         if(Pieces<0 || Pieces!=decimal.Truncate(Pieces) || Weight<0 || Cube<0) throw new FormatException("Pieces must be a nonnegative whole number; weight and cube cannot be negative.");
+        ServiceType ??= "";
+        if(ServiceType.Length>0 && !OrderServiceTypes.All.Contains(ServiceType)) throw new FormatException("Choose a service type from the list.");
     }
 }
 public sealed class TmsManifest

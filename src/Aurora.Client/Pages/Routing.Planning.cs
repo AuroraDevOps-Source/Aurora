@@ -11,14 +11,33 @@ public partial class Routing
     public Guid? WorkspaceDraftId { get; set; }
     private string PlanningStorageKey => "aurora-planning-session" + (WorkspaceDraftId is { } id ? "-" + id : "");
     private Guid? _completedSessionId;
-    private bool _workspaceFinished, _savingManifest;
+    private bool _workspaceFinished, _savingManifest, _planCancelled, _confirmCancel;
+    private string? _planName;
+    // Routes the planner accepts as manifests; unchecked routes send their orders back to Ready to Ship.
+    private readonly HashSet<string> _accepted = new(StringComparer.Ordinal);
+    private int AcceptedRoutes => _result?.Routes.Count(r => _accepted.Contains(r.Vehicle) && r.Pros.Count > 0) ?? 0;
+    private void Accept(string vehicle, bool include) { if (include) _accepted.Add(vehicle); else _accepted.Remove(vehicle); }
+    private async Task CancelPlan()
+    {
+        if (WorkspaceDraftId is not { } draft || IsWorking) return;
+        _confirmCancel = false; _error = null;
+        try
+        {
+            using var response = await Http.PostAsync($"api/v1/aurora/drafts/{draft}/cancel", null);
+            if (!response.IsSuccessStatusCode) throw new FormatException((await ReadApiError(response)).Error);
+            _planCancelled = true;
+            await JS.InvokeVoidAsync("sessionStorage.removeItem", PlanningStorageKey);
+        }
+        catch (Exception ex) { _error = "Could not cancel the plan. " + ex.Message; }
+    }
     private async Task FinishWorkspace()
     {
         if (WorkspaceDraftId is not { } draft || _completedSessionId is not { } session || _savingManifest || _workspaceFinished) return;
         _savingManifest = true; _error = null;
         try
         {
-            using var response = await Http.PostAsJsonAsync($"api/v1/aurora/drafts/{draft}/finish", new FinishOrderDraftDto(session));
+            var partial = _result is not null && AcceptedRoutes < _result.Routes.Count(r => r.Pros.Count > 0);
+            using var response = await Http.PostAsJsonAsync($"api/v1/aurora/drafts/{draft}/finish", new FinishOrderDraftDto(session, partial ? _accepted.ToArray() : null));
             if (!response.IsSuccessStatusCode) throw new FormatException((await ReadApiError(response)).Error);
             _workspaceFinished = true;
             try { await JS.InvokeVoidAsync("auroraWorkspace.changed"); } catch (JSException) { }
@@ -106,6 +125,7 @@ public partial class Routing
                 await JS.InvokeVoidAsync("routeMap.dispose");
                 _resultInputJson = string.IsNullOrEmpty(_session.RequestJson) ? _sourceJson : _session.RequestJson;
                 _result = result; _previousResult = result; _completedSessionId = id;
+                _accepted.Clear(); _accepted.UnionWith(result.Routes.Select(r => r.Vehicle));
                 _sessionId = null; _selectedVehicle = null; _tab = ResultTab.Manifest;
                 _section = PlannerSection.Results; _renderMap = true; _error = null; _setupMessage = "Optimization complete. Review the manifests and unrouted orders in Results.";
                 StateHasChanged(); return true;

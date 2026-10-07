@@ -7,6 +7,53 @@ public static class PlannerEdits
 {
     // Puts every truck on one ship date with the same local hours, keeping each truck's own UTC offset.
     // A return at or before departure is an overnight shift, as with saved truck shifts.
+    // PTV validates every listed location, so drop the ones no depot, truck, or order refers to.
+    public static void RemoveUnusedLocations(JsonObject root)
+    {
+        if (root["locations"] is not JsonArray locations) return;
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        void Collect(JsonNode? node)
+        {
+            if (node is JsonObject obj)
+                foreach (var (key, value) in obj)
+                {
+                    if (key == "locationId" && RoutingInput.Text(value) is { } id) used.Add(id);
+                    else Collect(value);
+                }
+            else if (node is JsonArray array) foreach (var item in array) Collect(item);
+        }
+        foreach (var (key, value) in root) if (key != "locations") Collect(value);
+        for (var i = locations.Count - 1; i >= 0; i--)
+            if (RoutingInput.Text(locations[i]?["id"]) is not { } id || !used.Contains(id)) locations.RemoveAt(i);
+    }
+
+    // PTV rejects AVERAGE (time-of-day) traffic when two locations are more than 650 km apart. Plans
+    // that span farther, such as line haul across regions, use CONSTANT travel times instead.
+    public const double AverageTrafficLimitKm = 640; // a small margin under PTV's 650 km
+    public static string FitTrafficMode(string json)
+    {
+        var root = RoutingInput.Parse(json);
+        RemoveUnusedLocations(root);
+        var points = RoutingInput.Items(root["locations"])
+            .Select(l => (Lat: Number(l["latitude"]), Lon: Number(l["longitude"])))
+            .Where(p => p.Lat is not null && p.Lon is not null).Select(p => (p.Lat!.Value, p.Lon!.Value)).ToArray();
+        var longHaul = false;
+        for (var i = 0; i < points.Length && !longHaul; i++)
+            for (var j = i + 1; j < points.Length && !longHaul; j++)
+                longHaul = Kilometers(points[i], points[j]) > AverageTrafficLimitKm;
+        if (longHaul)
+            foreach (var truck in RoutingInput.Items(root["vehicles"]).Concat(RoutingInput.Items(root["reporting"]?["unavailableVehicles"])))
+                if (truck["routing"] is JsonObject routing && RoutingInput.Text(routing["trafficMode"]) == "AVERAGE") routing["trafficMode"] = "CONSTANT";
+        return root.ToJsonString();
+    }
+    private static double? Number(JsonNode? node) => node is JsonValue value && value.TryGetValue<double>(out var number) ? number : null;
+    private static double Kilometers((double Lat, double Lon) a, (double Lat, double Lon) b)
+    {
+        double Rad(double degrees) => degrees * Math.PI / 180;
+        var h = Math.Pow(Math.Sin(Rad(b.Lat - a.Lat) / 2), 2) + Math.Cos(Rad(a.Lat)) * Math.Cos(Rad(b.Lat)) * Math.Pow(Math.Sin(Rad(b.Lon - a.Lon) / 2), 2);
+        return 2 * 6371 * Math.Asin(Math.Min(1, Math.Sqrt(h)));
+    }
+
     public static string FleetDay(string json, DateOnly date, string departAt, string returnBy)
     {
         if (!TimeOnly.TryParseExact(departAt, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var depart) ||
