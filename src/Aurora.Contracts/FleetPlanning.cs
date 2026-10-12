@@ -20,7 +20,7 @@ public static class FleetPlanning
                 .SelectMany(a=>a?.Windows ?? []).Select(w=>w.EarliestStart).FirstOrDefault(d=>d is not null)
                 ?? throw new FormatException("Choose a planning date for these orders.")).DateTime);
         var eligible=Eligible(catalog,terminal);
-        if(eligible.Length==0)throw new FormatException($"No available trucks are saved for {terminal}. Add or enable trucks in Fleet Management first.");
+        if(eligible.Length==0)throw new FormatException($"No planning-ready trucks are available for {terminal}. Check the Nova terminal, weight and cubic capacities in Fleet Management. Power-only tractors require a trailer configuration.");
         var vehicles=new JsonArray();
         foreach(var unit in eligible)
         {
@@ -50,7 +50,7 @@ public static class FleetPlanning
         foreach(var truck in trucks)
         {
             var id=RoutingInput.Text(truck["id"]) ?? "";
-            if(!eligible.TryGetValue(id,out var unit))throw new FormatException($"Truck {id} is no longer available in your terminal's fleet. Start a new plan from Route Optimization.");
+            if(!eligible.TryGetValue(id,out var unit))throw new FormatException($"Truck {id} is no longer available in your terminal's fleet. Start a new plan from Optimization.");
             var depot=RoutingInput.Text(truck["start"]?["locationId"]) ?? "";
             var destination=RoutingInput.Text(truck["end"]?["locationId"]) ?? depot;
             if(!locations.Contains(depot) || !locations.Contains(destination))throw new FormatException("Choose valid start and return locations.");

@@ -1,0 +1,15 @@
+.nova-orders-list .tms-filters { margin-bottom:16px; }
+.record-groups { display:grid; gap:16px; }
+.fleet-groups { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.record-section { min-width:0; margin:0; padding:12px 16px 16px; border:1px solid #dce4ee; border-radius:8px; background:#f7f9fc; }
+.record-section legend { float:none; width:auto; padding:0 7px; margin:0 0 4px -7px; font-size:13px; font-weight:650; color:#344c6b; }
+.record-section-wide { grid-column:1 / -1; }
+.record-fields { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px 16px; padding:0; margin:0; border:0; }
+.record-section-half .record-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.record-fields .field { min-width:0; }
+.record-fields input { background:#fff; }
+.record-fields input { width:100%; }
+.record-fields input:disabled,.record-fields input:read-only { color:#334155; opacity:1; background:#f5f7fb; }
+.record-hint { color:#64748b; font-size:12px; margin:8px 0 16px; }
+@media(max-width:1100px){.fleet-groups{grid-template-columns:1fr;}.record-fields{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:600px){.record-fields,.record-section-half .record-fields{grid-template-columns:1fr;}.record-section{padding:10px 12px 12px;}}

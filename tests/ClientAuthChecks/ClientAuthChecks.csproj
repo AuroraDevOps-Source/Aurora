@@ -4,5 +4,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.0" />
     <Compile Include="../../src/Aurora.Client/AuroraAccountClaimsPrincipalFactory.cs" Link="AuroraAccountClaimsPrincipalFactory.cs" />
+    <Compile Include="../../src/Aurora.Client/SessionExpiryHandler.cs" Link="SessionExpiryHandler.cs" />
+    <ProjectReference Include="../../src/Aurora.Contracts/Aurora.Contracts.csproj" />
   </ItemGroup>
 </Project>

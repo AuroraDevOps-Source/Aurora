@@ -41,40 +41,6 @@
         content: "An error has occurred."
     }
 
-.loading-progress {
-    position: absolute;
-    display: block;
-    width: 8rem;
-    height: 8rem;
-    inset: 20vh 0 auto 0;
-    margin: 0 auto 0 auto;
-}
-
-    .loading-progress circle {
-        fill: none;
-        stroke: #e0e0e0;
-        stroke-width: 0.6rem;
-        transform-origin: 50% 50%;
-        transform: rotate(-90deg);
-    }
-
-        .loading-progress circle:last-child {
-            stroke: var(--blue);
-            stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
-            transition: stroke-dasharray 0.05s ease-in-out;
-        }
-
-.loading-progress-text {
-    position: absolute;
-    text-align: center;
-    font-weight: bold;
-    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
-}
-
-    .loading-progress-text:after {
-        content: var(--blazor-load-percentage-text, "Loading");
-    }
-
 code { color: var(--ink); }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
@@ -257,7 +223,7 @@ code { color: var(--ink); }
 .order-dialog .order-section-title { margin:6px 0 3px; }
 .order-dialog .manifest-edit-actions { margin-top:6px; gap:8px; }
 
-/* Route Optimization setup: order filters and one truck time window, then Start opens the planner. */
+/* Optimization setup: order filters and one truck time window, then Start opens the planner. */
 .tms-workspace.tms-route-setup { height:calc(100dvh - var(--mud-appbar-height, 48px)); min-height:0; }
 .tms-route-setup > .tms-main { display:flex; flex-direction:column; min-height:0; overflow:auto; padding-bottom:14px; }
 .tms-route-setup .planner-header { flex-shrink:0; }
@@ -334,3 +300,21 @@ code { color: var(--ink); }
 .route-accept { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border:1px solid var(--line); border-radius:5px; background:white; color:var(--ink); font-size:var(--fs-xs); font-weight:600; cursor:pointer; }
 .cancelled-notice { border-color:#f2c7cc; border-left-color:var(--red); background:#fff1f2; }
 .planner-confirm { margin:0 0 10px; }
+
+.route-open-plan,.route-order-selection { display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex-shrink:0; }
+.route-open-plan { background:#fff8e6; border:1px solid #e9cd88; padding:10px 12px; border-radius:6px; }
+.route-open-plan span { flex:1; min-width:200px; }
+.route-order-selection { font-size:var(--fs-sm); }
+.route-setup input[type=checkbox] { width:16px; height:16px; accent-color:var(--blue); cursor:pointer; }
+.route-setup input[type=checkbox]:disabled { cursor:default; }
+
+.planner-time.planner-time-automatic { grid-template-columns:minmax(0,1fr); }
+
+/* Shared editor grouping: restrained panels, clear labels, and white controls. */
+.edit-groups { display:grid; gap:16px; margin-top:16px; }
+.edit-group { min-width:0; margin:0; padding:12px 16px 16px; border:1px solid #dce4ee; border-radius:8px; background:#f7f9fc; }
+.edit-group > legend { float:none; width:auto; padding:0 7px; margin:0 0 4px -7px; font-size:13px; font-weight:650; color:#344c6b; }
+.edit-group input:not([type=checkbox]):not([type=radio]), .edit-group select, .edit-group textarea { background:#fff; }
+.edit-group input:read-only { background:#f0f3f8; }
+.edit-group .status-option { background:#fff; }
+@media(max-width:600px) { .edit-group { padding:10px 12px 12px; } }

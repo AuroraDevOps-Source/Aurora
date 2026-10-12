@@ -2,41 +2,66 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @using System.Globalization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 
 @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+@foreach (var warning in _sourceWarnings) { <p role="status">@warning</p> }
 <section class="planning-card route-setup">
     <div class="route-setup-form">
-        <fieldset class="route-setup-group" disabled="@_busy">
+        <fieldset class="route-setup-group @(IsLineHaul ? "route-setup-linehaul" : null)" disabled="@_busy">
             <legend>Orders</legend>
-            <label class="field route-setup-terminal">Active node<select @bind="_terminalId" @bind:after="Load">
-                @if (!Plannable.Any()) { <option value="">No terminals saved</option> }
+            <div class="route-setup-terminals">
+            <label class="field route-setup-terminal">@(IsLineHaul ? "From terminal" : "Active node")<select @bind="_terminalId" @bind:after="Load">
+                @if (!Plannable.Any()) { <option value="">@(_busy ? "Loading terminals…" : _error is not null ? "Terminals could not be loaded" : "No Nova terminals available")</option> }
                 @foreach (var terminal in Plannable) { <option value="@terminal.Id">@terminal.Code · @terminal.Name</option> }
             </select></label>
+            @if (IsLineHaul)
+            {
+                <label class="field route-setup-terminal">To terminal<select @bind="_toTerminalId">
+                    <option value="">Select receiving terminal</option>
+                    @foreach (var terminal in ReceivingTerminals) { <option value="@terminal.Id">@terminal.Code · @terminal.Name</option> }
+                </select></label>
+            }
+            </div>
             <label class="field">Status<select @bind="_status" @bind:after="Load">@foreach (var s in WorkspaceOrderStatus.All) { <option value="@s">@WorkspaceOrderStatus.Label(s)</option> }</select></label>
-            <label class="field">Batch<select @bind="_filter"><option value="">All batches</option>@foreach (var b in PlanningBatch.All) { <option value="@b">@PlanningBatch.Label(b)</option> }</select></label>
+            <label class="field">Batch<select @bind="_filter" @bind:after="ClearSelection"><option value="">All batches</option>@foreach (var b in PlanningBatch.All) { <option value="@b">@PlanningBatch.Label(b)</option> }</select></label>
             <label class="field">Ship date<input type="date" @bind="_shipDate" @bind:after="Load" /></label>
         </fieldset>
         <fieldset class="route-setup-group" disabled="@_busy">
             <legend>Time window · all trucks</legend>
             <label class="field route-setup-time">Depart<input type="time" value="@Clock(_departAt)" @onchange="e => _departAt = ParseTime(e, _departAt)" /></label>
-            <label class="field route-setup-time">Return by<input type="time" value="@Clock(_returnBy)" @onchange="e => _returnBy = ParseTime(e, _returnBy)" /></label>
+            <label class="field route-setup-time">@(IsLineHaul ? "Arrive by" : "Return by")<input type="time" value="@Clock(_returnBy)" @onchange="e => _returnBy = ParseTime(e, _returnBy)" /></label>
         </fieldset>
-        <button class="primary-button route-setup-start" disabled="@(!CanStart)" @onclick="Start"><i class="mdi mdi-play" aria-hidden="true"></i>@(_starting ? "Starting…" : "Start")</button>
+        <button class="primary-button route-setup-start" disabled="@(!CanStart)" title="@StartHint" @onclick="Start"><i class="mdi mdi-play" aria-hidden="true"></i>@(_starting ? "Starting…" : $"Start ({Planned.Count()})")</button>
     </div>
-    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Scheduled</th><th>Customer / destination</th><th>Batch</th><th>Deliver to</th><th>Status</th><th>Manifest</th></tr></thead><tbody>
+    @foreach (var group in Shown.Where(o => o.OptimizationDraftId is not null).GroupBy(o => o.OptimizationDraftId!.Value))
+    {
+        var draft = _openDrafts.FirstOrDefault(d => d.Id == group.Key);
+        <div class="route-open-plan" role="status">
+            @if (draft is not null)
+            {
+                <span>@group.Count() shown orders are in your open plan: <strong>@draft.Name</strong>.</span>
+                <a class="outline-button" href="@($"/aurora/planning?draft={draft.Id}")">Resume plan</a>
+                <button class="outline-button" disabled="@_busy" @onclick="() => CancelOpenPlan(draft.Id)">Cancel plan &amp; release orders</button>
+            }
+            else { <span>@group.Count() shown orders are reserved by another planner.</span> }
+        </div>
+    }
+    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th><input type="checkbox" aria-label="Select all available filtered orders" checked="@AllSelected" disabled="@(_busy || !Selectable.Any())" @onchange="ToggleAll" /></th><th>PRO / Order</th><th>Customer / destination</th><th>Batch</th><th>Deliver to</th><th>Status</th><th>Manifest</th></tr></thead><tbody>
         @foreach (var o in Shown)
         {
-            var assignment = _assignments.GetValueOrDefault(o.Id);
-            <tr @key="(o.SourceId, o.Id)" class="@(assignment is null ? "route-setup-skipped" : null)"><td><strong>@o.Id</strong></td><td>@o.ScheduledAt.ToLocalTime().ToString("h:mm tt", CultureInfo.CurrentCulture)</td><td><strong>@o.Customer</strong><small>@o.City @o.PostalCode</small></td>
-            <td>@if (assignment is not null) { <span class="status-badge batch-@assignment.Batch.ToLowerInvariant()">@PlanningBatch.Label(assignment.Batch)</span><small>@assignment.Reason</small> } else { <span>—</span> }</td>
-            <td>@(assignment?.DestinationNodeId is { } node ? NodeCode(node) : "Consignee")</td>
+            var assignment = IsLineHaul ? new BatchAssignment(o.Id, PlanningBatch.LineHaul, _toTerminalId, "") : _assignments.GetValueOrDefault(Key(o));
+            <tr @key="(o.SourceId, o.Id)" class="@(!CanPlan(o) ? "route-setup-skipped" : null)"><td><input type="checkbox" aria-label="@($"Select order {o.Id}")" checked="@_selected.Contains(Key(o))" disabled="@(_busy || !CanPlan(o))" @onchange="e => SelectOrder(o, e)" /></td><td><strong>@o.Id</strong></td><td><strong>@o.Customer</strong><small>@o.City @o.PostalCode</small></td>
+            <td>@if (assignment is not null) { <span class="status-badge batch-@assignment.Batch.ToLowerInvariant()">@PlanningBatch.Label(assignment.Batch)</span>@if (!string.IsNullOrWhiteSpace(assignment.Reason) && !assignment.Reason.EndsWith(" has no service area", StringComparison.Ordinal)) { <small>@assignment.Reason</small> } } else { <span>—</span> }</td>
+            <td>@(assignment?.DestinationNodeId is { } node ? NodeCode(node) : IsLineHaul ? "Select terminal" : "Consignee")</td>
             <td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span>@if (o.OptimizationDraftId is not null) { <span class="status-badge status-optimizing">Optimization in Process</span> }</td><td>@o.ManifestNumber</td></tr>
         }
         @if (!Shown.Any())
         {
             <tr><td colspan="7" role="status">
                 @if (_busy) { <span>Loading orders…</span> }
-                else if (!Plannable.Any()) { <span>Add a planning node and assign it to orders. <a href="aurora/terminals">Transportation Nodes</a></span> }
+                else if (_error is not null) { <span>Orders could not be loaded.</span> }
+                else if (!Plannable.Any()) { <span>No eligible Nova terminals were found. <a href="aurora/terminals">Transportation Nodes</a></span> }
                 else { <span>No orders match these filters.</span> }
             </td></tr>
         }
@@ -46,23 +71,44 @@
 @code {
     private List<TerminalDto> _terminals = [];
     private List<TmsOrder> _orders = [];
-    private Dictionary<string, BatchAssignment> _assignments = [];
+    private Dictionary<TmsOrderKey, BatchAssignment> _assignments = [];
+    private readonly HashSet<TmsOrderKey> _selected = [];
+    private List<OpenOrderDraftDto> _openDrafts = [];
     private Guid? _terminalId;
+    private Guid? _toTerminalId;
+    private bool IsLineHaul => _filter == PlanningBatch.LineHaul;
+    private IEnumerable<TerminalDto> ReceivingTerminals => _terminals.Where(t => t.NodeType == NodeVocabulary.Terminal && t.Id != _terminalId && DataRequirements.HasCoordinates(t.Latitude, t.Longitude));
     private string _status = WorkspaceOrderStatus.Ready;
     private string? _filter;
     private DateOnly _shipDate = DateOnly.FromDateTime(DateTime.Today);
     private TimeOnly _departAt = new(6, 0), _returnBy = new(18, 0);
     private string? _error;
     private bool _busy, _starting;
+    private bool _firebird;
+    private string[] _sourceWarnings = [];
+    private Guid[] _sourceIds = [];
 
-    private IEnumerable<TerminalDto> Plannable => _terminals.Where(NodeVocabulary.Plannable);
-    private IEnumerable<TmsOrder> Eligible => _orders.Where(CanPlan);
+    // Node eligibility is independent of whether its ready-order pool is empty.
+    private IEnumerable<TerminalDto> Plannable => _terminals.Where(n => NodeVocabulary.Plannable(n) && DataRequirements.HasCoordinates(n.Latitude, n.Longitude));
     private static bool CanPlan(TmsOrder order) => order.Status == WorkspaceOrderStatus.Ready && order.ManifestId is null && order.OptimizationDraftId is null;
-    private IEnumerable<TmsOrder> InBatch(string batch) => Eligible.Where(o => _assignments.GetValueOrDefault(o.Id)?.Batch == batch);
-    // Batch is just a filter: Start plans every eligible order the filters show; mixed batches share one plan.
-    private IEnumerable<TmsOrder> Shown => string.IsNullOrEmpty(_filter) ? _orders : InBatch(_filter);
-    private IEnumerable<TmsOrder> Planned => string.IsNullOrEmpty(_filter) ? Eligible : InBatch(_filter);
-    private bool CanStart => !_busy && _terminalId is not null && _departAt != _returnBy && Planned.Any();
+    private static TmsOrderKey Key(TmsOrder order) => new(order.SourceId, order.Id);
+    private IEnumerable<TmsOrder> Shown => string.IsNullOrEmpty(_filter) || IsLineHaul ? _orders : _orders.Where(o => _assignments.GetValueOrDefault(Key(o))?.Batch == _filter);
+    private IEnumerable<TmsOrder> Selectable => Shown.Where(CanPlan);
+    private IEnumerable<TmsOrder> Planned => Selectable.Where(o => _selected.Contains(Key(o)));
+    private bool AllSelected => Selectable.Any() && Selectable.All(o => _selected.Contains(Key(o)));
+    private bool CanStart => (!IsLineHaul || _toTerminalId is not null && _toTerminalId != _terminalId) && !_busy && _terminalId is not null && _departAt != _returnBy && Planned.Any() && Planned.Select(o => o.SourceId).Distinct().Count() == 1;
+    private string StartHint => IsLineHaul && _toTerminalId is null ? "Select a receiving terminal." : _busy ? "Loading…" : _departAt == _returnBy ? "Departure and return must differ."
+        : !Selectable.Any() && Shown.Any(o => o.OptimizationDraftId is not null) ? "Resume or cancel the open plan to use these orders."
+        : !Selectable.Any() ? "No available orders match the filters."
+        : !Planned.Any() ? "Select orders to start a plan."
+        : Planned.Select(o => o.SourceId).Distinct().Count() > 1 ? "Select orders from one planning source." : "";
+    private void ClearSelection() => _selected.Clear();
+    private void SelectAll() { foreach (var order in Selectable) _selected.Add(Key(order)); }
+    private void ToggleAll(ChangeEventArgs e) { if (e.Value is true) SelectAll(); else ClearSelection(); }
+    private void SelectOrder(TmsOrder order, ChangeEventArgs e)
+    {
+        if (e.Value is true && CanPlan(order)) _selected.Add(Key(order)); else _selected.Remove(Key(order));
+    }
     private string NodeCode(Guid id) => _terminals.FirstOrDefault(n => n.Id == id)?.Code ?? "Node";
     private static string Clock(TimeOnly time) => time.ToString("HH:mm", CultureInfo.InvariantCulture);
     // Browsers send "HH:mm" (or "HH:mm:ss"); a cleared field keeps the previous time.
@@ -70,32 +116,56 @@
 
     protected override Task OnInitializedAsync() => Run(async () =>
     {
-        _terminals = await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals") ?? [];
+        _firebird = (await Http.GetFromJsonAsync<FirebirdRoutingStatus>("api/v1/aurora/firebird"))?.Enabled == true;
+        if (_firebird) await SynchronizeSource();
+        _terminals = await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/aurora/firebird/terminals") ?? [];
         _terminalId = Plannable.FirstOrDefault()?.Id;
         await LoadOrders();
     });
+    private async Task SynchronizeSource()
+    {
+        using var response = await Http.PostAsync("api/v1/aurora/firebird/refresh", null);
+        if (!response.IsSuccessStatusCode) throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Nova orders could not be refreshed.");
+        var summary = await response.Content.ReadFromJsonAsync<FirebirdSyncResult>() ?? throw new FormatException("Nova returned no refresh summary.");
+        _sourceWarnings = summary.Warnings; _sourceIds = summary.SourceIds;
+    }
     private Task Load() => Run(LoadOrders);
     private async Task LoadOrders()
     {
+        if (_toTerminalId == _terminalId) _toTerminalId = null;
+        ClearSelection();
         _assignments = [];
         if (_terminalId is not { } terminal) { _orders = []; return; }
         // The ship date is a local calendar day; the API filters scheduled times in UTC.
         var from = await Utc(_shipDate.ToDateTime(TimeOnly.MinValue));
         var to = await Utc(_shipDate.ToDateTime(TimeOnly.MaxValue));
-        _orders = await Http.GetFromJsonAsync<List<TmsOrder>>($"api/v1/tms/orders?status={Uri.EscapeDataString(_status)}&terminal={terminal}&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}") ?? [];
+        // Nova's ready pool includes undated orders. Ship date selects the planned route day;
+        // it must not hide ready freight whose old entry date differs from that day.
+        var dates = _firebird ? "" : $"&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
+        _orders = await Http.GetFromJsonAsync<List<TmsOrder>>($"api/v1/tms/orders?status={Uri.EscapeDataString(_status)}&terminal={terminal}{dates}") ?? [];
+        if (_firebird) _orders = _orders.Where(o => _sourceIds.Contains(o.SourceId)).ToList();
+        _openDrafts = await Http.GetFromJsonAsync<List<OpenOrderDraftDto>>("api/v1/aurora/drafts") ?? [];
         // The server repeats this classification when a batch starts, so the preview and the plan agree.
         if (_terminals.FirstOrDefault(n => n.Id == terminal) is { } active)
-            _assignments = Eligible.ToDictionary(o => o.Id, o => PlanningBatches.Classify(o, active, _terminals));
+            _assignments = _orders.ToDictionary(Key, o => PlanningBatches.Classify(o, active, _terminals));
     }
+    private Task CancelOpenPlan(Guid id) => Run(async () =>
+    {
+        using var response = await Http.PostAsync($"api/v1/aurora/drafts/{id}/cancel", null);
+        if (!response.IsSuccessStatusCode) throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "The plan could not be cancelled.");
+        await LoadOrders();
+    });
     private async Task<string> Utc(DateTime local) => await JS.InvokeAsync<string>("auroraWorkspace.utc", local.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture));
     private Task Start() => Run(async () =>
     {
+        if (IsLineHaul && (_toTerminalId is null || _toTerminalId == _terminalId)) throw new FormatException("Select a different receiving terminal.");
         var orders = Planned.ToArray();
+        if (orders.Length == 0) throw new FormatException("Select at least one available order.");
         var sources = orders.Select(o => o.SourceId).Distinct().ToArray();
         if (sources.Length != 1) throw new FormatException("These orders come from more than one planning source. Narrow the filters so one plan uses one source.");
         _starting = true;
         using var response = await Http.PostAsJsonAsync("api/v1/aurora/drafts", new CreateOrderDraftDto(sources[0], orders.Select(o => o.Id).ToArray(), _shipDate,
-            Clock(_departAt), Clock(_returnBy), string.IsNullOrEmpty(_filter) ? null : _filter));
+            Clock(_departAt), Clock(_returnBy), string.IsNullOrEmpty(_filter) ? null : _filter, IsLineHaul ? _toTerminalId : null));
         if (!response.IsSuccessStatusCode) throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "The plan could not be started.");
         var draft = await response.Content.ReadFromJsonAsync<OrderDraftDto>() ?? throw new FormatException("No planning draft was returned.");
         Navigation.NavigateTo($"/aurora/planning?draft={draft.Id}");
@@ -105,7 +175,8 @@
         if (_busy) return;
         _busy = true; _error = null;
         try { await action(); }
-        catch (Exception ex) { _error = ex.Message; _starting = false; }
+        catch (AccessTokenNotAvailableException ex) { _starting = false; ex.Redirect(); }
+        catch (Exception ex) { _error = string.IsNullOrWhiteSpace(ex.Message.Trim('\'','"',' ')) ? "Could not load Optimization. Refresh the page or sign in again." : ex.Message; _starting = false; }
         finally { _busy = false; }
     }
 }

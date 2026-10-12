@@ -1,0 +1,52 @@
+@inject HttpClient Http
+
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+@if(_message is not null){<p role="status">@_message</p>}
+<section class="planning-card">
+@if(!_editing)
+{
+    <div class="user-toolbar"><h2>Users</h2><span class="spacer"></span><button class="primary-button" disabled="@_busy" @onclick="New">Add user</button></div>
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Username</th><th>Email</th><th>Level</th><th>Nova server</th><th>Database</th><th></th></tr></thead>
+    <tbody>@foreach(var user in _users){<tr><td>@user.UserName</td><td>@user.Email</td><td>@user.Level</td><td>@user.NovaHost</td><td>@user.NovaDatabase</td><td><button class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>Edit(user)">Edit</button><button class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>_delete=user">Delete</button></td></tr>}</tbody></table></div>
+    @if(_delete is not null){<div class="delete-prompt" role="alert">Delete login <strong>@_delete.UserName</strong>? <button class="outline-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Delete">Delete user</button></div>}
+}
+else
+{
+    <h2>@(_id is null?"Add user":"Edit user")</h2>
+    <fieldset disabled="@_busy">
+        <fieldset class="edit-group"><legend>Account & access</legend><div class="user-fields">
+            <label class="field">Username<input id="managed-user-name" name="managed-user-name" @bind="_name" autocomplete="section-managed-user username" data-1p-ignore="true" data-lpignore="true" maxlength="256" /></label>
+            <label class="field">Email<input type="email" @bind="_email" maxlength="256" /></label>
+            <label class="field">Level<select @bind="_level"><option>Administrator</option><option>Power User</option><option>User</option></select></label>
+            <label class="field">@(_id is null?"Login password":"New login password")<input id="managed-user-password" name="managed-user-password" type="password" @bind="_loginPassword" autocomplete="section-managed-user new-password" data-1p-ignore="true" data-lpignore="true" placeholder="@(_id is null?"12+ characters, upper/lowercase, number, symbol":"Leave blank to keep current")" /></label>
+        </div></fieldset>
+        <fieldset class="edit-group"><legend>Nova connection</legend><div class="user-fields">
+            <label class="field">Server IP / hostname<input id="nova-server" name="nova-server" @bind="_host" autocomplete="off" data-1p-ignore="true" data-lpignore="true" /></label>
+            <label class="field">Port<input type="number" @bind="_port" min="1" max="65535" /></label>
+            <label class="field wide">Database path<input id="nova-database-path" name="nova-database-path" autocomplete="off" data-1p-ignore="true" data-lpignore="true" @bind="_database" placeholder="D:\db\company\operations.fdb" /></label>
+            <label class="field">Nova username<input id="nova-database-username" name="nova-database-username" @bind="_novaUser" autocomplete="section-nova-connection username" data-1p-ignore="true" data-lpignore="true" /></label>
+            <label class="field">Nova password<input id="nova-database-password" name="nova-database-password" type="password" @bind="_novaPassword" autocomplete="section-nova-connection new-password" data-1p-ignore="true" data-lpignore="true" placeholder="@(_hasPassword?"Leave blank to keep current":"Required")" /></label>
+        </div></fieldset>
+        <div class="user-toolbar"><button class="outline-button" @onclick="Test">Test Nova connection</button><span class="spacer"></span><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" @onclick="Save">Save user</button></div>
+    </fieldset>
+}
+</section>
+
+@code {
+    const string Url="api/v1/admin/users";
+    AdminUserDto[] _users=[];AdminUserDto? _delete;
+    Guid? _id;bool _editing,_busy,_hasPassword;int _port=3050;
+    string _name="",_email="",_level="User",_revision="",_loginPassword="",_host="",_database="",_novaUser="",_novaPassword="";
+    string? _error,_message;
+    protected override async Task OnInitializedAsync()=>await Run(Load);
+    async Task Load(){using var response=await Http.GetAsync(Url);await Check(response);_users=(await response.Content.ReadFromJsonAsync<AdminUserDto[]>())??[];}
+    void New(){_id=null;_editing=true;_delete=null;_hasPassword=false;_name=_email=_revision=_loginPassword=_host=_database=_novaUser=_novaPassword="";_level="User";_port=3050;_error=_message=null;}
+    void Edit(AdminUserDto user){_id=user.Id;_name=user.UserName;_email=user.Email;_level=user.Level;_revision=user.Revision;_host=user.NovaHost;_port=user.NovaPort;_database=user.NovaDatabase;_novaUser=user.NovaUserName;_hasPassword=user.HasNovaPassword;_loginPassword=_novaPassword="";_editing=true;_delete=null;_error=_message=null;}
+    void Cancel(){_editing=false;_loginPassword=_novaPassword="";_error=_message=null;}
+    AdminUserEdit Input()=>new(_name,_email,_level,_loginPassword,_revision,_host,_port,_database,_novaUser,_novaPassword);
+    async Task Save()=>await Run(async()=>{using var response=_id is null?await Http.PostAsJsonAsync(Url,Input()):await Http.PutAsJsonAsync($"{Url}/{_id}",Input());await Check(response);_editing=false;_loginPassword=_novaPassword="";await Load();});
+    async Task Delete()=>await Run(async()=>{using var response=await Http.DeleteAsync($"{Url}/{_delete!.Id}?revision={Uri.EscapeDataString(_delete.Revision)}");await Check(response);_delete=null;await Load();_message="User deleted.";});
+    async Task Test()=>await Run(async()=>{using var response=await Http.PostAsJsonAsync(Url+"/test-connection"+(_id is null?"":$"?id={_id}"),Input());await Check(response);_message="Nova connection successful.";});
+    async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=_message=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;}}
+    static Task Check(HttpResponseMessage response)=>Aurora.Client.ApiResponse.Check(response);
+}

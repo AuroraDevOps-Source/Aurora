@@ -5,15 +5,17 @@
  <AuroraSidebar />
  <main class="tms-main"><header class="planner-header"><h1>@Title</h1></header>
  @if(WorkspaceView=="route-optimization"){<RouteOptimizationSetup />}
- else if(WorkspaceView=="fleet"){<FleetManagement />}
- else if(WorkspaceView=="manifests"){<TmsManifests />}
- else if(WorkspaceView=="terminals"){<Terminals />}
- else if(WorkspaceView=="customers"){<Customers />}
+ else if(WorkspaceView=="fleet"){<NovaRecords Kind="fleet" @key="WorkspaceView" />}
+ else if(WorkspaceView=="manifests"){<NovaManifests />}
+ else if(WorkspaceView=="terminals"){<NovaMasters Kind="terminals" @key="WorkspaceView" />}
+ else if(WorkspaceView=="customers"){<NovaMasters Kind="customers" @key="WorkspaceView" />}
+ else if(WorkspaceView=="users"){<AuthorizeView Roles="aurora:Admin"><Authorized><UserAdministration /></Authorized><NotAuthorized><p role="alert">Administrator access is required.</p></NotAuthorized></AuthorizeView>}
+ else if(WorkspaceView is "ship-status" or "configuration"){<AuthorizeView Roles="aurora:Admin"><Authorized><RoutingConfiguration /></Authorized><NotAuthorized><p role="alert">A company administrator is required to manage ship statuses.</p></NotAuthorized></AuthorizeView>}
  else if(WorkspaceView=="import"){<AuthorizeView Roles="aurora:Admin"><Authorized><WorkspaceImportPage /></Authorized><NotAuthorized><p role="alert">A company administrator is required to replace company data.</p></NotAuthorized></AuthorizeView>}
- else {<TmsOrders />}
+ else {<NovaRecords Kind="orders" @key="WorkspaceView" />}
  </main>
 </div>
 @code {
  [Parameter] public string WorkspaceView {get;set;}="orders";
- string Title=>WorkspaceView=="route-optimization"?"Route Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifest":WorkspaceView=="terminals"?"Transportation Nodes":WorkspaceView=="customers"?"Customers":WorkspaceView=="import"?"Import":"Orders";
+ string Title=>WorkspaceView=="route-optimization"?"Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifest":WorkspaceView=="terminals"?"Transportation Nodes":WorkspaceView=="customers"?"Customers":WorkspaceView=="users"?"Users":WorkspaceView is "ship-status" or "configuration"?"Ship Status":WorkspaceView=="import"?"Import":"Orders";
 }

@@ -1,0 +1,55 @@
+@inject HttpClient Http
+
+<section class="planning-card routing-configuration">
+    <h2>Ready to Route</h2>
+    <p>Select the Nova order statuses included in Ready to Route.</p>
+    @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+    @if(_message is not null){<p role="status">@_message</p>}
+    @if(_loaded)
+    {
+        <fieldset disabled="@_busy" class="edit-group"><legend>Eligible order statuses</legend><div class="status-options">
+            @foreach(var status in _available)
+            {
+                <label class="status-option"><input type="checkbox" checked="@_selected.Contains(status.Id)" @onchange="e=>Select(status.Id,e.Value is true)" /><span>@status.Name <small>(@status.Id)</small></span></label>
+            }
+        </div></fieldset>
+        <button class="primary-button" disabled="@(_busy || _selected.Count==0)" @onclick="Save">@(_busy?"Saving…":"Save configuration")</button>
+    }
+    else if(_error is null){<p role="status">Loading statuses…</p>}
+</section>
+
+@code {
+    const string Url="api/v1/aurora/firebird/routing-configuration";
+    NovaManifestStatus[] _available=[];
+    HashSet<int> _selected=[];
+    bool _loaded,_busy;
+    string? _error,_message;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var response=await Http.GetAsync(Url);
+            await Check(response);
+            var config=(await response.Content.ReadFromJsonAsync<NovaRoutingConfiguration>())!;
+            _available=config.AvailableStatuses;_selected=config.ReadyStatuses.ToHashSet();_loaded=true;
+        }
+        catch(Exception ex){_error=ex.Message;}
+    }
+    void Select(int id,bool selected){if(selected)_selected.Add(id);else _selected.Remove(id);_message=null;}
+    async Task Save()
+    {
+        _busy=true;_error=_message=null;
+        try
+        {
+            using var response=await Http.PutAsJsonAsync(Url,new NovaRoutingConfigurationEdit(_selected.Order().ToArray()));
+            await Check(response);
+            _message="Saved. Open Optimization to load orders using these statuses.";
+        }
+        catch(Exception ex){_error=ex.Message;}
+        finally{_busy=false;}
+    }
+    static async Task Check(HttpResponseMessage response)
+    {
+        if(!response.IsSuccessStatusCode)throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Unable to load or save configuration.");
+    }
+}

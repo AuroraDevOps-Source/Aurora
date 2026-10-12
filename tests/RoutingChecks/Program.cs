@@ -268,6 +268,15 @@ TerminalDto Node(string code, string zip, string region, string role, string are
 var ont = Node("ONT", "91761", "SOCAL", "Spoke", "917, 923-925", 34.0);
 var lax = Node("LAX", "90744", "SOCAL", "Hub", "900-908", 33.8);
 var sac = Node("SAC", "95838", "NORCAL", "Hub", "956-958", 38.6);
+var transferInput=LineHaulPlanning.Prepare(json,ont,lax);
+var transfer=RoutingInput.Parse(LineHaulPlanning.SetFleetDestination(transferInput));
+Check(RoutingInput.Items(transfer["orders"]?["deliveries"]).All(o=>RoutingInput.Text(o["delivery"]?["locationId"])=="NODE-LAX"),"explicit line haul sends all selected orders to receiving terminal");
+Check(RoutingInput.Items(transfer["vehicles"]).All(v=>RoutingInput.Text(v["end"]?["locationId"])=="NODE-LAX"),"line haul vehicles end at receiving terminal");
+Check(RoutingInput.Items(transfer["orders"]?["deliveries"]).All(o=>RoutingInput.ReportOrder(transfer,RoutingInput.Text(o["id"])!)?["appointment"] is null),"final delivery appointments do not constrain terminal transfer");
+_ = RoutingInput.Prepare(transfer.ToJsonString());
+Check(true,"terminal transfer produces valid optimizer input");
+Reject(()=>LineHaulPlanning.Prepare(json,ont,ont),"line haul rejects same terminal");
+Reject(()=>LineHaulPlanning.Prepare(json,ont,new TerminalDto{Id=Guid.NewGuid(),Code="MISSING"}),"line haul rejects missing destination coordinates");
 var fat = Node("FAT", "93706", "NORCAL", "Spoke", "932, 936-937", 36.7);
 var agent = Node("AGT", "92410", "", "", "", 34.1);
 agent.NodeType = "Agent Facility";

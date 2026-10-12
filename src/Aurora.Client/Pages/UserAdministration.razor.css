@@ -1,0 +1,10 @@
+h2 { font-size: 19px; margin: 0 0 12px; }
+h3 { font-size: 16px; margin: 22px 0 14px; }
+fieldset:not(.edit-group) { border: 0; padding: 0; }
+.edit-group + .edit-group { margin-top:16px; }
+.user-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 16px; max-width: 950px; }
+.wide { grid-column: 1 / -1; }
+.user-toolbar { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+.spacer { flex: 1; }
+.delete-prompt { display: flex; align-items: center; gap: 12px; padding: 16px; background: #fff2f2; margin-top: 16px; }
+@media(max-width:700px) { .user-fields { grid-template-columns: 1fr; } }

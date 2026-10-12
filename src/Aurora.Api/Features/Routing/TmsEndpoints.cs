@@ -6,14 +6,11 @@ public static class TmsEndpoints
 {
  public static void MapTmsEndpoints(this IEndpointRouteBuilder app) {
   var g=app.MapGroup("/api/v1/tms").RequireAuthorization();
-  g.MapGet("/customers",(CustomerStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.List(ct))));
-  g.MapPost("/customers",(CustomerDto item,CustomerStore s,CancellationToken ct)=>Guard(async()=>{await s.Save(item,true,ct);return Results.Ok(item);}));
-  g.MapPut("/customers",(CustomerDto item,CustomerStore s,CancellationToken ct)=>Guard(async()=>{await s.Save(item,false,ct);return Results.Ok();}));
-  g.MapDelete("/customers/{id:guid}",(Guid id,int revision,CustomerStore s,CancellationToken ct)=>Guard(async()=>{await s.Delete(id,revision,ct);return Results.Ok();}));
-  g.MapGet("/terminals",(TerminalStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.List(ct))));
-  g.MapPost("/terminals",(TerminalDto item,TerminalStore s,CancellationToken ct)=>Guard(async()=>{await s.Save(item,true,ct);return Results.Ok(item);}));
-  g.MapPut("/terminals",(TerminalDto item,TerminalStore s,CancellationToken ct)=>Guard(async()=>{await s.Save(item,false,ct);return Results.Ok();}));
-  g.MapDelete("/terminals/{id:guid}",(Guid id,int revision,TerminalStore s,CancellationToken ct)=>Guard(async()=>{await s.Delete(id,revision,ct);return Results.Ok();}));
+  g.MapGet("/orders/{source:guid}/{id}/workflow",(Guid source,string id,FreightWorkflowStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.Get(source,id,ct))));
+  g.MapPut("/orders/{source:guid}/{id}/workflow",(Guid source,string id,FreightWorkflow input,FreightWorkflowStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.Save(source,id,input,ct))));
+  g.MapPost("/orders/{source:guid}/{id}/workflow/events",(Guid source,string id,FreightExecution input,FreightWorkflowStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.Execute(source,id,input,ct))));
+  g.MapGet("/customers",()=>Results.BadRequest(new ApiErrorDto("Use the Nova Customers screen.")));
+  g.MapGet("/terminals",(FirebirdRoutingSource s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.ReadTerminals(ct))));
   g.MapGet("/orders",(DateTimeOffset? from,DateTimeOffset? to,string? status,string? search,Guid? manifest,Guid? terminal,TmsStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.Orders(from,to,status,search,manifest,ct,terminal))));
   g.MapPost("/orders",(TmsOrder item,TmsStore s,CancellationToken ct)=>Guard(async()=>{await s.SaveOrder(item,true,ct);return Results.Ok(item);}));
   g.MapPut("/orders",(TmsOrder item,TmsStore s,CancellationToken ct)=>Guard(async()=>{await s.SaveOrder(item,false,ct);return Results.Ok();}));
@@ -27,6 +24,7 @@ public static class TmsEndpoints
  }
  static async Task<IResult> Guard(Func<Task<IResult>> action) {
   try{return await action();}
+  catch(FreightConflictException e){return Results.Conflict(new ApiErrorDto(e.Message));}
   catch(FormatException e){return Results.BadRequest(new ApiErrorDto(e.Message));}
   catch(KeyNotFoundException e){return Results.NotFound(new ApiErrorDto(e.Message));}
   catch(PostgresException e) when(e.SqlState=="23505"){return Results.Conflict(new ApiErrorDto("That code or number already exists (including deleted records), or the order is already assigned."));}

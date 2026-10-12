@@ -1,0 +1,27 @@
+.manifest-back { font-size:12px; color:#64748b; padding:2px 0; min-height:24px; }
+.nova-order-dialog { position:fixed; inset:0; margin:auto; width:min(1240px,calc(100vw - 32px)); max-width:none; max-height:94dvh; padding:0; overflow:auto; border:1px solid #dce3ed; border-radius:16px; color:#172b4d; background:#f6f8fc; box-shadow:0 24px 80px rgb(15 23 42 / 28%); }
+.nova-order-dialog::backdrop { background:rgb(15 23 42 / 48%); backdrop-filter:blur(3px); }
+.order-heading { display:flex; align-items:center; gap:14px; padding:12px 20px; background:white; border-top:4px solid #3567ee; border-bottom:1px solid #e1e7f0; }
+.order-heading>div { flex:1; }
+.order-heading h2 { margin:2px 0; font-size:20px; }
+.order-heading p { margin:0; color:#64748b; font-size:13px; }
+.order-eyebrow { font-size:11px; letter-spacing:.12em; font-weight:700; color:#526988; }
+.order-body { padding:14px 20px; }
+.order-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 0 12px; }
+.order-metrics dt { font-size:12px; color:#64748b; margin-bottom:3px; }
+.order-metrics dd { margin:0; font-size:15px; font-weight:600; overflow-wrap:anywhere; }
+.order-parties { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.order-card { min-width:0; padding:12px 14px; background:white; border:1px solid #e1e7f0; border-radius:10px; }
+.order-card h3 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#526988; }
+.order-card strong { font-size:14px; }
+.order-card p { margin:4px 0; font-size:13px; line-height:1.35; overflow-wrap:anywhere; }
+.order-section { margin-top:10px; }
+.order-section .order-metrics { margin:0; }
+.order-appointment { margin-top:8px; padding-top:8px; border-top:1px solid #edf0f5; }
+.order-appointment span,.order-empty { color:#64748b; font-size:12px; }
+.order-notes { white-space:pre-wrap; }
+.nova-order-dialog .modal-footer { padding:8px 20px; background:white; border-top:1px solid #e1e7f0; display:flex; justify-content:flex-end; }
+@media(max-width:640px) { .order-parties { grid-template-columns:1fr; } .order-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .order-heading,.order-body { padding:18px; } }
+
+.nova-order-dialog .manifest-table th,.nova-order-dialog .manifest-table td { padding:6px 10px; font-size:13px; }
+@media(min-width:641px) and (max-width:1000px) { .order-parties { grid-template-columns:repeat(2,minmax(0,1fr)); } }

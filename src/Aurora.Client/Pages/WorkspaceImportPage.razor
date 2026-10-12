@@ -20,7 +20,7 @@
             <button class="outline-button" @onclick="@(() => Navigation.NavigateTo("/aurora/orders",forceLoad:true))">@(_completed ? "Open orders" : "Cancel")</button>
         </div>
     </fieldset>
-    <details class="import-format-help"><summary>File format</summary><p>Use version 1 with terminals, customers, orders, manifests, and trucks arrays. Empty arrays clear that collection. Orders reference customerCode and terminalCode; trucks reference terminal and typeCode; manifests reference truckId and orderIds. Include equipmentTypes for new truck capacities. Optional planningSources carry the routing request needed for route optimization.</p></details>
+    <details class="import-format-help"><summary>File format</summary><p>Use version 1 with terminals, customers, orders, manifests, and trucks arrays. Empty arrays clear that collection. Orders reference customerCode and terminalCode; trucks reference terminal and typeCode; manifests reference truckId and orderIds. Include equipmentTypes for new truck capacities. Optional planningSources carry the routing request needed for optimization.</p></details>
 </section>
 
 @code {

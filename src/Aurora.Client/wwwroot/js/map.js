@@ -86,7 +86,7 @@ window.routeMap = (() => {
                         className: '',
                         html: stop.isDepot
                             ? `<span class="map-depot" style="--route:${route.color}">D</span>`
-                            : `<span class="map-stop" style="--route:${route.color}">${index}</span>`,
+                            : `<span class="map-stop" style="--route:${route.color}">${escapeHtml(String(stop.sequence ?? index))}</span>`,
                         iconSize: [28, 28], iconAnchor: [14, 14]
                     })
                 }).addTo(layer);

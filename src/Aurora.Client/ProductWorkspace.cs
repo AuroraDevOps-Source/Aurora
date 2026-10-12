@@ -4,7 +4,7 @@ namespace Aurora.Client;
 /// Maps product codes to the route that shows them inside Aurora's shell.
 ///
 /// External products load in a workspace frame beneath the shared header. Aurora prepares its
-/// session cookie before the product's normal PKCE flow. Route Optimization is a native page.
+/// session cookie before the product's normal PKCE flow. Optimization is a native page.
 /// </summary>
 public static class ProductWorkspace
 {
@@ -18,7 +18,7 @@ public static class ProductWorkspace
         FreightOps => "/workspace/freightops",
         Hub => "/workspace/hub",
         AuroraTms => "/workspace/auroratms",
-        _ => "/aurora/orders"
+        _ => "/aurora/route-optimization"
     };
 
     public static string? CodeFor(string path) => path switch
@@ -26,7 +26,7 @@ public static class ProductWorkspace
         "/workspace/freightops" => FreightOps,
         "/workspace/hub" => Hub,
         "/workspace/auroratms" => AuroraTms,
-        "/" or "/routing" or "/aurora/orders" or "/aurora/manifests" or "/aurora/fleet" or "/aurora/planning" => Aurora,
+        "/" or "/routing" or "/aurora/route-optimization" or "/aurora/orders" or "/aurora/manifests" or "/aurora/fleet" or "/aurora/planning" => Aurora,
         _ => null
     };
 

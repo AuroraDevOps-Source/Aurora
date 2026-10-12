@@ -11,10 +11,11 @@
  </div>
  <div class="tms-selection"><strong>@_orders.Count orders</strong><button class="outline-button" @onclick="Load" disabled="@_busy">Apply filters</button><button class="text-button" @onclick="Clear" disabled="@_busy">Clear filters</button><button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
  <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Scheduled</th><th>Customer</th><th>City</th><th>Status</th><th>Manifest</th><th></th></tr></thead><tbody>
- @foreach(var o in _orders){<tr><td><button class="text-button" @onclick="()=>Edit(o)" disabled="@(_edit is not null || _busy)">@o.Id</button></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span>@if(o.OptimizationDraftId is not null){<span class="status-badge status-optimizing" title="An open route optimization plan holds this order.">Optimization in Process</span>}</td><td>@o.ManifestNumber</td><td><button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></tr>}
+ @foreach(var o in _orders){<tr><td><button class="text-button" @onclick="()=>Edit(o)" disabled="@(_edit is not null || _busy)">@o.Id</button></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span>@if(o.OptimizationDraftId is not null){<span class="status-badge status-optimizing" title="An open optimization plan holds this order.">Optimization in Process</span>}</td><td>@o.ManifestNumber</td><td><button class="text-button" disabled="@(_busy || _edit is not null || _workflowOrder is not null)" @onclick="()=>_workflowOrder=o">Freight workflow</button><button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></tr>}
  </tbody></table></div>
  @if(_orders.Count==0){<p>No orders match these filters.</p>}
 </section>
+@if(_workflowOrder is {} workflowOrder){<FreightWorkflowEditor Order="workflowOrder" Nodes="_terminals" OnClose="()=>_workflowOrder=null" />}
 @if(_delete is {} deleting){<section class="planning-card" role="alert"><p>Delete order <strong>@deleting.Id</strong>?</p><button class="primary-button" disabled="@_busy" @onclick="Delete">Delete order</button><button class="outline-button" @onclick="()=>_delete=null">Cancel</button></section>}
 @if(_edit is {} e){
 <EditPopup Title="@(_new ? "Add order" : "Edit order · " + e.Id)" Busy="_busy" OnClose="()=>_edit=null" Class="order-dialog"><section class="compact-order-editor">
@@ -67,7 +68,7 @@
 </div><div class="manifest-edit-actions"><button class="primary-button" @onclick="Save">Save order</button><button class="outline-button" @onclick="()=>_edit=null">Cancel</button></div></fieldset>
 </section></EditPopup>}
 @code {
- List<TmsOrder> _orders=[]; TmsOrder? _edit,_delete; bool _new,_busy; string? _error,_message;
+ List<TmsOrder> _orders=[]; TmsOrder? _edit,_delete,_workflowOrder; bool _new,_busy; string? _error,_message;
  List<TerminalDto> _terminals=[];
  Guid? _terminalFilter;
  List<CustomerDto> _customers=[];

@@ -1,0 +1,3272 @@
+[
+  {
+    "INDEX_NAME": "ACCOUNT_PRIMARY",
+    "COLUMN_NAME": "AC_CUST",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ACIMG_KEY",
+    "COLUMN_NAME": "ACIMG_CUST",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ACN_COL_NOTES",
+    "COLUMN_NAME": "ACN_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ACN_COL_NOTES",
+    "COLUMN_NAME": "ACN_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ACN_COL_NOTES",
+    "COLUMN_NAME": "ACN_TIME",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "ACN_KEY",
+    "COLUMN_NAME": "ACN_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ACN_KEY",
+    "COLUMN_NAME": "ACN_SEQ_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ACYARD_PRIME_KEY",
+    "COLUMN_NAME": "ACY_YARD_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "AC_ALTKEY",
+    "COLUMN_NAME": "AC_NAMEKEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "AC_CONTACT_PRIMARY",
+    "COLUMN_NAME": "ACC_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "AC_CONTACT_PRIMARY",
+    "COLUMN_NAME": "ACC_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "AC_PHONEKEY",
+    "COLUMN_NAME": "AC_PHONE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "AC_XREF_KEY",
+    "COLUMN_NAME": "ACX_IDENTIFIER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "AC_XREF_KEY",
+    "COLUMN_NAME": "ACX_THEIR_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "AGENTROUTING_KEY",
+    "COLUMN_NAME": "AGR_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "AGENTROUTING_KEY",
+    "COLUMN_NAME": "AGR_FIELD1",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "AGENTROUTING_KEY",
+    "COLUMN_NAME": "AGR_FIELD2",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "ASMESSFIX_KEY",
+    "COLUMN_NAME": "AC_C_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ASMESSFIX_KEY",
+    "COLUMN_NAME": "AC_C_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ASMESSFIX_KEY",
+    "COLUMN_NAME": "AC_C_CONS",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CAEI_ACCT_KEY",
+    "COLUMN_NAME": "CAEI_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAEI_ACCT_KEY",
+    "COLUMN_NAME": "CAEI_AVAIL_DATE_LOW",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CAEI_CITY_KEY",
+    "COLUMN_NAME": "CAEI_LOC_CITY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAEI_CITY_KEY",
+    "COLUMN_NAME": "CAEI_LOC_STATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CAEI_CITY_KEY",
+    "COLUMN_NAME": "CAEI_AVAIL_DATE_LOW",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CAEI_DATE_KEY",
+    "COLUMN_NAME": "CAEI_AVAIL_DATE_LOW",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAEI_EQUIP_TYPE_KEY",
+    "COLUMN_NAME": "CAEI_EQUIP_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAEI_EQUIP_TYPE_KEY",
+    "COLUMN_NAME": "CAEI_AVAIL_DATE_LOW",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CAEI_ZIP_KEY",
+    "COLUMN_NAME": "CAEI_LOC_ZIP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAEI_ZIP_KEY",
+    "COLUMN_NAME": "CAEI_AVAIL_DATE_LOW",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CAH_ORIG_DEST_KEY",
+    "COLUMN_NAME": "CAH_ORIGIN_STATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAH_ORIG_DEST_KEY",
+    "COLUMN_NAME": "CAH_ORIGIN_CITY",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CAH_ORIG_DEST_KEY",
+    "COLUMN_NAME": "CAH_DEST_STATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CAH_ORIG_DEST_KEY",
+    "COLUMN_NAME": "CAH_DEST_CITY",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "CAH_ORIG_DEST_KEY",
+    "COLUMN_NAME": "CAH_SHIP_DATE",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "CAH_SHIP_DATE_KEY",
+    "COLUMN_NAME": "CAH_SHIP_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CAOS_STATE_KEY",
+    "COLUMN_NAME": "CAOS_STATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CA_INSURANCE_PRIMARY",
+    "COLUMN_NAME": "CAI_OWNER_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CA_INSURANCE_PRIMARY",
+    "COLUMN_NAME": "CAI_OWNER_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CA_INSURANCE_PRIMARY",
+    "COLUMN_NAME": "CAI_TYPE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CGC_PRIMARY",
+    "COLUMN_NAME": "CGC_USER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CGC_PRIMARY",
+    "COLUMN_NAME": "CGC_GRID_NAME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CH_KEY",
+    "COLUMN_NAME": "CH_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CH_KEY",
+    "COLUMN_NAME": "CH_BATCH",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CLAIM_HDR_CLM_DT_KEY",
+    "COLUMN_NAME": "CLH_CLAIMANT_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CLAIM_HDR_SHIP_NUM_KEY",
+    "COLUMN_NAME": "CLH_SHIP_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CLAIM_HEADER_KEY",
+    "COLUMN_NAME": "CLH_YR_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CLAIM_HEADER_KEY",
+    "COLUMN_NAME": "CLH_NUM_KEY",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CLAIM_OTH_PARTY_KEY",
+    "COLUMN_NAME": "CLOP_YR_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CLAIM_OTH_PARTY_KEY",
+    "COLUMN_NAME": "CLOP_NUM_KEY",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CLAIM_OTH_PARTY_KEY",
+    "COLUMN_NAME": "CLOP_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CLAIM_PAY_KEY",
+    "COLUMN_NAME": "CLPI_YR_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CLAIM_PAY_KEY",
+    "COLUMN_NAME": "CLPI_NUM_KEY",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CLAIM_PAY_KEY",
+    "COLUMN_NAME": "CLPI_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CODFEE_KEY",
+    "COLUMN_NAME": "CODFEE_TABLE_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CODFEE_KEY",
+    "COLUMN_NAME": "CODFEE_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CODFEE_KEY",
+    "COLUMN_NAME": "CODFEE_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CP_CUST_ID_KEY",
+    "COLUMN_NAME": "CP_CUST_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CP_CUST_ID_KEY",
+    "COLUMN_NAME": "CP_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CP_KEY",
+    "COLUMN_NAME": "CP_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CP_KEY",
+    "COLUMN_NAME": "CP_BATCH",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CP_KEY",
+    "COLUMN_NAME": "CP_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CP_PRO_KEY",
+    "COLUMN_NAME": "CP_PRO_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CP_PRO_KEY",
+    "COLUMN_NAME": "CP_PRO_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CP_PRO_KEY",
+    "COLUMN_NAME": "CP_PRO_SUF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CP_SHIP_NUM_KEY",
+    "COLUMN_NAME": "CP_SHIP_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTCS_PRIM_KEY",
+    "COLUMN_NAME": "CTCS_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTDD_PRIM_KEY",
+    "COLUMN_NAME": "CTDD_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTDS_PRIM_KEY",
+    "COLUMN_NAME": "CTDS_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTD_CODE_KEY",
+    "COLUMN_NAME": "CTD_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTD_KEY",
+    "COLUMN_NAME": "CTD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTD_KEY",
+    "COLUMN_NAME": "CTD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CTD_PRIM_KEY",
+    "COLUMN_NAME": "CTD_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTP_KEY",
+    "COLUMN_NAME": "CTP_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTP_KEY",
+    "COLUMN_NAME": "CTP_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CTRR_REGION_KEY",
+    "COLUMN_NAME": "CTRR_REGION_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTRU_REGION_KEY",
+    "COLUMN_NAME": "CTRU_REGION_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTR_PRIM_KEY",
+    "COLUMN_NAME": "CTR_REGION_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTSF_PRIM_KEY",
+    "COLUMN_NAME": "CTSF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTSF_PRIM_KEY",
+    "COLUMN_NAME": "CTSF_FROM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CTSTATE_NAME_KEY",
+    "COLUMN_NAME": "CTST_NAME",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTSTATE_PRIM_KEY",
+    "COLUMN_NAME": "CTST_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTS_CODE_KEY",
+    "COLUMN_NAME": "CTS_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTS_PRIM_KEY",
+    "COLUMN_NAME": "CTS_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTT_CODE_KEY",
+    "COLUMN_NAME": "CTT_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CTT_PRIM_KEY",
+    "COLUMN_NAME": "CTT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_COUNTRIES_PRIMARY",
+    "COLUMN_NAME": "CTC_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_EVENT_CODES_PRIM_KEY",
+    "COLUMN_NAME": "CTEC_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_INS_TYPES_PRIMARY",
+    "COLUMN_NAME": "CTI_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_FROM_ZIP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_FROM_CITY",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_FROM_ST",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_FROM_ADR",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_TO_ZIP",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_TO_CITY",
+    "POSITION": 5
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_TO_ST",
+    "POSITION": 6
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_TO_ADR",
+    "POSITION": 7
+  },
+  {
+    "INDEX_NAME": "CT_POINTMILES_KEY",
+    "COLUMN_NAME": "CTPM_MI_TYPE",
+    "POSITION": 8
+  },
+  {
+    "INDEX_NAME": "CT_ROUTES_TERMINAL_KEY",
+    "COLUMN_NAME": "CTR_LOCATION",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_ROUTES_TERMINAL_KEY",
+    "COLUMN_NAME": "CTR_ROUTE_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CT_SALESMAN_KEY",
+    "COLUMN_NAME": "CTSM_SALESMAN_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_VMRS_CTL_KEY",
+    "COLUMN_NAME": "CTVC_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_CITY_KEY",
+    "COLUMN_NAME": "CTZ_CITY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_CITY_KEY",
+    "COLUMN_NAME": "CTZ_STATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_KEY",
+    "COLUMN_NAME": "CTZ_ZIP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_LAT_LONG_KEY",
+    "COLUMN_NAME": "CTZ_LATITUDE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_LAT_LONG_KEY",
+    "COLUMN_NAME": "CTZ_LONGITUDE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_ROUTE_KEY",
+    "COLUMN_NAME": "CTZ_ROUTE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "CT_ZIP_ROUTE_KEY",
+    "COLUMN_NAME": "CTZ_ZIP",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "D83_MINS_KEY",
+    "COLUMN_NAME": "D83_MIN_EFF_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "D83_PNTS_KEY",
+    "COLUMN_NAME": "D83_PNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "D83_SEC3_KEY",
+    "COLUMN_NAME": "D83_S3_LOW",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "D83_SEC3_KEY",
+    "COLUMN_NAME": "D83_S3_HIGH",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "D83_SEC4_KEY",
+    "COLUMN_NAME": "D83_S4_LOW_RANGE_3",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "D83_SEC4_KEY",
+    "COLUMN_NAME": "D83_S4_HIGH_RANGE_3",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "D83_SEC4_KEY",
+    "COLUMN_NAME": "D83_S4_ZIP_5",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "D83_SEC6_KEY",
+    "COLUMN_NAME": "D83_S6_LOW_ZIP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "D83_SEC6_KEY",
+    "COLUMN_NAME": "D83_S6_BASE_LOW_ZIP",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DHD_END_DATE_KEY",
+    "COLUMN_NAME": "DHD_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DHD_END_DATE_KEY",
+    "COLUMN_NAME": "DHD_END_TIME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DHD_REVERSE_START_DATE_KEY",
+    "COLUMN_NAME": "DHD_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DHD_REVERSE_START_DATE_KEY",
+    "COLUMN_NAME": "DHD_START_TIME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DH_NAME_KEY",
+    "COLUMN_NAME": "DH_LNAME_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DH_NAME_KEY",
+    "COLUMN_NAME": "DH_FNAME_KEY",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DPD_LOAD_KEY",
+    "COLUMN_NAME": "DPD_LOAD_NUMBER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DPD_LOAD_KEY",
+    "COLUMN_NAME": "DPD_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DPD_STOP_KEY",
+    "COLUMN_NAME": "DPD_STOP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DPD_STOP_KEY",
+    "COLUMN_NAME": "DPD_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DPD_TRAILER_KEY",
+    "COLUMN_NAME": "DPD_TRAILER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DPD_TRAILER_KEY",
+    "COLUMN_NAME": "DPD_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DP_PRIME_KEY",
+    "COLUMN_NAME": "DP_CO",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DP_PRIME_KEY",
+    "COLUMN_NAME": "DP_DRIV",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DP_PRIME_KEY",
+    "COLUMN_NAME": "DP_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "DQ_PRIM_KEY",
+    "COLUMN_NAME": "DQ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DQ_PRIM_KEY",
+    "COLUMN_NAME": "DQ_CODE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DRIV_ADVANCE_DATE_KEY",
+    "COLUMN_NAME": "DAV_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DRIV_ADVANCE_DATE_KEY",
+    "COLUMN_NAME": "DAV_DRIV_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DRIV_ADVANCE_DRIV_KEY",
+    "COLUMN_NAME": "DAV_DRIV_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DRIV_ADVANCE_DRIV_KEY",
+    "COLUMN_NAME": "DAV_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DRIV_ADVANCE_KEY",
+    "COLUMN_NAME": "DAV_SEQ",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DRIV_EXPENSE_DATE_KEY",
+    "COLUMN_NAME": "DX_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DRIV_EXPENSE_DATE_KEY",
+    "COLUMN_NAME": "DX_DRIV_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DRIV_EXPENSE_DRV_KEY",
+    "COLUMN_NAME": "DX_DRIV_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DRIV_EXPENSE_DRV_KEY",
+    "COLUMN_NAME": "DX_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DRIV_EXPENSE_KEY",
+    "COLUMN_NAME": "DX_SEQ",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSADJUST_PRIM_KEY",
+    "COLUMN_NAME": "DSJ_DRIV",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSADJUST_PRIM_KEY",
+    "COLUMN_NAME": "DSJ_DSTYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DSCONTKW_KEY",
+    "COLUMN_NAME": "DSCK_CONT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSCONTKW_KEY",
+    "COLUMN_NAME": "DSCK_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DSCONTMI_KEY",
+    "COLUMN_NAME": "DSCM_CONT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSCONTMI_KEY",
+    "COLUMN_NAME": "DSCM_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DSCONTRACT_KEY",
+    "COLUMN_NAME": "DSC_CONT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSCONTREV_KEY",
+    "COLUMN_NAME": "DSCR_CONT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSCONTREV_KEY",
+    "COLUMN_NAME": "DSCR_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DSCONTREV_KEY",
+    "COLUMN_NAME": "DSCR_TYPE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "DSCONTSTAT_KEY",
+    "COLUMN_NAME": "DSCS_CONT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSCONTSTAT_KEY",
+    "COLUMN_NAME": "DSCS_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DSC_DRIVER_KEY",
+    "COLUMN_NAME": "DSC_DRIVER1",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSC_DRIVER_KEY",
+    "COLUMN_NAME": "DSC_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DSC_PRIM_KEY",
+    "COLUMN_NAME": "DSC_SEQ",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DSPAYTYPES_PRIMARY_KEY",
+    "COLUMN_NAME": "DST_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DS_CALLIN_DATE_KEY",
+    "COLUMN_NAME": "DSC_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DS_PRIME_KEY",
+    "COLUMN_NAME": "DS_CO",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DS_PRIME_KEY",
+    "COLUMN_NAME": "DS_DRIV",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DS_PRIME_KEY",
+    "COLUMN_NAME": "DS_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "DYMAST_PRIME_KEY",
+    "COLUMN_NAME": "DYM_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "DYMAST_PRIME_KEY",
+    "COLUMN_NAME": "DYM_UNIT_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "DYMAST_PRIME_KEY",
+    "COLUMN_NAME": "DYM_UNIT_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "DYMAST_PRIME_KEY",
+    "COLUMN_NAME": "DYM_DATE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "DYMAST_PRIME_KEY",
+    "COLUMN_NAME": "DYM_TIME",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "EDI_PIF_KEY",
+    "COLUMN_NAME": "PIF_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EDI_PIF_KEY",
+    "COLUMN_NAME": "PIF_TRAN",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EH_DELETE_KEY",
+    "COLUMN_NAME": "EH_DELETE_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EH_DELETE_KEY",
+    "COLUMN_NAME": "EH_UNIT_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EH_DELETE_KEY",
+    "COLUMN_NAME": "EH_UNIT_TYPE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "EH_REVERSE_KEY",
+    "COLUMN_NAME": "EH_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EH_REVERSE_KEY",
+    "COLUMN_NAME": "EH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EH_SEQUENCE_KEY",
+    "COLUMN_NAME": "EH_SEQUENCE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EH_TERMINAL_ID_KEY",
+    "COLUMN_NAME": "EH_MC_TERMINAL_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EH_TERMINAL_ID_KEY",
+    "COLUMN_NAME": "EH_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EH_TYPE_KEY",
+    "COLUMN_NAME": "EH_UNIT_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EH_TYPE_KEY",
+    "COLUMN_NAME": "EH_UNIT_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EH_UNIT_KEY",
+    "COLUMN_NAME": "EH_UNIT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EP_PRIMARY_KEY",
+    "COLUMN_NAME": "EP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EP_PRIMARY_KEY",
+    "COLUMN_NAME": "EP_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EP_REVERSE_KEY",
+    "COLUMN_NAME": "EP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EP_REVERSE_KEY",
+    "COLUMN_NAME": "EP_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EQUIP_DESC_PRIMARY",
+    "COLUMN_NAME": "ED_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EQUIP_DESC_PRIMARY",
+    "COLUMN_NAME": "ED_DESC_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EQUIP_EVENT_PRIM_KEY",
+    "COLUMN_NAME": "EQE_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EQUIP_EVENT_PRIM_KEY",
+    "COLUMN_NAME": "EQE_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EQUIP_PM_PGM_CODE_KEY",
+    "COLUMN_NAME": "EQPM_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "EQUIP_PM_PGM_CODE_KEY",
+    "COLUMN_NAME": "EQPM_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "EQUIP_STATUS_PRIMARY",
+    "COLUMN_NAME": "ES_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ES_DRIVER_KEY",
+    "COLUMN_NAME": "ES_ASG_DRIVER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ES_DRIVER_KEY",
+    "COLUMN_NAME": "ES_ASG_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ES_DRIVER_KEY",
+    "COLUMN_NAME": "ES_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "FSCD_KEY",
+    "COLUMN_NAME": "FSCD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FSCD_KEY",
+    "COLUMN_NAME": "FSCD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "FSC_CUST",
+    "COLUMN_NAME": "FSC_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FSC_CUST",
+    "COLUMN_NAME": "FSC_ACCOUNT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "FSC_CUST",
+    "COLUMN_NAME": "FSC_EFF_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "FSC_CUST",
+    "COLUMN_NAME": "FSC_EXP_DATE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "FSC_KEY",
+    "COLUMN_NAME": "FSC_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FSC_KEY",
+    "COLUMN_NAME": "FSC_ACCOUNT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "FSC_KEY",
+    "COLUMN_NAME": "FSC_LOCATION",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "FSC_KEY",
+    "COLUMN_NAME": "FSC_EFF_DATE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "FSC_NUM_KEY",
+    "COLUMN_NAME": "FSC_SCALE_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FUEL_CARD_KEY",
+    "COLUMN_NAME": "FC_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FUEL_DATE_KEY",
+    "COLUMN_NAME": "FP_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FUEL_DATE_KEY",
+    "COLUMN_NAME": "FP_EQUIP_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "FUEL_DATE_KEY",
+    "COLUMN_NAME": "FP_EQUIP_NUM",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "FUEL_EQUIP_KEY",
+    "COLUMN_NAME": "FP_EQUIP_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "FUEL_EQUIP_KEY",
+    "COLUMN_NAME": "FP_EQUIP_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "FUEL_EQUIP_KEY",
+    "COLUMN_NAME": "FP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "FUEL_PRIME_KEY",
+    "COLUMN_NAME": "FP_SEQ",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "HAZC_KEY",
+    "COLUMN_NAME": "HAZC_CLASS",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "HAZC_KEY",
+    "COLUMN_NAME": "HAZC_DIVISION",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "HAZD_KEY",
+    "COLUMN_NAME": "HAZD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "HAZD_KEY",
+    "COLUMN_NAME": "HAZD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "HAZD_REC_NUM_KEY",
+    "COLUMN_NAME": "HAZD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "HAZ_INFO",
+    "COLUMN_NAME": "HAZ_DESC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "HAZ_KEY",
+    "COLUMN_NAME": "HAZ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "HAZ_KEY",
+    "COLUMN_NAME": "HAZ_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "HAZ_REC_NUM_KEY",
+    "COLUMN_NAME": "HAZ_DESC_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICAC_CONTRACT_KEY",
+    "COLUMN_NAME": "ICAC_CONTRACT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICAC_CONTRACT_KEY",
+    "COLUMN_NAME": "ICAC_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ICAC_CONTRACT_X",
+    "COLUMN_NAME": "ICAC_CONTRACT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICAC_CONTRACT_X",
+    "COLUMN_NAME": "ICAC_KEYWORD",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ICAC_CONTRACT_X",
+    "COLUMN_NAME": "ICAC_WORK_CODE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "ICAC_CONTRACT_X",
+    "COLUMN_NAME": "ICAC_SEQ_NUM",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "ICAS_SRV_PNT",
+    "COLUMN_NAME": "ICAS_AGENT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICAS_SRV_PNT",
+    "COLUMN_NAME": "ICAS_SERVICE_POINT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ICAS_SRV_PNT",
+    "COLUMN_NAME": "ICAS_WORK_CODE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "ICA_CUST",
+    "COLUMN_NAME": "ICA_AGENT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICA_CUST",
+    "COLUMN_NAME": "ICA_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ICA_CUST",
+    "COLUMN_NAME": "ICA_ADV_BYD_CODE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "ICA_CUST",
+    "COLUMN_NAME": "ICA_AR_AP",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "ICA_D83_KEY",
+    "COLUMN_NAME": "ICA_D83_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICA_D83_KEY",
+    "COLUMN_NAME": "ICA_D83_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ICA_KEY",
+    "COLUMN_NAME": "ICA_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ICA_SRV_KEY",
+    "COLUMN_NAME": "ICAS_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_CT_WHSE",
+    "COLUMN_NAME": "CTWH_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_CT_WHSE_LOCS",
+    "COLUMN_NAME": "CTWHL_WHSE_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_CT_WHSE_UNITS",
+    "COLUMN_NAME": "CTWHU_UNIT_NAME",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_DPCHNUM",
+    "COLUMN_NAME": "DS_ORIG_DPCH_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_DPCHNUM",
+    "COLUMN_NAME": "DS_DRIV",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_EFFDT",
+    "COLUMN_NAME": "DS_CO",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_EFFDT",
+    "COLUMN_NAME": "DS_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_EFFDT",
+    "COLUMN_NAME": "DS_DRIV",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_EFFDT",
+    "COLUMN_NAME": "DS_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_PAIDDT",
+    "COLUMN_NAME": "DS_CO",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_PAIDDT",
+    "COLUMN_NAME": "DS_DT_PAID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_PAIDDT",
+    "COLUMN_NAME": "DS_DRIV",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_PAIDDT",
+    "COLUMN_NAME": "DS_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_SHIPNUM",
+    "COLUMN_NAME": "DS_SHIPNUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DRVSETL_SHIPNUM",
+    "COLUMN_NAME": "DS_DRIV",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_EFFDT",
+    "COLUMN_NAME": "DP_CO",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_EFFDT",
+    "COLUMN_NAME": "DP_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_EFFDT",
+    "COLUMN_NAME": "DP_DRIV",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_EFFDT",
+    "COLUMN_NAME": "DP_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_PAIDDT",
+    "COLUMN_NAME": "DP_CO",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_PAIDDT",
+    "COLUMN_NAME": "DP_DT_PAID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_PAIDDT",
+    "COLUMN_NAME": "DP_DRIV",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "IDX_DSPRELIM_PAIDDT",
+    "COLUMN_NAME": "DP_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "IDX_ISAPI_QUEUE_PROCESSED",
+    "COLUMN_NAME": "IQ_PROCESSED_TIME",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_OPS_STOP_TLR_ORDERNUM_KEY",
+    "COLUMN_NAME": "OSB_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_WEBHOOK_QUEUE_ORDER",
+    "COLUMN_NAME": "WHQ_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IDX_WEBHOOK_QUEUE_STATUS",
+    "COLUMN_NAME": "WHQ_STATUS",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IFTA_KEY",
+    "COLUMN_NAME": "IFTA_STATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IFTA_KEY",
+    "COLUMN_NAME": "IFTA_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ILOG_REPEAT_SHIP_KEY",
+    "COLUMN_NAME": "IRS_TERM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ILOG_REPEAT_SHIP_KEY",
+    "COLUMN_NAME": "IRS_ROUTE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ILOG_REPEAT_SHIP_KEY",
+    "COLUMN_NAME": "IRS_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "ILOG_REPEAT_SHIP_KEY",
+    "COLUMN_NAME": "IRS_CONS_ID",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "IMCX_SEQ_KEY",
+    "COLUMN_NAME": "IMCX_SEQ",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IMSEND_KEY",
+    "COLUMN_NAME": "IS_CUST",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IMSENT_KEY",
+    "COLUMN_NAME": "IST_SHIPNUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IMSENT_KEY",
+    "COLUMN_NAME": "IST_DOC_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_PD_OR_STOR",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_SCAC",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_EQ_TYP",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_DESCID_1",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_DESCID_2",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_DESCID_3",
+    "POSITION": 5
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_SHIP_ID",
+    "POSITION": 6
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_CONS_ID",
+    "POSITION": 7
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_BILLTO_ID",
+    "POSITION": 8
+  },
+  {
+    "INDEX_NAME": "IM_CONT_CHRG_MX_PRIME",
+    "COLUMN_NAME": "IMCX_WORK_CODE",
+    "POSITION": 9
+  },
+  {
+    "INDEX_NAME": "KW_KEY",
+    "COLUMN_NAME": "KW_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "LOCMAST_PRIMARY",
+    "COLUMN_NAME": "LM_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MCF_PRIMARY_KEY",
+    "COLUMN_NAME": "MCF_SYSTEM_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MCF_PRIMARY_KEY",
+    "COLUMN_NAME": "MCF_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "MCF_PRIMARY_KEY",
+    "COLUMN_NAME": "MCF_VERSION",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "MCF_PRIMARY_KEY",
+    "COLUMN_NAME": "MCF_TYPE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "MCQI_MSG_KEY",
+    "COLUMN_NAME": "MCQI_MSG_NUMBER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MCQI_PRIMARY_KEY",
+    "COLUMN_NAME": "MCQI_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MCQI_PRIMARY_KEY",
+    "COLUMN_NAME": "MCQI_MSG_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "MCQI_REVERSE_KEY",
+    "COLUMN_NAME": "MCQI_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MCQI_REVERSE_KEY",
+    "COLUMN_NAME": "MCQI_MSG_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "MCQ_PRIMARY_KEY",
+    "COLUMN_NAME": "MCQ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_DRIVER_KEY",
+    "COLUMN_NAME": "MM_DRIVER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_DRIVER_KEY",
+    "COLUMN_NAME": "MM_MSG_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "MM_MSG_REFERENCE_KEY",
+    "COLUMN_NAME": "MM_MSG_REFERENCE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_PRIMARY_KEY",
+    "COLUMN_NAME": "MM_MSG_NUMBER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_REVERSE_DRIVER_KEY",
+    "COLUMN_NAME": "MM_DRIVER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_REVERSE_DRIVER_KEY",
+    "COLUMN_NAME": "MM_MSG_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "MM_REVERSE_KEY",
+    "COLUMN_NAME": "MM_MSG_NUMBER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_REVERSE_UNIT_KEY",
+    "COLUMN_NAME": "MM_UNIT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_REVERSE_UNIT_KEY",
+    "COLUMN_NAME": "MM_MSG_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "MM_UNIT_KEY",
+    "COLUMN_NAME": "MM_UNIT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "MM_UNIT_KEY",
+    "COLUMN_NAME": "MM_MSG_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "NTC_KEY",
+    "COLUMN_NAME": "NTC_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OH_REVERSE_KEY",
+    "COLUMN_NAME": "OPH_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OH_REVERSE_KEY",
+    "COLUMN_NAME": "OPH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OH_TIME_KEY",
+    "COLUMN_NAME": "OPH_TIME",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OH_TIME_KEY",
+    "COLUMN_NAME": "OPH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPL_STOP_KEY",
+    "COLUMN_NAME": "OPL_STOP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPL_STOP_KEY",
+    "COLUMN_NAME": "OPL_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPS_AGENT_PRO_KEY",
+    "COLUMN_NAME": "OPA_AGENT_PRO_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPS_AGENT_PRO_KEY",
+    "COLUMN_NAME": "OPA_AGENT_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPS_AG_LINES_KEY",
+    "COLUMN_NAME": "OPAL_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPS_AG_LINES_KEY",
+    "COLUMN_NAME": "OPAL_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPS_AG_LINES_KEY",
+    "COLUMN_NAME": "OPAL_OPA_SEQUENCE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "OPS_EDI_RESEND_PRIMARY",
+    "COLUMN_NAME": "OPER_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPS_EDI_RESEND_PRIMARY",
+    "COLUMN_NAME": "OPER_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPS_NUMBER_KEY",
+    "COLUMN_NAME": "OPN_NUMBER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPS_NUMBER_KEY",
+    "COLUMN_NAME": "OPN_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPS_STOP_APPT_KEY",
+    "COLUMN_NAME": "OPS_APPT_LOW",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPS_STOP_APPT_KEY",
+    "COLUMN_NAME": "OPS_STOP_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OPS_STOP_NUMBER_KEY",
+    "COLUMN_NAME": "OPS_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "OPS_STOP_NUMBER_KEY",
+    "COLUMN_NAME": "OPS_STOP_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "OSM_CHILD_STOP_INDEX",
+    "COLUMN_NAME": "OSM_PKUP_DELV_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_CUSTOMER_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_TYPE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_ORIGIN_TYPE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_ORIGIN",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_DEST_TYPE",
+    "POSITION": 5
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_ALTKEY",
+    "COLUMN_NAME": "PAL_DEST",
+    "POSITION": 6
+  },
+  {
+    "INDEX_NAME": "PALLET_TARIFF_KEYS_PRIME",
+    "COLUMN_NAME": "PAL_KEYS_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PALMD_KEY",
+    "COLUMN_NAME": "PALMD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PALMD_KEY",
+    "COLUMN_NAME": "PALMD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PALTD_KEY",
+    "COLUMN_NAME": "PALTD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PALTD_KEY",
+    "COLUMN_NAME": "PALTD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PASCD_KEY",
+    "COLUMN_NAME": "PASCD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PASCD_KEY",
+    "COLUMN_NAME": "PASCD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PASC_CUST",
+    "COLUMN_NAME": "PASC_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PASC_CUST",
+    "COLUMN_NAME": "PASC_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PASC_CUST",
+    "COLUMN_NAME": "PASC_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PASC_KEY",
+    "COLUMN_NAME": "PASC_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PFAKD_KEY",
+    "COLUMN_NAME": "PFAKD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PFAKD_KEY",
+    "COLUMN_NAME": "PFAKD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PFAKD_KEY",
+    "COLUMN_NAME": "PFAKD_RULE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PFAK_CUST",
+    "COLUMN_NAME": "PFAK_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PFAK_CUST",
+    "COLUMN_NAME": "PFAK_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PFAK_CUST",
+    "COLUMN_NAME": "PFAK_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PFAK_KEY",
+    "COLUMN_NAME": "PFAK_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PFTD_KEY",
+    "COLUMN_NAME": "PFTD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PFTD_KEY",
+    "COLUMN_NAME": "PFTD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PFT_CUST",
+    "COLUMN_NAME": "PFT_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PFT_CUST",
+    "COLUMN_NAME": "PFT_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PFT_CUST",
+    "COLUMN_NAME": "PFT_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PFT_KEY",
+    "COLUMN_NAME": "PFT_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_BOL_DATE_KEY",
+    "COLUMN_NAME": "PB_BOL_DT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_DLIV_DATE_KEY",
+    "COLUMN_NAME": "PB_DLIV_DT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_ENT_DATE_KEY",
+    "COLUMN_NAME": "PB_DT_ENT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_PRO_KEY",
+    "COLUMN_NAME": "PBLOCAT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_PRO_KEY",
+    "COLUMN_NAME": "PBNUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PH_PRO_KEY",
+    "COLUMN_NAME": "PBSUFFIX",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PH_RATE_DATE_KEY",
+    "COLUMN_NAME": "PB_DT_RATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_STATUS_KEY",
+    "COLUMN_NAME": "PB_STATUS",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_STATUS_KEY",
+    "COLUMN_NAME": "PB_STATUS_TIME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PH_TEMPLATE_NAME",
+    "COLUMN_NAME": "PB_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PH_TEMPLATE_NAME",
+    "COLUMN_NAME": "PB_TEMPLATE_NAME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PH_TEMPLATE_NAME",
+    "COLUMN_NAME": "PB_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PILD_KEY",
+    "COLUMN_NAME": "PILD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PILD_KEY",
+    "COLUMN_NAME": "PILD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PIL_CUST",
+    "COLUMN_NAME": "PIL_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PIL_CUST",
+    "COLUMN_NAME": "PIL_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PIL_CUST",
+    "COLUMN_NAME": "PIL_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PIL_KEY",
+    "COLUMN_NAME": "PIL_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_AC_NOTES",
+    "COLUMN_NAME": "ACNO_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_AC_NOTES",
+    "COLUMN_NAME": "ACNO_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_AC_NOTES",
+    "COLUMN_NAME": "ACNO_OTHER_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_AC_RPT_SHIPMENTS",
+    "COLUMN_NAME": "ACRS_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_AC_RPT_SHIPMENTS",
+    "COLUMN_NAME": "ACRS_ITEM_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_AC_RPT_SHPMNT_LINES",
+    "COLUMN_NAME": "ACRSL_SHIPMENT_NUMBER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_AC_RPT_SHPMNT_LINES",
+    "COLUMN_NAME": "ACRSL_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_AC_SKU",
+    "COLUMN_NAME": "AKU_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_AC_SKU",
+    "COLUMN_NAME": "AKU_SKU",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CA_AVAILABLE_EQUIP",
+    "COLUMN_NAME": "CAAE_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CA_AVAILABLE_EQUIP",
+    "COLUMN_NAME": "CAAE_EQUIP_DESC_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CA_EQUIP_INVENTORY",
+    "COLUMN_NAME": "CAEI_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CA_HISTORY",
+    "COLUMN_NAME": "CAH_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CA_HISTORY",
+    "COLUMN_NAME": "CAH_ORDER_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CA_OPER_STATES",
+    "COLUMN_NAME": "CAOS_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CA_OPER_STATES",
+    "COLUMN_NAME": "CAOS_STATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_BOLS",
+    "COLUMN_NAME": "CTB_CARRIER_BOL",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_CONTAINER",
+    "COLUMN_NAME": "CTC_BOL",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_CONTAINER",
+    "COLUMN_NAME": "CTC_CNTR_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_EVENTS",
+    "COLUMN_NAME": "CTE_BOL",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_EVENTS",
+    "COLUMN_NAME": "CTE_CNTR_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_EVENTS",
+    "COLUMN_NAME": "CTE_TIME",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_CNTR_TRACK_EVENTS",
+    "COLUMN_NAME": "CTE_SEQUENCE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_CONTROL_KEY",
+    "COLUMN_NAME": "CT_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_GROUPING_KEY",
+    "COLUMN_NAME": "CTG_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_GROUPING_KEY",
+    "COLUMN_NAME": "CTG_POINT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_KEY_1",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_KEY_2",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_KEY_3",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_KEY_4",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_KW",
+    "POSITION": 5
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_RATE_KEY",
+    "COLUMN_NAME": "CTR_EFF_DATE",
+    "POSITION": 6
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_TABLE_KEY",
+    "COLUMN_NAME": "CTT_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_COMOD_TARIFF_TABLE_KEY",
+    "COLUMN_NAME": "CTT_TABLE_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CT_210_REASONS",
+    "COLUMN_NAME": "CT2R_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_214_REASONS",
+    "COLUMN_NAME": "CT2R_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_990_REASONS",
+    "COLUMN_NAME": "CT9R_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_API_CONNECT_INFO",
+    "COLUMN_NAME": "CTAI_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_API_CONNECT_INFO",
+    "COLUMN_NAME": "CTAI_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CT_BATCH",
+    "COLUMN_NAME": "CTB_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_CARD_TYPES",
+    "COLUMN_NAME": "CTC_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_CNTR_TRACK",
+    "COLUMN_NAME": "CCT_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_CNTR_TRACK_STATUS",
+    "COLUMN_NAME": "CCTS_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_COMMODITY",
+    "COLUMN_NAME": "CTCD_COMMOD",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_EXCEL_INV_LAYOUT",
+    "COLUMN_NAME": "CEIL_SS_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_EXCEL_INV_LAYOUT",
+    "COLUMN_NAME": "CEIL_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CT_FLEETS",
+    "COLUMN_NAME": "CTF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_NOVA_OPTIONS",
+    "COLUMN_NAME": "CTNO_OPTION",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_NUMBER_TYPES",
+    "COLUMN_NAME": "CTN_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_OMNITRACS_XRS",
+    "COLUMN_NAME": "CTOX_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_PEOPLENET",
+    "COLUMN_NAME": "CTP_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_QUALCOMM",
+    "COLUMN_NAME": "CTQ_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_RAND_MCNALLY",
+    "COLUMN_NAME": "CTRM_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_ROUTES",
+    "COLUMN_NAME": "CTR_ROUTE_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_SERV_AREAS",
+    "COLUMN_NAME": "CTSA_AREA_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_SERV_AREAS",
+    "COLUMN_NAME": "CTSA_LOCATION",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_CT_SYSTEM_OPTIONS",
+    "COLUMN_NAME": "CTSO_KEY",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_CT_ZIP",
+    "COLUMN_NAME": "CTZ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DAT_ACCOUNT_NOVA_UID",
+    "COLUMN_NAME": "DA_NOVA_UID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DAT_EQUIPMENT",
+    "COLUMN_NAME": "DE_EQ_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DAT_HISTORY",
+    "COLUMN_NAME": "DH_TIMESTAMP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DAT_HISTORY",
+    "COLUMN_NAME": "DH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_DAT_QUEUE_1",
+    "COLUMN_NAME": "DQ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_CONTACTS",
+    "COLUMN_NAME": "DC_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_CONTACTS",
+    "COLUMN_NAME": "DC_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_HEADER",
+    "COLUMN_NAME": "DH_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_HOS_DETAIL",
+    "COLUMN_NAME": "DHD_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_HOS_DETAIL",
+    "COLUMN_NAME": "DHD_START_TIME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_HOS_SUMMARY",
+    "COLUMN_NAME": "DHS_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_PKUP_DELV",
+    "COLUMN_NAME": "DPD_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIVER_PKUP_DELV",
+    "COLUMN_NAME": "DPD_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_DRIV_WORKFLOW_HIST",
+    "COLUMN_NAME": "DWH_DRV_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DRIV_WORKFLOW_HIST",
+    "COLUMN_NAME": "DWH_TIMESTAMP",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_DS_POINT_PAY",
+    "COLUMN_NAME": "DSPP_ACCT_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_DS_POINT_PAY",
+    "COLUMN_NAME": "DSPP_FROM_TYPE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_DS_POINT_PAY",
+    "COLUMN_NAME": "DSPP_FROM_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_DS_POINT_PAY",
+    "COLUMN_NAME": "DSPP_TO_TYPE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_DS_POINT_PAY",
+    "COLUMN_NAME": "DSPP_TO_ID",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_AVAIL",
+    "COLUMN_NAME": "EQA_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_AVAIL",
+    "COLUMN_NAME": "EQA_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_HEADER",
+    "COLUMN_NAME": "EH_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_HISTORY",
+    "COLUMN_NAME": "EH_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_HISTORY",
+    "COLUMN_NAME": "EH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_PM",
+    "COLUMN_NAME": "EQPM_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_EQUIP_PM",
+    "COLUMN_NAME": "EQPM_PGM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_FUELCOSTDAILY",
+    "COLUMN_NAME": "FCD_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_ISAPI_QUEUE",
+    "COLUMN_NAME": "IQ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MC_FORM_CATEGORIES",
+    "COLUMN_NAME": "MFC_SYSTEM_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MC_FORM_CATEGORIES",
+    "COLUMN_NAME": "MFC_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_MC_ROUTING",
+    "COLUMN_NAME": "MCR_SYSTEM_TYPE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MC_ROUTING",
+    "COLUMN_NAME": "MCR_FORM_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_MC_ROUTING",
+    "COLUMN_NAME": "MCR_FORM_TYPE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_MENUS",
+    "COLUMN_NAME": "M_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MENU_FAVORITES_1",
+    "COLUMN_NAME": "MF_USER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MENU_FAVORITES_1",
+    "COLUMN_NAME": "MF_DESC",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_MENU_ITEMS",
+    "COLUMN_NAME": "MI_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MENU_ITEMS",
+    "COLUMN_NAME": "MI_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_MENU_ITEM_SECURITY",
+    "COLUMN_NAME": "MIS_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MENU_ITEM_SECURITY",
+    "COLUMN_NAME": "MIS_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_MENU_ITEM_SECURITY",
+    "COLUMN_NAME": "MIS_SUBSYSTEM",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_MENU_RECENT_1",
+    "COLUMN_NAME": "MR_USER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MENU_RECENT_1",
+    "COLUMN_NAME": "MR_TIME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_MENU_TODO_1",
+    "COLUMN_NAME": "MT_USER",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_MENU_TODO_1",
+    "COLUMN_NAME": "MT_TIME",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OOP_ORDER_ID_SEQ",
+    "COLUMN_NAME": "OOP_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OOP_ORDER_ID_SEQ",
+    "COLUMN_NAME": "OOP_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_AGENTS_ID_SEQ",
+    "COLUMN_NAME": "OPA_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_AGENTS_ID_SEQ",
+    "COLUMN_NAME": "OPA_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_DRVPAY",
+    "COLUMN_NAME": "ODP_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_DRVPAY",
+    "COLUMN_NAME": "ODP_SEQ",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_EDI_HISTORY",
+    "COLUMN_NAME": "OPEH_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_EDI_HISTORY",
+    "COLUMN_NAME": "OPEH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_EDI_HISTORY",
+    "COLUMN_NAME": "OPEH_PARTNER_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_OPS_EDI_HISTORY",
+    "COLUMN_NAME": "OPEH_STATUS",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_OPS_HEADER",
+    "COLUMN_NAME": "PB_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_HISTORY",
+    "COLUMN_NAME": "OPH_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_HISTORY",
+    "COLUMN_NAME": "OPH_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_LINE_ITEMS",
+    "COLUMN_NAME": "OPL_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_LINE_ITEMS",
+    "COLUMN_NAME": "OPL_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_MANIFEST_STOPS",
+    "COLUMN_NAME": "OSM_STOP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_MANIFEST_STOPS",
+    "COLUMN_NAME": "OSM_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_MFST_INFO",
+    "COLUMN_NAME": "OMI_MFST_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_NUMBERS",
+    "COLUMN_NAME": "OPN_ORDER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_NUMBERS",
+    "COLUMN_NAME": "OPN_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_OPS_STOP_REC",
+    "COLUMN_NAME": "OPS_STOP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_OPS_STOP_TLR_SPACES",
+    "COLUMN_NAME": "OSB_STOP_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_PALLET_TARIFF_TABLE",
+    "COLUMN_NAME": "PALT_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_PALLET_TARIFF_TABLE",
+    "COLUMN_NAME": "PALT_TABLE_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_PALLET_TARIFF_TABLE",
+    "COLUMN_NAME": "PALT_EFF_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_PN_ACTIVITIES",
+    "COLUMN_NAME": "PNA_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_SUBSYSTEM_TYPES",
+    "COLUMN_NAME": "ST_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_ADJUST_KEY",
+    "COLUMN_NAME": "TA_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_ADJUST_KEY",
+    "COLUMN_NAME": "TA_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_ADJUST_KEY",
+    "COLUMN_NAME": "TA_FROM",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_ADJUST_KEY",
+    "COLUMN_NAME": "TA_TO",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_ADJUST_KEY",
+    "COLUMN_NAME": "TA_SEQ",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_BASES_KEY",
+    "COLUMN_NAME": "TB_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_BASES_KEY",
+    "COLUMN_NAME": "TB_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_BASES_KEY",
+    "COLUMN_NAME": "TB_ORIGIN",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_BASES_KEY",
+    "COLUMN_NAME": "TB_DEST",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_COMMON_POINTS",
+    "COLUMN_NAME": "TPC_ZIP_POINT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_CONTROL_KEY",
+    "COLUMN_NAME": "TC_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_CONTROL_KEY",
+    "COLUMN_NAME": "TC_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_MASTER_KEY",
+    "COLUMN_NAME": "TM_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_POINTS_KEY",
+    "COLUMN_NAME": "TP_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_POINTS_KEY",
+    "COLUMN_NAME": "TP_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_POINTS_KEY",
+    "COLUMN_NAME": "TP_ZIP_POINT",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_RATES_KEY",
+    "COLUMN_NAME": "TR_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_RATES_KEY",
+    "COLUMN_NAME": "TR_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_RATES_KEY",
+    "COLUMN_NAME": "TR_RATE_BASE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_TARIFF_RATES_KEY",
+    "COLUMN_NAME": "TR_CLASS",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_USERS",
+    "COLUMN_NAME": "U_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_USERS_CONTROL_CONFIG_1",
+    "COLUMN_NAME": "UCC_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_USERS_CONTROL_CONFIG_1",
+    "COLUMN_NAME": "UCC_PROGRAM_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_USERS_CONTROL_CONFIG_1",
+    "COLUMN_NAME": "UCC_CONTROL_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PK_USERS_CONTROL_CONFIG_1",
+    "COLUMN_NAME": "UCC_PROPERTY_NAME",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "PK_USER_SUBSYSTEMS",
+    "COLUMN_NAME": "US_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_USER_SUBSYSTEMS",
+    "COLUMN_NAME": "US_SUBSYSTEM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_VRREPAIRCODE",
+    "COLUMN_NAME": "VRRC_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_VRWORKACCCODE",
+    "COLUMN_NAME": "VRWAC_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_WEB_ALLOWED_ACCTS",
+    "COLUMN_NAME": "WUAA_USER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_WEB_ALLOWED_ACCTS",
+    "COLUMN_NAME": "WUAA_ACCT_ID",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_WEB_DASHBOARD_ITEMS",
+    "COLUMN_NAME": "WDI_USER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PK_WEB_DASHBOARD_ITEMS",
+    "COLUMN_NAME": "WDI_SEQUENCE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PK_WEB_USERS",
+    "COLUMN_NAME": "WU_USER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PRMA_CUST",
+    "COLUMN_NAME": "PRMA_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PRMA_CUST",
+    "COLUMN_NAME": "PRMA_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PRMA_CUST",
+    "COLUMN_NAME": "PRMA_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PRMA_KEY",
+    "COLUMN_NAME": "PRMA_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PRMC_KEY",
+    "COLUMN_NAME": "PRMC_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PRMC_KEY",
+    "COLUMN_NAME": "PRMC_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PRWB_KEY",
+    "COLUMN_NAME": "PRWB_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PRWB_KEY",
+    "COLUMN_NAME": "PRWB_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PSD_KEY",
+    "COLUMN_NAME": "PSD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PSD_KEY",
+    "COLUMN_NAME": "PSD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PS_CUST",
+    "COLUMN_NAME": "PS_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PS_CUST",
+    "COLUMN_NAME": "PS_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PS_CUST",
+    "COLUMN_NAME": "PS_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PS_KEY",
+    "COLUMN_NAME": "PS_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PTBI_KEY",
+    "COLUMN_NAME": "PTBI_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PTBI_KEY",
+    "COLUMN_NAME": "PTBI_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PTBTD_KEY",
+    "COLUMN_NAME": "PTBTD_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PTBTD_KEY",
+    "COLUMN_NAME": "PTBTD_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PTBT_KEY",
+    "COLUMN_NAME": "PTBT_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PTBT_KEY",
+    "COLUMN_NAME": "PTBT_SEQ_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PTB_CUST",
+    "COLUMN_NAME": "PTB_ACCOUNT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PTB_CUST",
+    "COLUMN_NAME": "PTB_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PTB_CUST",
+    "COLUMN_NAME": "PTB_EXP_DATE",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "PTB_KEY",
+    "COLUMN_NAME": "PTB_REC_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PUCRATE_KEY",
+    "COLUMN_NAME": "PUC_STATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PUCRATE_KEY",
+    "COLUMN_NAME": "PUC_EFF_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "PUCWGT_KEY",
+    "COLUMN_NAME": "PUCW_RATE_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "PUCWGT_KEY",
+    "COLUMN_NAME": "PUCW_WGT_FROM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "QUAL128_KEY",
+    "COLUMN_NAME": "Q_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "QUALG62_176_KEY",
+    "COLUMN_NAME": "Q_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "QUALG62_432_KEY",
+    "COLUMN_NAME": "Q_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "QUALN1_98_KEY",
+    "COLUMN_NAME": "Q_CODE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "RDB$PRIMARY1",
+    "COLUMN_NAME": "VERSION",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "RDB$PRIMARY2",
+    "COLUMN_NAME": "DSCNTRLS",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "RDB$PRIMARY3",
+    "COLUMN_NAME": "IW_ITEM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "RDB$PRIMARY4",
+    "COLUMN_NAME": "WHQ_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_TARIFF_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_EFF_DT",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_ACCOUNT",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_TYPE",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_KEYWORD",
+    "POSITION": 4
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_LOW_ZIP",
+    "POSITION": 5
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_HI_ZIP",
+    "POSITION": 6
+  },
+  {
+    "INDEX_NAME": "TARIFF_POI_RATES_KEY",
+    "COLUMN_NAME": "TPR_STATE_ID",
+    "POSITION": 7
+  },
+  {
+    "INDEX_NAME": "TERMINALSERVICE_PRIM_KEY",
+    "COLUMN_NAME": "TS_ORIGLOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TERMINALSERVICE_PRIM_KEY",
+    "COLUMN_NAME": "TS_DESTLOC",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "TERMINALSERVICE_PRIM_KEY",
+    "COLUMN_NAME": "TS_VIA1",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "TERMINALSERVICE_PRIM_KEY",
+    "COLUMN_NAME": "TS_VIA2",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "TMI_DATE_KEY",
+    "COLUMN_NAME": "TMI_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TMI_DATE_KEY",
+    "COLUMN_NAME": "TMI_DRIV_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "TMI_DRIV_KEY",
+    "COLUMN_NAME": "TMI_DRIV_NUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TMI_DRIV_KEY",
+    "COLUMN_NAME": "TMI_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "TMI_DRIV_KEY",
+    "COLUMN_NAME": "TMI_TRIP_NUM",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "TMI_POWERUNIT_KEY",
+    "COLUMN_NAME": "TMI_POWER_UNIT",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TMI_POWERUNIT_KEY",
+    "COLUMN_NAME": "TMI_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "TMI_POWERUNIT_KEY",
+    "COLUMN_NAME": "TMI_TRIP_NUM",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "TMI_STATE_KEY",
+    "COLUMN_NAME": "TMI_LOC_ST",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "TMI_STATE_KEY",
+    "COLUMN_NAME": "TMI_DATE",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "TRIPMILES_KEY",
+    "COLUMN_NAME": "TMI_KEYNUM",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_MFG_KEY",
+    "COLUMN_NAME": "VIN_VPN_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_MFG_KEY",
+    "COLUMN_NAME": "VIN_MPN_MFG",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_MFG_KEY",
+    "COLUMN_NAME": "VIN_MPN_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_NAME_KEY",
+    "COLUMN_NAME": "VIN_SORTNAME",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_PRIMARY_KEY",
+    "COLUMN_NAME": "VIN_VPN_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_PRIMARY_KEY",
+    "COLUMN_NAME": "VIN_VPN_VENDOR",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VINVENTORY_PRIMARY_KEY",
+    "COLUMN_NAME": "VIN_VPN_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VINVHIST_IK",
+    "COLUMN_NAME": "VH_VPN_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVHIST_IK",
+    "COLUMN_NAME": "VH_VPN_LOC",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VINVHIST_IK",
+    "COLUMN_NAME": "VH_VPN_VENDOR",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VINVHIST_PK",
+    "COLUMN_NAME": "VH_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVHIST_PO",
+    "COLUMN_NAME": "VH_VPOH_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVHIST_PO",
+    "COLUMN_NAME": "VH_VPOH_PO_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VINVHIST_PO",
+    "COLUMN_NAME": "VH_VPOH_VEND_ID",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VINVHIST_RO",
+    "COLUMN_NAME": "VH_VRH_RN_PREF",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VINVHIST_RO",
+    "COLUMN_NAME": "VH_VRH_RN_NUMBER",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VINVHIST_RO",
+    "COLUMN_NAME": "VH_VRH_RN_SUFF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VPOB_KEY",
+    "COLUMN_NAME": "VPOB_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VPOB_KEY",
+    "COLUMN_NAME": "VPOB_PO_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VPOB_KEY",
+    "COLUMN_NAME": "VPOB_SEQ",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VPOH_KEY",
+    "COLUMN_NAME": "VPOH_LOC",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VPOH_KEY",
+    "COLUMN_NAME": "VPOH_PO_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VRDE_KEY",
+    "COLUMN_NAME": "VRDE_RN_PREF",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VRDE_KEY",
+    "COLUMN_NAME": "VRDE_RN_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VRDE_KEY",
+    "COLUMN_NAME": "VRDE_RN_SUF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VRDE_KEY",
+    "COLUMN_NAME": "VRDE_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "VREPAIRLABOR_KEY",
+    "COLUMN_NAME": "VRBL_RN_PREF",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VREPAIRLABOR_KEY",
+    "COLUMN_NAME": "VRBL_RN_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VREPAIRLABOR_KEY",
+    "COLUMN_NAME": "VRBL_RN_SUF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VREPAIRLABOR_KEY",
+    "COLUMN_NAME": "VRBL_REC_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "VREPAIROUTSIDE_KEY",
+    "COLUMN_NAME": "VRBO_RN_PREF",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VREPAIROUTSIDE_KEY",
+    "COLUMN_NAME": "VRBO_RN_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VREPAIROUTSIDE_KEY",
+    "COLUMN_NAME": "VRBO_RN_SUF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VREPAIROUTSIDE_KEY",
+    "COLUMN_NAME": "VRBO_REC_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "VREPAIRPARTS_KEY",
+    "COLUMN_NAME": "VRBP_RN_PREF",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VREPAIRPARTS_KEY",
+    "COLUMN_NAME": "VRBP_RN_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VREPAIRPARTS_KEY",
+    "COLUMN_NAME": "VRBP_RN_SUF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "VREPAIRPARTS_KEY",
+    "COLUMN_NAME": "VRBP_REC_SEQ",
+    "POSITION": 3
+  },
+  {
+    "INDEX_NAME": "VRH_DATE_KEY",
+    "COLUMN_NAME": "VRH_DATE",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VRH_KEY",
+    "COLUMN_NAME": "VRH_RN_PREF",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "VRH_KEY",
+    "COLUMN_NAME": "VRH_RN_NUM",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "VRH_KEY",
+    "COLUMN_NAME": "VRH_RN_SUF",
+    "POSITION": 2
+  },
+  {
+    "INDEX_NAME": "WU_DRIVER_KEY",
+    "COLUMN_NAME": "WU_DRIVER_ID",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ZIPSERVICE_DEST_KEY",
+    "COLUMN_NAME": "ZS_DESTZIP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ZIPSERVICE_DEST_KEY",
+    "COLUMN_NAME": "ZS_ORIGZIP",
+    "POSITION": 1
+  },
+  {
+    "INDEX_NAME": "ZIPSERVICE_PRIM_KEY",
+    "COLUMN_NAME": "ZS_ORIGZIP",
+    "POSITION": 0
+  },
+  {
+    "INDEX_NAME": "ZIPSERVICE_PRIM_KEY",
+    "COLUMN_NAME": "ZS_DESTZIP",
+    "POSITION": 1
+  }
+]

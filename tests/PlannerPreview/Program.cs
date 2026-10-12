@@ -16,10 +16,13 @@ app.Run();
 
 public sealed class PreviewHttp : HttpMessageHandler
 {
+    private readonly Dictionary<string, FreightWorkflow> workflows = [];
+    private readonly SemaphoreSlim workflowLock = new(1, 1);
+    private static readonly Guid PreviewUser = Guid.Parse("ddd4a4a4-1693-490f-8059-82bc0761436e");
     private EquipmentCatalogDto catalog = System.Text.Json.JsonSerializer.Deserialize<EquipmentCatalogDto>(File.ReadAllText("../../src/Aurora.Client/wwwroot/samples/equipment-catalog.json"))!;
     private static readonly Guid SourceId = Guid.Parse("995d9abf-0de3-4e69-81ea-74e86a356db0");
     private readonly Dictionary<Guid, OrderDraftDto> drafts = [];
-    private readonly List<TmsOrder> orders = new[] { ("NORTH", "64116", ""), ("SOUTH", "63101", ""), ("EARLY", "64105", OrderServiceTypes.Consolidation) }.Select(x => new TmsOrder { SourceId = SourceId, Id = "TEST_" + x.Item1, Customer = "Synthetic " + x.Item1.ToLowerInvariant() + " appointment", City = x.Item2.StartsWith("63") ? "St. Louis" : "Kansas City", PostalCode = x.Item2, ServiceType = x.Item3, TerminalId = SourceId, ScheduledAt = DateTimeOffset.Now, Status = WorkspaceOrderStatus.Ready }).ToList();
+    private readonly List<TmsOrder> orders = new[] { ("NORTH", "64116", ""), ("SOUTH", "63101", ""), ("EARLY", "64105", OrderServiceTypes.Consolidation) }.Select(x => new TmsOrder { SourceId = SourceId, Id = "TEST_" + x.Item1, Customer = "Synthetic " + x.Item1.ToLowerInvariant() + " appointment", Shipper = "Acme Distribution", OriginAddress = "100 Depot Road", OriginCity = "Kansas City", OriginState = "MO", OriginPostalCode = "64101", Address = "200 Delivery Road", BillTo = "Acme Distribution", City = x.Item2.StartsWith("63") ? "St. Louis" : "Kansas City", PostalCode = x.Item2, ServiceType = x.Item3, TerminalId = SourceId, ScheduledAt = DateTimeOffset.Now, Status = WorkspaceOrderStatus.Ready }).ToList();
     // Preview network: KC hub and STL spoke in MIDWEST, DEN hub in MOUNTAIN, and an agent near KC.
     private static readonly TerminalDto[] Nodes =
     [
@@ -45,6 +48,34 @@ public sealed class PreviewHttp : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         var apiPath = request.RequestUri!.AbsolutePath;
+        if (apiPath.Split('/', StringSplitOptions.RemoveEmptyEntries) is ["api", "v1", "tms", "orders", var workflowSource, var orderId, "workflow", .. var rest])
+        {
+            if (!Guid.TryParse(workflowSource, out var sourceId) || !orders.Any(o => o.SourceId == sourceId && o.Id == Uri.UnescapeDataString(orderId)))
+                return new(HttpStatusCode.NotFound) { Content = JsonContent.Create(new ApiErrorDto("Preview order not found.")) };
+            await workflowLock.WaitAsync(ct);
+            try
+            {
+                var current = workflows.GetValueOrDefault(orderId) ?? new FreightWorkflow();
+                if (request.Method == HttpMethod.Put && rest.Length == 0)
+                {
+                    var input = (await request.Content!.ReadFromJsonAsync<FreightWorkflow>(ct))!;
+                    if (input.Revision != current.Revision) throw new FreightConflictException();
+                    input.ValidateReplacement(current); input.Revision++; workflows[orderId] = current = input;
+                }
+                else if (request.Method == HttpMethod.Post && rest is ["events"])
+                {
+                    var command = (await request.Content!.ReadFromJsonAsync<FreightExecution>(ct))!;
+                    if (current.Execute(command, PreviewUser, DateTimeOffset.UtcNow)) current.Revision++;
+                    workflows[orderId] = current;
+                }
+                else if (request.Method != HttpMethod.Get || rest.Length != 0)
+                    return new(HttpStatusCode.MethodNotAllowed);
+                return new(HttpStatusCode.OK) { Content = JsonContent.Create(current) };
+            }
+            catch (FreightConflictException e) { return new(HttpStatusCode.Conflict) { Content = JsonContent.Create(new ApiErrorDto(e.Message)) }; }
+            catch (FormatException e) { return new(HttpStatusCode.BadRequest) { Content = JsonContent.Create(new ApiErrorDto(e.Message)) }; }
+            finally { workflowLock.Release(); }
+        }
         if ((apiPath.StartsWith("/api/v1/tms/") && request.Method != HttpMethod.Get) || apiPath.EndsWith("/finish"))
             return new(HttpStatusCode.BadRequest) { Content = JsonContent.Create(new ApiErrorDto("This UI preview does not save orders or manifests. Use the full application with its configured database.")) };
         if (apiPath == "/api/v1/me/tenant") return new(HttpStatusCode.OK) { Content = JsonContent.Create(new WorkspaceTenantDto(SourceId, "Synthetic preview company")) };

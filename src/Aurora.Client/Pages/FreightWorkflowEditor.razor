@@ -1,0 +1,227 @@
+@using System.Text.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+<EditPopup Title="@("Freight workflow · " + Order.Id)" Busy="_busy" OnClose="Close" Class="freight-workflow-dialog">
+    @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+    @if (_message is not null) { <p role="status">@_message</p> }
+    @if (_workflow is {} w)
+    {
+        <p class="freight-context">@Order.Shipper → @Order.Customer · Bill to: @Order.BillTo</p>
+        <p class="freight-help">Plan and record the work for this freight bill. Workflow progress is separate from manifest status. Charges are estimates for review, not invoices.</p>
+        <div class="freight-totals">
+            <div><span>Estimated cost</span><strong>@Amount(w.EstimatedCost)</strong></div>
+            <div><span>Planned charges</span><strong>@Amount(w.PlannedCharge)</strong></div>
+            <div><span>Recorded actual cost</span><strong>@Amount(w.RecordedCost)</strong><small>Only explicitly recorded costs</small></div>
+            <div><span>Storage accrued · estimate</span><strong>@Amount(w.Activities.Sum(a => w.StorageCharge(a, DateTimeOffset.UtcNow)))</strong><small>As of @DateTimeOffset.Now.ToString("g")</small></div>
+        </div>
+        <div class="manifest-edit-actions">
+            @if (_editing)
+            {
+                <button class="primary-button" disabled="@_busy" @onclick="Save">Save workflow</button>
+                <button class="outline-button" disabled="@_busy" @onclick="CancelEdit">Discard edits</button>
+            }
+            else
+            {
+                <button class="primary-button" disabled="@_busy" @onclick="BeginEdit">Edit workflow</button>
+                <button class="outline-button" disabled="@_busy" @onclick="Load">Refresh</button>
+            }
+        </div>
+        <fieldset disabled="@(!_editing || _busy)" class="tms-edit-fields">
+            <div class="manifest-edit-grid">
+                <label class="field">Freight bill type<select @bind="w.BillType">@foreach (var type in FreightVocabulary.BillTypes) { <option>@type</option> }</select></label>
+                <label class="field">Service promised<input @bind="w.Service" maxlength="200" placeholder="White glove with assembly" /></label>
+                <label class="field">Pricing agreement / tariff reference<input @bind="w.PricingAgreement" maxlength="200" /></label>
+                <label class="field">Currency<input @bind="w.Currency" maxlength="3" disabled="@(w.Events.Count > 0)" /></label>
+            </div>
+            <details class="freight-references" open="@(w.References.Count > 0)">
+                <summary>Shipment and partner references (@w.References.Count)</summary>
+                @foreach (var reference in w.References)
+                {
+                    <div class="freight-reference-row" @key="reference">
+                        <label class="field">Type<select @bind="reference.Type">@foreach (var type in FreightVocabulary.ReferenceTypes) { <option>@type</option> }</select></label>
+                        <label class="field">Partner<input @bind="reference.Partner" maxlength="200" /></label>
+                        <label class="field">Reference<input @bind="reference.Value" maxlength="200" /></label>
+                        @if (_editing) { <button class="text-button" @onclick="()=>w.References.Remove(reference)">Remove reference</button> }
+                    </div>
+                }
+                @if (_editing) { <button class="outline-button" @onclick="()=>w.References.Add(new())">Add reference</button> }
+            </details>
+        </fieldset>
+        @if (w.Activities.Count == 0)
+        {
+            <div class="freight-empty"><h3>No workflow yet</h3><p>Start with the order's pickup and delivery locations, or add activities individually.</p>
+                <button class="outline-button" disabled="@(!_editing || _busy)" @onclick="UseOrder">Use order locations</button>
+            </div>
+        }
+        @foreach (var activity in w.Activities)
+        {
+            var index = w.Activities.IndexOf(activity);
+            var frozen = index <= w.Activities.FindLastIndex(a => w.Events.Any(e => e.ActivityId == a.Id));
+            <section class="freight-activity" @key="activity.Id">
+                <header><h3>@(index + 1). @(activity.Kind == "Movement" ? activity.MovementType : activity.Kind)</h3><span class="status-badge">@w.Status(activity.Id)</span><span>@activity.Role · @(activity.ProviderType == "Company" ? "Company" : activity.Provider)</span></header>
+                @if (activity.RetryOf is {} retry) { <p class="freight-help">Follow-up to failed activity @(w.Activities.FindIndex(a=>a.Id==retry)+1). Billing eligibility requires review.</p> }
+                @if (_editing && frozen) { <p class="freight-help">This activity is locked because execution has reached this point.</p> }
+                @if (!_editing)
+                {
+                    <p><strong>@activity.Origin.Name</strong> · @Address(activity.Origin)
+                        @if (activity.Kind == "Movement" && activity.Destination is {} destination) { <span> → <strong>@destination.Name</strong> · @Address(destination)</span> }
+                    </p>
+                    @if (activity.Instructions.Length > 0) { <p class="freight-instructions">@activity.Instructions</p> }
+                    <p class="freight-help">Activity cost estimate: @Amount(activity.EstimatedCost) · Planned charge: @Amount(activity.PlannedCharge)</p>
+                    @if (activity.Kind == "Storage") { <p>Storage: @activity.StorageFreeHours free hours, then @Amount(activity.StorageDailyCharge) per started 24 hours.</p> }
+                }
+                else
+                {
+                    <fieldset disabled="@(_busy || frozen)" class="tms-edit-fields">
+                        <div class="manifest-edit-grid">
+                            <label class="field">Kind<select value="@activity.Kind" @onchange="e=>ChangeKind(activity,e)">@foreach(var kind in FreightVocabulary.Kinds){<option>@kind</option>}</select></label>
+                            @if (activity.Kind == "Movement") { <label class="field">Movement type<select @bind="activity.MovementType">@foreach(var type in FreightVocabulary.MovementTypes){<option>@type</option>}</select></label> }
+                            <label class="field">Our role<select @bind="activity.Role">@foreach(var role in FreightVocabulary.Roles){<option>@role</option>}</select></label>
+                            <label class="field">Provider type<select @bind="activity.ProviderType">@foreach(var provider in FreightVocabulary.Providers){<option>@provider</option>}</select></label>
+                            <label class="field">Provider name<input @bind="activity.Provider" maxlength="200" placeholder="Required for outside providers" /></label>
+                            <label class="field">Activity estimated cost<InputNumber @bind-Value="activity.EstimatedCost" /></label>
+                            <label class="field">Activity planned charge<InputNumber @bind-Value="activity.PlannedCharge" /></label>
+                        </div>
+                        <h4>@(activity.Kind == "Movement" ? "Origin" : "Location")</h4>
+                        <FreightLocationEditor Location="activity.Origin" Nodes="Nodes" />
+                        @if (activity.Kind == "Movement" && activity.Destination is {} destination)
+                        {
+                            <h4>Destination</h4><FreightLocationEditor Location="destination" Nodes="Nodes" />
+                        }
+                        <label class="field">Instructions<textarea @bind="activity.Instructions" maxlength="2000" rows="2"></textarea></label>
+                        @if (activity.Kind == "Storage")
+                        {
+                            <div class="manifest-edit-grid">
+                                <label class="field">Free hours<InputNumber @bind-Value="activity.StorageFreeHours" /></label>
+                                <label class="field">Charge per started 24 hours<InputNumber @bind-Value="activity.StorageDailyCharge" /></label>
+                            </div>
+                            <p class="freight-help">Accrual starts when this storage activity is started and ends when it is completed or cancelled. This is an estimate per activity, not per piece.</p>
+                        }
+                        <div class="manifest-edit-actions">
+                            <button class="text-button" disabled="@(index == 0 || index - 1 <= w.Activities.FindLastIndex(a=>w.Events.Any(e=>e.ActivityId==a.Id)))" @onclick="()=>MoveActivity(index,-1)">Move earlier</button>
+                            <button class="text-button" disabled="@(index == w.Activities.Count - 1)" @onclick="()=>MoveActivity(index,1)">Move later</button>
+                            <button class="text-button" @onclick="()=>w.Activities.Remove(activity)">Remove activity</button>
+                        </div>
+                    </fieldset>
+                }
+                <h4>Tasks in execution order</h4>
+                @if (activity.Tasks.Count == 0) { <p class="freight-help">No additional tasks.</p> }
+                @foreach (var task in activity.Tasks)
+                {
+                    <div class="freight-task" @key="task.Id">
+                        @if (_editing)
+                        {
+                            <fieldset disabled="@(_busy || frozen)" class="tms-edit-fields">
+                                <div class="manifest-edit-grid">
+                                    <label class="field">Task<select @bind="task.Type">@foreach(var type in FreightVocabulary.TaskTypes){<option>@type</option>}</select></label>
+                                    <label class="field">Estimated cost<InputNumber @bind-Value="task.EstimatedCost" /></label>
+                                    <label class="field">Planned charge<InputNumber @bind-Value="task.PlannedCharge" /></label>
+                                    <label><input type="checkbox" @bind="task.Required" /> Required</label>
+                                    <label class="field">Instructions<input @bind="task.Instructions" maxlength="2000" /></label>
+                                </div>
+                                <button class="text-button" disabled="@(activity.Tasks.IndexOf(task)==0)" @onclick="()=>MoveTask(activity,task)">Move earlier</button>
+                                <button class="text-button" @onclick="()=>activity.Tasks.Remove(task)">Remove task</button>
+                            </fieldset>
+                        }
+                        else
+                        {
+                            <div><strong>@(activity.Tasks.IndexOf(task)+1). @task.Type</strong> · @(w.TaskComplete(task.Id) ? "Completed" : task.Required ? "Required" : "Optional")
+                                <p class="freight-instructions">@task.Instructions</p><small>Estimated cost @Amount(task.EstimatedCost) · Planned charge @Amount(task.PlannedCharge)</small>
+                            </div>
+                            @if (w.Status(activity.Id)=="In progress" && !w.TaskComplete(task.Id)) { <button class="outline-button" disabled="@(_busy || activity.Tasks.TakeWhile(t=>t.Id!=task.Id).Any(t=>t.Required && !w.TaskComplete(t.Id)))" @onclick='()=>Prepare(activity,"Complete task",task.Id)'>Complete task</button> }
+                        }
+                    </div>
+                }
+                @if (_editing && !frozen) { <button class="outline-button" disabled="@_busy" @onclick="()=>activity.Tasks.Add(new())">Add task</button> }
+                @if (!_editing)
+                {
+                    <div class="manifest-edit-actions">
+                        @if(w.Status(activity.Id)=="Planned") { <button class="primary-button" disabled="@(_busy || w.Activities.Take(index).Any(a=>!w.Finished(a.Id)))" @onclick='()=>Prepare(activity,"Start")'>Start activity</button> }
+                        @if(w.Status(activity.Id)=="In progress")
+                        {
+                            <button class="primary-button" disabled="@(_busy || activity.Tasks.Any(t=>t.Required && !w.TaskComplete(t.Id)))" @onclick='()=>Prepare(activity,"Complete")'>Complete activity</button>
+                            <button class="outline-button" disabled="@_busy" @onclick='()=>Prepare(activity,"Fail")'>Record failure</button>
+                        }
+                        @if(!w.Finished(activity.Id)) { <button class="text-button" disabled="@_busy" @onclick='()=>Prepare(activity,"Cancel")'>Cancel activity</button> }
+                        @if(w.Status(activity.Id)=="Failed" && activity.Kind=="Movement") { <button class="outline-button" disabled="@_busy" @onclick="()=>Retry(activity)">Plan another attempt</button> }
+                    </div>
+                    @if (_command is {} command && command.ActivityId == activity.Id)
+                    {
+                        <fieldset disabled="@_busy" class="freight-command">
+                            <legend>@command.Action @(command.TaskId is {} taskId ? "· " + activity.Tasks.Single(t=>t.Id==taskId).Type : "")</legend>
+                            <label class="field">Note @(command.Action is "Fail" or "Cancel" ? "(required)" : "")<textarea @bind="command.Note" maxlength="2000" rows="2"></textarea></label>
+                            @if (command.Action == "Fail") { <label class="field">Responsibility<select @bind="command.Responsibility">@foreach(var r in FreightVocabulary.Responsibilities){<option>@r</option>}</select></label><p class="freight-help">Record the reason for billing review. A failure does not automatically authorize a charge.</p> }
+                            @if(command.Action is "Complete" or "Complete task" or "Fail") { <label class="field">Actual cost incurred (@w.Currency, optional)<InputNumber @bind-Value="command.ActualCost" /></label><p class="freight-help">For activity completion, exclude costs already recorded against its tasks.</p> }
+                            <button class="primary-button" @onclick="Execute">Record event</button><button class="text-button" @onclick="()=>_command=null">Cancel</button>
+                        </fieldset>
+                    }
+                }
+            </section>
+        }
+        @if(_editing)
+        {
+            <div class="manifest-edit-actions">
+                @foreach(var kind in FreightVocabulary.Kinds){<button class="outline-button" disabled="@_busy" @onclick="()=>Add(kind)">Add @kind.ToLowerInvariant()</button>}
+                <button class="primary-button" disabled="@_busy" @onclick="Save">Save workflow</button>
+            </div>
+        }
+        <details class="freight-history"><summary>Execution history (@w.Events.Count events)</summary>
+            @foreach(var item in w.Events.AsEnumerable().Reverse())
+            {
+                <article><strong>@item.Action</strong> · Activity @(w.Activities.FindIndex(a=>a.Id==item.ActivityId)+1)
+                    @if(item.TaskId is {} taskId){<span> · @w.Activities.SelectMany(a=>a.Tasks).Single(t=>t.Id==taskId).Type</span>}
+                    <span> · @item.RecordedAt.ToLocalTime().ToString("g")</span>
+                    @if(item.Action=="Fail"){<span> · Responsibility: @item.Responsibility</span>}
+                    @if(item.ActualCost is {} cost){<span> · Actual cost: @Amount(cost)</span>}
+                    <p class="freight-instructions">@item.Note</p><small>Recorded by @item.RecordedBy</small>
+                </article>
+            }
+        </details>
+    }
+    else if (_busy) { <p role="status">Loading freight workflow…</p> }
+    else { <button class="outline-button" @onclick="Load">Retry loading</button> }
+</EditPopup>
+@code {
+    [Parameter, EditorRequired] public TmsOrder Order { get; set; } = new();
+    [Parameter] public IReadOnlyList<TerminalDto> Nodes { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    FreightWorkflow? _workflow;
+    FreightExecution? _command;
+    bool _busy, _editing;
+    string? _error, _message;
+    string _saved = "";
+    string Url => $"api/v1/tms/orders/{Order.SourceId}/{Uri.EscapeDataString(Order.Id)}/workflow";
+    protected override Task OnInitializedAsync() => Load();
+    string Amount(decimal value) => $"{value:N2} {_workflow?.Currency}";
+    static string Address(FreightLocation l) => string.Join(", ",new[]{l.Address,l.City,l.State,l.PostalCode,l.Country}.Where(s=>!string.IsNullOrWhiteSpace(s)));
+    async Task Run(Func<Task> action) { if(_busy)return;_busy=true;_error=null;_message=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;} }
+    void Snapshot() => _saved=JsonSerializer.Serialize(_workflow);
+    async Task Load() => await Run(async()=>{_workflow=await Http.GetFromJsonAsync<FreightWorkflow>(Url) ?? throw new FormatException("Workflow not found.");_editing=_workflow.Revision==0;_command=null;Snapshot();});
+    void BeginEdit(){_command=null;_editing=true;_message=null;}
+    void CancelEdit(){_workflow=JsonSerializer.Deserialize<FreightWorkflow>(_saved);_editing=false;_error=null;}
+    async Task Close(){if(_editing && JsonSerializer.Serialize(_workflow)!=_saved && !await JS.InvokeAsync<bool>("confirm","Discard unsaved workflow changes?"))return;await OnClose.InvokeAsync();}
+    async Task Accept(HttpResponseMessage response)
+    {
+        if(!response.IsSuccessStatusCode)throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Workflow request failed.");
+        _workflow=await response.Content.ReadFromJsonAsync<FreightWorkflow>()??throw new FormatException("Workflow response was empty.");Snapshot();
+    }
+    async Task Save()=>await Run(async()=>{_workflow!.Validate();using var response=await Http.PutAsJsonAsync(Url,_workflow);await Accept(response);_editing=false;_message="Freight workflow saved.";});
+    async Task Execute()=>await Run(async()=>{using var response=await Http.PostAsJsonAsync(Url+"/events",_command);await Accept(response);_command=null;_message="Execution event recorded.";});
+    void Prepare(FreightActivity activity,string action,Guid? task=null){_command=new(){Revision=_workflow!.Revision,ActivityId=activity.Id,Action=action,TaskId=task};_error=null;}
+    void UseOrder(){var template=FreightWorkflow.FromOrder(Order,Nodes);_workflow!.Activities=template.Activities;if(_workflow.References.Count==0)_workflow.References=template.References;if(_workflow.Service.Length==0)_workflow.Service=template.Service;}
+    void Add(string kind)
+    {
+        var previous=_workflow!.Activities.LastOrDefault();
+        var location=previous?.Destination??previous?.Origin;
+        _workflow.Activities.Add(new(){Kind=kind,Origin=location is null?new():JsonSerializer.Deserialize<FreightLocation>(JsonSerializer.Serialize(location))!,Destination=kind=="Movement"?new():null});
+    }
+    void ChangeKind(FreightActivity activity,ChangeEventArgs args){activity.Kind=args.Value?.ToString()??"Movement";activity.Destination=activity.Kind=="Movement"?activity.Destination??new():null;if(activity.Kind!="Storage"){activity.StorageDailyCharge=0;activity.StorageFreeHours=0;}}
+    void MoveActivity(int index,int delta){var list=_workflow!.Activities;(list[index],list[index+delta])=(list[index+delta],list[index]);}
+    static void MoveTask(FreightActivity activity,FreightTask task){var index=activity.Tasks.IndexOf(task);(activity.Tasks[index-1],activity.Tasks[index])=(activity.Tasks[index],activity.Tasks[index-1]);}
+    void Retry(FreightActivity activity)
+    {
+        BeginEdit();var copy=JsonSerializer.Deserialize<FreightActivity>(JsonSerializer.Serialize(activity))!;
+        copy.Id=Guid.NewGuid();copy.RetryOf=activity.Id;foreach(var task in copy.Tasks)task.Id=Guid.NewGuid();
+        _workflow!.Activities.Add(copy);_message="Review the new attempt's locations, tasks, and charges, then save. Add a return-to-dock movement if needed.";
+    }
+}

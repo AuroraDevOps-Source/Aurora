@@ -1,0 +1,35 @@
+/* Available before the application or its component styles have loaded. */
+.aurora-startup {
+    position: fixed;
+    z-index: 999;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 25px;
+    padding: 24px;
+    box-sizing: border-box;
+    background: radial-gradient(ellipse at center, #edf8ff 0%, #f7fbff 32%, #fff 70%);
+    color: #142c48;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+.aurora-startup-logo {
+    display: block;
+    width: 104px;
+    height: 104px;
+    filter: drop-shadow(0 6px 12px #168ad31a);
+    animation: aurora-orbit 2.8s linear infinite;
+}
+.aurora-startup-name {
+    margin: 0;
+    font-size: clamp(24px, 4vw, 30px);
+    font-weight: 600;
+    letter-spacing: .045em;
+    line-height: 1.2;
+    text-align: center;
+}
+@keyframes aurora-orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .aurora-startup-logo { animation: none; }
+}

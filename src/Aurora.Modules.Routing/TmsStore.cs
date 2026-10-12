@@ -6,7 +6,7 @@ using Dapper;
 using Npgsql;
 namespace Aurora.Modules.Routing;
 
-public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext tenant)
+public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext tenant, FirebirdRoutingSource? nova = null)
 {
     const string OrderSql = $$"""
       SELECT (jsonb_build_object('Address',COALESCE(s.request->'reporting'->'orders'->o.id->>'address1',''),
@@ -16,8 +16,8 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       'Cube',COALESCE((SELECT l->'value' FROM jsonb_array_elements(s.request#>'{orders,deliveries}') d CROSS JOIN LATERAL jsonb_array_elements(d#>'{properties,loads}') l WHERE d->>'id'=o.id AND l->>'dimension'='volume' LIMIT 1),'0'::jsonb),
       'Pieces',COALESCE(s.request->'reporting'->'orders'->o.id->'units','0'::jsonb),
       'Notes',COALESCE(s.request->'reporting'->'orders'->o.id->>'specialInstructions','')) || o.details || jsonb_build_object('SourceId',o.source_id,'Id',o.id,'ScheduledAt',o.scheduled_at,
-      'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,'TerminalId',o.terminal_id,
-      'TerminalCode',(SELECT code FROM aurora_terminal t WHERE (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id)),
+      'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,'TerminalId',COALESCE(o.terminal_id,NULLIF(o.details->>'TerminalId','')::uuid),
+      'TerminalCode',COALESCE((SELECT code FROM aurora_terminal t WHERE (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id)),o.details->>'TerminalCode'),
       'CustomerId',o.customer_id,'CustomerCode',(SELECT code FROM aurora_customer c WHERE (c.tenant_id,c.id)=(o.tenant_id,o.customer_id)),
       'ManifestId',m.id,'ManifestNumber',m.number,'StopNumber',a.stop_number,'OptimizationDraftId',{{PlanningLock.DraftForOrder}}))::text
       FROM aurora_order o JOIN aurora_order_source s ON (s.tenant_id,s.id)=(o.tenant_id,o.source_id) LEFT JOIN aurora_manifest_order a ON (a.tenant_id,a.source_id,a.order_id)=(o.tenant_id,o.source_id,o.id)
@@ -33,7 +33,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
     public async Task<List<TmsOrder>> Orders(DateTimeOffset? from,DateTimeOffset? to,string? status,string? search,Guid? manifest,CancellationToken ct,Guid? terminal=null)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
-        var rows=await db.QueryAsync<string>(new CommandDefinition(OrderSql+" AND (@from IS NULL OR o.scheduled_at>=@from) AND (@to IS NULL OR o.scheduled_at<=@to) AND (@status IS NULL OR o.status=@status) AND (@terminal IS NULL OR o.terminal_id=@terminal) AND (@manifest IS NULL OR a.manifest_id=@manifest) AND (@search IS NULL OR concat_ws(' ',o.id,o.customer,o.city,o.details->>'Reference') ILIKE '%'||@search||'%') ORDER BY a.stop_number NULLS LAST,o.scheduled_at,o.id",new {tenant.TenantId,from=from?.ToUniversalTime(),to=to?.ToUniversalTime(),status=string.IsNullOrEmpty(status)?null:status,search=string.IsNullOrWhiteSpace(search)?null:search,manifest,terminal},cancellationToken:ct));
+        var rows=await db.QueryAsync<string>(new CommandDefinition(OrderSql+" AND (@from IS NULL OR o.scheduled_at>=@from) AND (@to IS NULL OR o.scheduled_at<=@to) AND (@status IS NULL OR o.status=@status) AND (@terminal IS NULL OR COALESCE(o.terminal_id,NULLIF(o.details->>'TerminalId','')::uuid)=@terminal) AND (@manifest IS NULL OR a.manifest_id=@manifest) AND (@search IS NULL OR concat_ws(' ',o.id,o.customer,o.city,o.details->>'Reference') ILIKE '%'||@search||'%') ORDER BY a.stop_number NULLS LAST,o.scheduled_at,o.id",new {tenant.TenantId,from=from?.ToUniversalTime(),to=to?.ToUniversalTime(),status=string.IsNullOrEmpty(status)?null:status,search=string.IsNullOrWhiteSpace(search)?null:search,manifest,terminal},cancellationToken:ct));
         return rows.Select(x=>JsonSerializer.Deserialize<TmsOrder>(x)!).ToList();
     }
     public async Task<List<TmsOrder>> OrdersById(Guid source,string[] ids,CancellationToken ct)
@@ -80,13 +80,18 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
     public async Task DeleteOrder(Guid source,string id,int revision,CancellationToken ct)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
-        Check(await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order o SET deleted_at=now(),revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@source AND id=@id AND revision=@revision AND deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM aurora_manifest_order a WHERE (a.tenant_id,a.source_id,a.order_id)=(o.tenant_id,o.source_id,o.id))",new{tenant.TenantId,source,id,revision},cancellationToken:ct)));
+        await using var tx=await db.BeginTransactionAsync(ct);
+        await db.ExecuteAsync(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@source AND id=@id FOR UPDATE",new{tenant.TenantId,source,id},tx,cancellationToken:ct));
+        if(await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_freight_workflow WHERE tenant_id=@TenantId AND source_id=@source AND order_id=@id AND jsonb_array_length(data->'Events')>0)",new{tenant.TenantId,source,id},tx,cancellationToken:ct)))
+            throw new FormatException("An order with freight execution history cannot be deleted.");
+        Check(await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order o SET deleted_at=now(),revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@source AND id=@id AND revision=@revision AND deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM aurora_manifest_order a WHERE (a.tenant_id,a.source_id,a.order_id)=(o.tenant_id,o.source_id,o.id))",new{tenant.TenantId,source,id,revision},tx,cancellationToken:ct)));
+        await tx.CommitAsync(ct);
     }
     async Task<TmsManifest> Lock(NpgsqlConnection db,NpgsqlTransaction tx,Guid id,CancellationToken ct) => JsonSerializer.Deserialize<TmsManifest>(await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition(ManifestSql+" AND m.id=@id FOR UPDATE",new{tenant.TenantId,id},tx,cancellationToken:ct)) ?? throw new KeyNotFoundException("Manifest not found."))!;
     public async Task SaveManifest(TmsManifest item,bool create,CancellationToken ct)
     {
         item.Validate();
-        if(item.Vehicle.Length>0 && !(await new EquipmentStore(factory,tenant).List(ct)).Units.Any(u=>u.Id==item.Vehicle)) throw new FormatException("Choose a truck from your company’s Fleet Management.");
+        if(item.Vehicle.Length>0 && !(await (nova ?? throw new FormatException("Use Nova Fleet Management.")).ReadFleet(ct)).Units.Any(u=>u.Id==item.Vehicle)) throw new FormatException("Choose a truck from your company’s Fleet Management.");
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
         if(create) {
             if(item.Status!="Planning") throw new FormatException("New manifests start in Planning.");
@@ -116,7 +121,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
             if(remove || delete) {
                 Check(await db.ExecuteAsync(new CommandDefinition("DELETE FROM aurora_manifest_order WHERE tenant_id=@TenantId AND manifest_id=@manifestId AND source_id=@SourceId AND order_id=@Id",new{tenant.TenantId,manifestId=id,key.SourceId,key.Id},tx,cancellationToken:ct)));
             } else {
-                if(status!=WorkspaceOrderStatus.Ready) throw new FormatException("Only Ready to Ship orders can be added.");
+                if(status!=WorkspaceOrderStatus.Ready) throw new FormatException("Only Ready to Route orders can be added.");
                 await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_manifest_order(tenant_id,manifest_id,source_id,order_id,stop_number) SELECT @TenantId,@manifestId,@SourceId,@Id,COALESCE(max(stop_number),0)+1 FROM aurora_manifest_order WHERE tenant_id=@TenantId AND manifest_id=@manifestId",new{tenant.TenantId,manifestId=id,key.SourceId,key.Id},tx,cancellationToken:ct));
             }
             await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order SET status=@status,revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@Id",new{tenant.TenantId,key.SourceId,key.Id,status=remove||delete?WorkspaceOrderStatus.Ready:"Routed"},tx,cancellationToken:ct));

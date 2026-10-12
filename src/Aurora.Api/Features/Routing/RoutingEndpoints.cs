@@ -31,22 +31,11 @@ public static class RoutingEndpoints
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(60 * 1024 * 1024));
         group.MapGet("/sessions/{id:guid}", (Guid id, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Poll(id, context.User, false, ct, context.Request.Query.ContainsKey("inputs")));
         group.MapPost("/sessions/{id:guid}/stop", (Guid id, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Poll(id, context.User, true, ct));
-        group.MapGet("/equipment", async (Aurora.Modules.Routing.EquipmentStore store, CancellationToken ct) => Results.Ok(await store.List(ct)));
-        group.MapPost("/equipment/import", async (EquipmentCatalogDto catalog, Aurora.Modules.Routing.EquipmentStore store, CancellationToken ct) =>
-        {
-            try { await store.AddMissing(catalog, ct); return Results.Ok(); }
-            catch (FormatException ex) { return Results.BadRequest(new ApiErrorDto(ex.Message)); }
-        });
-        group.MapPut("/equipment/types", async (EquipmentTypeDto item, Aurora.Modules.Routing.EquipmentStore store, CancellationToken ct) =>
-        {
-            try { await store.Save(item, ct); return Results.Ok(); }
-            catch (FormatException ex) { return Results.BadRequest(new ApiErrorDto(ex.Message)); }
-        });
-        group.MapPut("/equipment/units", async (EquipmentUnitDto item, Aurora.Modules.Routing.EquipmentStore store, CancellationToken ct) =>
-        {
-            try { await store.Save(item, ct); return Results.Ok(); }
-            catch (FormatException ex) { return Results.BadRequest(new ApiErrorDto(ex.Message)); }
-        });
+        group.MapGet("/equipment", (Aurora.Modules.Routing.FirebirdRoutingSource source, CancellationToken ct) => OrderWorkspaceEndpoints.Guard(async()=>Results.Ok(await source.ReadFleet(ct))));
+        group.MapPost("/equipment/import", () => Results.BadRequest(new ApiErrorDto("Manage equipment in Nova Fleet Management.")));
+        group.MapPut("/equipment/types", () => Results.BadRequest(new ApiErrorDto("Manage equipment in Nova Fleet Management.")));
+        group.MapPut("/equipment/units", () => Results.BadRequest(new ApiErrorDto("Manage equipment in Nova Fleet Management.")));
+
     }
 
     /// <summary>

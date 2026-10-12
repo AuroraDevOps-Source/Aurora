@@ -206,7 +206,18 @@ builder.Services.AddCors(o => o.AddPolicy("wasm-client", policy => policy
 builder.Services.AddScoped<ListRoutePlansQuery>();
 builder.Services.AddScoped<Aurora.Modules.Routing.EquipmentStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.OrderWorkspace>();
+builder.Services.Configure<Aurora.Modules.Routing.FirebirdRoutingOptions>(builder.Configuration.GetSection("FirebirdRouting"));
+builder.Services.AddScoped<Aurora.Modules.Routing.FirebirdRoutingSource>();
+builder.Services.AddScoped<NovaUserConnections>();
+builder.Services.AddScoped<AdminUsers>();
+builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Modules.Routing.FirebirdRoutingOptions>>(sp =>
+{
+    var context=sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
+    var options=context?.Items[NovaUserConnections.ItemsKey] as Aurora.Modules.Routing.FirebirdRoutingOptions;
+    return Microsoft.Extensions.Options.Options.Create(options ?? new Aurora.Modules.Routing.FirebirdRoutingOptions());
+});
 builder.Services.AddScoped<Aurora.Modules.Routing.TmsStore>();
+builder.Services.AddScoped<Aurora.Modules.Routing.FreightWorkflowStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.TerminalStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.WorkspaceImportStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.CustomerStore>();
@@ -277,11 +288,13 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseAuthentication();
-app.UseAuthorization();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseMiddleware<UserAccessMiddleware>();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapLoginEndpoints();
+app.MapAdminUserEndpoints();
 app.MapLauncherEndpoints();
 app.MapRoutingEndpoints();
 app.MapOrderWorkspaceEndpoints();

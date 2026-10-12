@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace Aurora.Modules.Routing.Optimization;
 
 /// <summary>
-/// Runs a PTV optimization and turns its raw response into the shape the Route Optimization
+/// Runs a PTV optimization and turns its raw response into the shape the Optimization
 /// screen renders. Ported from the PTV tester: the parsing in RunSummary / RouteDetailExtractor /
 /// ManifestReportExtractor is what makes PTV's output legible, and is kept intact deliberately.
 /// </summary>

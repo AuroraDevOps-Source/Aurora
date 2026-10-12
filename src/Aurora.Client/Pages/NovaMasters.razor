@@ -1,0 +1,50 @@
+@inject HttpClient Http
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+<section class="planning-card">
+@if(_record is null)
+{
+    <div class="tms-filters"><label class="field">Search<input @bind="_search" @onkeydown="Key" placeholder="Code, name or city" /></label><button class="outline-button" disabled="@_busy" @onclick="Search">Search / Refresh</button></div>
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Code</th><th>Name</th><th>City</th><th></th></tr></thead><tbody>
+    @foreach(var row in _rows){<tr><td><button class="text-button" disabled="@_busy" @onclick="()=>Open(row.Id)">@row.Id</button><DataIssueIndicator @key="row.Id" RecordName="@row.Id" Issues="@row.Issues" /></td><td>@row.Name</td><td>@row.City</td><td><button class="text-button" disabled="@_busy" @onclick="()=>Open(row.Id)">Edit</button></td></tr>}
+    </tbody></table></div>
+    @if(!_busy && _rows.Length==0 && _error is null){<p>No records match your search.</p>}
+    <div class="tms-selection"><span>Page @(_page+1)</span><button class="outline-button" disabled="@(_busy || _page==0)" @onclick="Previous">Previous</button><button class="outline-button" disabled="@(_busy || !_more)" @onclick="Next">Next</button></div>
+}
+else
+{
+    <div class="tms-selection"><h2>@_record.Id</h2>
+    <button class="outline-button" disabled="@_busy" @onclick="Cancel">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Save">@(_busy?"Saving…":"Save")</button></div>
+    <div class="edit-groups">
+    @foreach(var group in _record.Fields.GroupBy(FieldGroup))
+    {
+        <fieldset class="edit-group" disabled="@_busy"><legend>@group.Key</legend><div class="master-fields">
+        @foreach(var field in group){<label class="field">@field.Label<input type="@(field.Kind is "latitude" or "longitude"?"number":"text")" step="any" maxlength="@field.MaxLength" readonly="@field.ReadOnly" @bind="_values[field.Key]" /></label>}
+        </div></fieldset>
+    }
+    </div>
+}
+@if(_busy){<p role="status">Loading Nova records…</p>}
+</section>
+@code {
+    [Parameter] public string Kind {get;set;}="terminals";
+    string? _loaded,_error;string _search="";int _page;bool _busy,_more;
+    NovaMasterSummary[] _rows=[];NovaMasterDocument? _record;Dictionary<string,string?> _values=[];
+    string Url=>$"api/v1/aurora/firebird/masters/{Kind}";
+    static string FieldGroup(NovaField field)=>field.Key switch
+    {
+        "LM_LATITUDE" or "LM_LONGITUDE" or "AC_LATITUDE" or "AC_LONGITUDE"=>"Map coordinates",
+        "LM_PHONE" or "LM_MANAGER" or "AC_PHONE"=>"Contact details",
+        _ when field.Key.Contains("ADDR") || field.Key.EndsWith("CITY") || field.Key.EndsWith("STATE") || field.Key.EndsWith("ZIP") || field.Key.Contains("COUNTRY")=>"Address",
+        _=>"Identification & assignment"
+    };
+    protected override async Task OnParametersSetAsync(){if(_loaded==Kind)return;_loaded=Kind;_record=null;_page=0;await Load();}
+    async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=null;try{await action();}catch(Exception e){_error=e.Message;}finally{_busy=false;}}
+    Task Load()=>Run(LoadRows);
+    async Task LoadRows(){using var r=await Http.GetAsync($"{Url}?page={_page}&search={Uri.EscapeDataString(_search)}");await ApiResponse.Check(r);var result=(await r.Content.ReadFromJsonAsync<NovaMasterPage>())!;_rows=result.Records;_more=result.HasMore;}
+    async Task Search(){_page=0;await Load();}
+    async Task Key(KeyboardEventArgs e){if(e.Key=="Enter")await Search();}
+    async Task Previous(){_page--;await Load();}async Task Next(){_page++;await Load();}
+    async Task Open(string id)=>await Run(async()=>{using var r=await Http.GetAsync($"{Url}/{Uri.EscapeDataString(id)}");await ApiResponse.Check(r);_record=(await r.Content.ReadFromJsonAsync<NovaMasterDocument>())!;_values=_record.Fields.ToDictionary(f=>f.Key,f=>f.Value);});
+    void Cancel(){_record=null;_values=[];_error=null;}
+    async Task Save()=>await Run(async()=>{using var r=await Http.PutAsJsonAsync($"{Url}/{Uri.EscapeDataString(_record!.Id)}",new NovaMasterEdit(_record.Revision,_values));await ApiResponse.Check(r);Cancel();await LoadRows();});
+}

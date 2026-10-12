@@ -172,6 +172,21 @@ public sealed class AuthorizationController(
                 }));
         }
 
+        var tenantClaim=result.Principal.FindFirst("tenant_id")?.Value;
+        if(!Guid.TryParse(tenantClaim,out var refreshTenant))return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        HttpContext.User=result.Principal;
+        await using var refreshDb=await connectionFactory.OpenConnectionAsync(HttpContext.RequestAborted);
+        var member=await refreshDb.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM user_tenant WHERE tenant_id=@refreshTenant AND user_id=@Id)",new{refreshTenant,user.Id});
+        if(!member)return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var currentRoles=await refreshDb.QueryAsync<string>("""
+            SELECT r."Name" FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId"
+            JOIN product p ON r."Name" LIKE p.role_prefix || ':%'
+            JOIN tenant_product tp ON tp.product_code=p.code AND tp.tenant_id=ur."TenantId" AND tp.is_active
+            WHERE ur."TenantId"=@refreshTenant AND ur."UserId"=@Id
+            """,new{refreshTenant,user.Id});
+        result.Principal.SetClaims(Claims.Role,[..currentRoles]);
+        result.Principal.SetClaim(Claims.Name,user.UserName);
+        foreach(var claim in result.Principal.Claims.Where(c=>c.Type is Claims.Role or Claims.Name))claim.SetDestinations(Destinations.AccessToken);
         return SignIn(result.Principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 }

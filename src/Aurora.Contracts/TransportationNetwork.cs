@@ -12,7 +12,7 @@ public static class NodeVocabulary
     public static readonly string[] Services = ["Container Freight Station", "Bonded Warehouse", "Blanket Wrap Services"];
     public const string Hub = "Hub", Spoke = "Spoke", AdHoc = "Ad Hoc";
     public static readonly string[] Roles = [Hub, Spoke, AdHoc];
-    // Nodes where freight is planned from; the Route Optimization "active node".
+    // Nodes where freight is planned from; the Optimization "active node".
     public static bool Plannable(TerminalDto node) => node.NodeType is Terminal or "Agent Facility";
 }
 

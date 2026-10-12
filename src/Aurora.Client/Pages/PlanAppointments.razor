@@ -8,7 +8,6 @@
             <CustomerDropdown Label="Customer" Options="@AllCustomerOptions" ValueChanged="SelectAppointmentCustomer" Disabled="@(_adding || _id is not null)" EmptyText="No matching customers in the selected orders." />
             <button class="primary-button" disabled="@(_adding || _id is not null || SourceJson is null)" @onclick="BeginAdd">Add appointment</button>
         </div>
-        <p class="preview-footnote">Save applies the appointment to all selected orders for this customer at this destination in the current plan. Optimize uses the saved appointments; order and customer records are unchanged.</p>
         @if (_error is not null) { <div class="alert" role="alert">@_error</div> }
         @if (_message is not null) { <p role="status">@_message</p> }
         @if (_adding || _id is not null)
@@ -59,21 +58,17 @@ else if (IsOpen)
                 }
                 else { <p>Select an order to edit.</p> }
             </div></div>
-        </div><footer class="modal-footer"><span>Appointment changes do not book a delivery or update shipment records.</span><button class="outline-button" @onclick="Close">Done</button></footer>
+        </div><footer class="modal-footer"><button class="outline-button" @onclick="Close">Done</button></footer>
     </section></div>
 }
 
 @code {
     private RenderFragment Editor => @<div class="appointment-fields">
                     @if (!_adding) { <h3>@(Inline ? _customers.FirstOrDefault(c => c.Key == _id)?.Name : _id)</h3> }
-                    <p class="file-format">Confirmed windows constrain arrival. Existing location opening hours still apply.</p>
-                    <PlannerTime Label="Appointment start" @bind-Value="_start" />
-                    <PlannerTime Label="Appointment end" @bind-Value="_end" />
-                    <label><input type="checkbox" @bind="_confirmed" /> Confirmed appointment</label>
-                    <label><input type="checkbox" @bind="_replaceNative" /> Replace imported scheduling windows</label>
-                    <p class="file-format">Use this when changing a window built into the file. It removes the current location time restrictions for the selected customer's orders, including opening hours, before applying the new appointment.</p>
+                    <PlannerTime Label="Appointment start" @bind-Value="_start" AutomaticOffset="true" DefaultOffset="@PlanOffset" />
+                    <PlannerTime Label="Appointment end" @bind-Value="_end" AutomaticOffset="true" DefaultOffset="@PlanOffset" />
                     <label class="field"><span>Service time (minutes per order)</span><InputNumber @bind-Value="_service" min="0" max="1440" /></label>
-                    <div class="planning-tools"><button disabled="@_saving" class="primary-button" @onclick="() => Save(false)">@(Inline ? "Save appointment" : "Apply to plan")</button>@if (Inline) { <button class="outline-button" @onclick="CancelEdit">Cancel</button> } else { <button class="outline-button" @onclick="() => Save(true)">Clear appointment</button> }</div><p class="file-format">Appointment changes apply to this plan only. Location opening hours remain unless you choose to replace them.</p>
+                    <div class="planning-tools"><button disabled="@_saving" class="primary-button" @onclick="() => Save(false)">@(Inline ? "Save appointment" : "Apply to plan")</button>@if (Inline) { <button class="outline-button" @onclick="CancelEdit">Cancel</button> } else { <button class="outline-button" @onclick="() => Save(true)">Clear appointment</button> }</div>
     </div>;
     [Parameter] public bool Inline { get; set; }
     [Parameter] public EventCallback<bool> OnEditingChanged { get; set; }
@@ -91,6 +86,15 @@ else if (IsOpen)
     private HashSet<string> _appointmentIds = [];
     private IReadOnlyList<PlanningCustomer> _customers = [];
     private JsonObject _sourceRoot = new();
+    private string PlanOffset
+    {
+        get
+        {
+            var trucks = RoutingInput.Items(_sourceRoot["vehicles"]).Concat(RoutingInput.Items(_sourceRoot["reporting"]?["unavailableVehicles"]));
+            var start = trucks.Select(t => RoutingInput.Time(t["start"]?["earliestStartTime"])).FirstOrDefault(t => t is not null);
+            return start?.ToString("zzz", CultureInfo.InvariantCulture) ?? "";
+        }
+    }
     private IEnumerable<PlanningCustomer> AppointmentRows => _customers.Where(c => c.OrderIds.Any(_appointmentIds.Contains) && $"{c.Name} {c.Destination}".Contains(_search, StringComparison.OrdinalIgnoreCase));
     private AppointmentInfoDto? CustomerAppointment(PlanningCustomer customer) => RoutingInput.Describe(_sourceRoot, customer.OrderIds.FirstOrDefault(_appointmentIds.Contains) ?? customer.OrderIds[0]);
     private bool HasMixedAppointments(PlanningCustomer customer) => customer.OrderIds.Select(id => RoutingInput.Appointment(RoutingInput.ReportOrder(_sourceRoot, id))?.ToJsonString() ?? "").Distinct().Count() > 1;
@@ -124,7 +128,6 @@ else if (IsOpen)
     private RoutingDraft? _draft;
     private string? _loaded, _id, _error, _message;
     private string _search = "", _start = "", _end = "";
-    private bool _confirmed, _replaceNative;
     private double? _service;
     protected override void OnParametersSet()
     {
@@ -135,13 +138,11 @@ else if (IsOpen)
     private void Select(string id)
     {
         _id = id; _message = _error = null;
-        _replaceNative = false;
         var root = RoutingInput.Parse(SourceJson!);
         var orderId = Inline ? _customers.Single(c => c.Key == id).OrderIds.FirstOrDefault(_appointmentIds.Contains) ?? _customers.Single(c => c.Key == id).OrderIds[0] : id;
         var appt = RoutingInput.Appointment(RoutingInput.ReportOrder(root, orderId));
         _start = RoutingInput.Text(RoutingInput.Get(appt, "blockBegin") ?? RoutingInput.Get(appt, "start")) ?? "";
         _end = RoutingInput.Text(RoutingInput.Get(appt, "blockEnd") ?? RoutingInput.Get(appt, "end")) ?? "";
-        _confirmed = appt is not null && RoutingInput.Confirmed(appt) == true;
         var order = RoutingInput.Items(root["orders"]?["deliveries"]).Single(x => RoutingInput.Text(x["id"]) == orderId);
         _service = order["delivery"]?["duration"]?.GetValue<double>() / 60;
         if (Inline && _customers.Single(c => c.Key == id).OrderIds.Select(ServiceMinutes).Distinct().Count() > 1) _service = null;
@@ -150,7 +151,7 @@ else if (IsOpen)
     {
         if (_saving) return;
         _saving=true;
-        try { if (Inline && !clear && (string.IsNullOrWhiteSpace(_start) || string.IsNullOrWhiteSpace(_end))) throw new FormatException("Enter appointment start and end times."); var json = Inline ? PlannerEdits.CustomerAppointment(SourceJson!, _id!, _start, _end, _confirmed, _service, clear, _replaceNative) : PlannerEdits.Appointment(SourceJson!, _id!, _start, _end, _confirmed, _service, clear, _replaceNative); await OnApply.InvokeAsync(json); _message = "Plan updated. Optimize again to calculate the new schedule."; _error = null; if (Inline) await CancelEdit(); }
+        try { if (Inline && !clear && (string.IsNullOrWhiteSpace(_start) || string.IsNullOrWhiteSpace(_end))) throw new FormatException("Enter appointment start and end times."); var json = Inline ? PlannerEdits.CustomerAppointment(SourceJson!, _id!, _start, _end, true, _service, clear, false) : PlannerEdits.Appointment(SourceJson!, _id!, _start, _end, true, _service, clear, false); await OnApply.InvokeAsync(json); _message = "Plan updated. Optimize again to calculate the new schedule."; _error = null; if (Inline) await CancelEdit(); }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving=false; }
     }

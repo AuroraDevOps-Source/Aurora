@@ -25,7 +25,9 @@ builder.Services.AddOidcAuthentication(options =>
 
 // Named client the API calls go through — BaseAddressAuthorizationMessageHandler attaches the
 // access token automatically.
+builder.Services.AddTransient<SessionExpiryHandler>();
 builder.Services.AddHttpClient(ApiClients.Authorized, client => client.BaseAddress = new Uri(apiBaseAddress))
+    .AddHttpMessageHandler<SessionExpiryHandler>()
     .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
         .ConfigureHandler(authorizedUrls: [apiBaseAddress]));
 

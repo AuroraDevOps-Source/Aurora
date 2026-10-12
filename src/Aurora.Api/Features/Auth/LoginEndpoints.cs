@@ -8,6 +8,7 @@ public static class LoginEndpoints
 {
     public static void MapLoginEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/v1/me/is-administrator",(HttpContext context)=>Results.Ok(context.User.IsInRole("aurora:Admin"))).RequireAuthorization();
         // Plain Identity password check that sets the pre-authentication cookie —
         // OpenIddict never sees the password. The client redirects to /connect/authorize
         // immediately after this succeeds (see AuthorizationController.Authorize).

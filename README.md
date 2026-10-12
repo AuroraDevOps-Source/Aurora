@@ -93,9 +93,11 @@ dotnet run --project tests/OrderWorkspaceChecks
 dotnet run --project tests/PlanningSessionChecks
 dotnet run --project tests/RoadRoutingChecks
 dotnet run --project tests/EquipmentChecks
+
+dotnet run --project tests/FreightWorkflowChecks
 ```
 
-`tests/PlannerPreview` is a Blazor harness for inspecting planner components. Its `/aurora/orders` page exercises filtering, selection, and the single-form planner with synthetic data and simulated PTV responses. It does not sign in or persist orders/manifests; use the full API/client for SSO and database verification.
+`tests/PlannerPreview` is a Blazor harness for inspecting planner components. Its `/aurora/orders` page exercises filtering, selection, and the single-form planner with synthetic data and simulated PTV responses. Freight workflows can be saved and executed in memory. It does not sign in or persist orders/manifests to a database; use the full API/client for SSO and database verification.
 See `docs/ROUTING-WIZARD-2026-09-23.md` for session storage and recovery details.
 `tests/login-checks.mjs` and `tests/map-checks.mjs` are browser-driven checks;
 `tests/equipment-isolation.sql` asserts that RLS actually blocks cross-tenant reads.
@@ -112,3 +114,37 @@ verification results, and the repeat-deployment procedure. `docs/single-sign-on.
 covers the federation design; `docs/ROUTING-*.md` cover the routing and equipment work.
 
 The native Aurora workspace now contains Orders and Manifest. See `docs/AURORA-WORKSPACE-2026-09-24.md` for selection, Finish, imports, persistence and test-server verification.
+
+### Nova / Firebird route optimization
+
+`FirebirdRouting` is an opt-in, tenant-bound source. Configure `Enabled`, `TenantId`,
+`SourceKey`, `ConnectionString`, `ReadyStatus` (110), and `TimeZoneId` in API user
+secrets or server configuration. Credentials stay on the API server. The managed
+Firebird provider connects remotely; a Firebird server installation on the client PC
+is not required. The local test configuration targets `wayl_test` on `172.23.0.5`.
+
+Opening Route Optimization or choosing **Refresh orders** refreshes unmanifested
+delivery orders with the configured ready status. Native order IDs are displayed as
+`FB-<PB_ID>` because PRO numbers may be zero or repeated. Ship date sets the planning
+day; it does not exclude undated ready orders. Native appointments are retained.
+The import preserves existing Aurora data and open drafts. It does not import
+equipment or invent depot coordinates: configure those in Transportation Nodes and
+Fleet Management. Default service duration is 900 seconds (`ServiceSeconds`).
+
+**Finish** writes all accepted routes in one Firebird transaction as unassigned
+Nova manifests, with delivery-stop membership in optimized order. Nova numbers are
+saved on Aurora's manifests. Live order status and membership are checked again.
+Stable `PB_EXTERNAL_REF` values and batch fingerprints recover a Firebird commit
+whose Aurora commit or response was lost: retry the same Finish selection. Changing
+that selection after an uncertain export or editing the exported Nova membership
+requires reconciliation. Later Aurora manifest edits/deletions are not synchronized.
+
+Run `dotnet run --project tests/FirebirdRoutingChecks` for isolated checks. Setting
+`FIREBIRD_CHECK_CONFIG` to the local API user-secrets JSON explicitly enables checks
+against the restored `127.0.0.1:55432/aurora_test` database and the specified Firebird
+test database. They refresh Aurora and roll back all Firebird business writes;
+Firebird generators may advance even when the transaction rolls back.
+
+Orders also expose a Freight workflow for movement legs, warehouse/storage work,
+ordered tasks, partner references, and execution history. Apply migration 0018 before
+using it. See `docs/FREIGHT-WORKFLOW-2026-10-07.md` for behavior and integration boundaries.

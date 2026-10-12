@@ -9,21 +9,21 @@
 @using System.Globalization
 @using System.Text
 
-<PageTitle>Route Optimization - Aurora</PageTitle>
+<PageTitle>Optimization - Aurora</PageTitle>
 
 <section class="planner-page">
     <header class="planner-header">
         <div>
-            <h1>Route Optimization</h1>
+            <h1>Optimization</h1>
             <p>@(_planName ?? "Plan deliveries, balance your fleet, and review every route.")</p>
         </div>
         <div class="planner-header-actions">
-            <button class="text-button" @onclick="() => _confirmCancel = true" disabled="@(IsWorking || _workspaceFinished || _planCancelled || WorkspaceDraftId is null)">Cancel plan</button>
-            <button class="primary-button" @onclick="FinishWorkspace" disabled="@(IsWorking || _appointmentEditing || _workspaceFinished || _planCancelled || _completedSessionId is null || _result?.Summary?.Scheduled is not > 0 || AcceptedRoutes == 0)">@(_savingManifest ? "Saving…" : AcceptedRoutes > 0 && _result is not null && AcceptedRoutes < _result.Routes.Count ? $"Create {AcceptedRoutes} manifests" : "Create Manifest")</button>
+            <button class="text-button" @onclick="CancelPlan" disabled="@(IsWorking || _workspaceFinished || _planCancelled || WorkspaceDraftId is null)">@(_cancellingPlan ? "Cancelling…" : "Cancel plan")</button>
+            <button class="primary-button" @onclick="FinishWorkspace" disabled="@(_savingManifest || IsWorking || _appointmentEditing || _workspaceFinished || _planCancelled || _completedSessionId is null || _result?.Summary?.Scheduled is not > 0 || AcceptedRoutes == 0)">@(_savingManifest ? "Saving…" : AcceptedRoutes > 0 && _result is not null && AcceptedRoutes < _result.Routes.Count ? $"Create {AcceptedRoutes} manifests" : "Create Manifest")</button>
             <button class="primary-button" disabled="@(!CanOptimize)" @onclick="() => Optimize()">@(_busy ? "Optimizing..." : "Optimize")</button>
         </div>
     </header>
-    <div class="planner-tabs" role="tablist" aria-label="Route optimization sections">
+    <div class="planner-tabs" role="tablist" aria-label="Optimization sections">
         @foreach (var section in Enum.GetValues<PlannerSection>())
         {
             <button id="@($"planner-tab-{section}")" role="tab" disabled="@(_appointmentEditing && _section != section)" aria-selected="@(_section == section ? "true" : "false")" aria-controls="planner-tab-panel" class="@(_section == section ? "active" : "")" @onclick="() => ChangeSection(section)">@SectionLabel(section)</button>
@@ -33,7 +33,6 @@
     @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert planner-alert" role="alert">@_error</div> }
     @if (_workspaceFinished) { <div class="finish-notice">Manifests saved. <a href="/aurora/manifests">View manifests</a>.</div> }
     @if (_planCancelled) { <div class="finish-notice cancelled-notice">This plan was cancelled and its orders were released. <a href="/aurora/route-optimization">Start a new plan</a>.</div> }
-    @if (_confirmCancel) { <div class="terminal-delete planner-confirm" role="alert"><span>Cancel this plan and release its orders for other plans?</span><button class="primary-button" @onclick="CancelPlan">Cancel plan</button><button class="outline-button" @onclick="() => _confirmCancel = false">Keep planning</button></div> }
     @if (_sessionId is not null && !_busy) { <button class="outline-button" @onclick="ResumePlanning">Reconnect to this plan</button> }
     @if (_busy)
     {
@@ -427,7 +426,7 @@ else
     private ResultTab _tab = ResultTab.Manifest;
 
     private enum ResultTab { Manifest, Summary, LeftOff }
-    private bool IsWorking => _busy || _savingManifest || _sessionId is not null;
+    private bool IsWorking => _busy || _savingManifest || _cancellingPlan || _sessionId is not null;
     private bool CanOptimize => !_workspaceFinished && !_planCancelled && !_appointmentEditing && !IsWorking && _draft is { Orders: > 0, Trucks: > 0 };
 
     private void SetInput(string json, string fileName, bool preserveResult = false)
@@ -466,6 +465,7 @@ else
                     if (selection is null) throw new FormatException("Selection not found.");
                     _workspaceFinished = selection.Finished;
                     _planCancelled = selection.Cancelled;
+                    if (_planCancelled) { Navigation.NavigateTo("/aurora/route-optimization", replace: true); return; }
                     _planName = selection.FileName;
                     if (_workspaceFinished) { StateHasChanged(); return; }
                     SetInput(selection.RequestJson, selection.FileName);

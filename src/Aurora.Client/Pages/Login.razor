@@ -10,7 +10,7 @@
         <div class="aurora-login-brand"><span class="aurora-mark" aria-hidden="true"></span>Aurora</div>
         <div class="aurora-login-body">
         <MudText Typo="Typo.h5" Class="mb-2">Sign in to Aurora</MudText>
-        <MudText Typo="Typo.body2" Class="aurora-login-description">One account for your licensed products.</MudText>
+        @if (Expired) { <p role="status">Your session has expired. Please sign in again.</p> }
 
         <form id="aurora-login-form" @ref="_loginForm" method="post" action="/api/auth/login"
               autocomplete="on" @onsubmit="SignInAsync" @onsubmit:preventDefault>
@@ -41,6 +41,7 @@
 
 @code {
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] public bool Expired { get; set; }
 
     private static readonly string _releaseVersion = System.Reflection.CustomAttributeExtensions
         .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Login).Assembly)
@@ -92,7 +93,11 @@
             // The Aurora.Auth cookie is now set. Hand off to the OIDC flow — it completes
             // silently (the client is registered with ConsentType.Implicit) since that cookie
             // is present, and lands back here via the authentication/login-callback route.
-            Navigation.NavigateTo("authentication/login");
+            Navigation.NavigateToLogin("authentication/login", new InteractiveRequestOptions
+            {
+                Interaction = InteractionType.SignIn,
+                ReturnUrl = Navigation.ToAbsoluteUri(ProductWorkspace.RouteFor(ProductWorkspace.Aurora)).AbsoluteUri
+            });
         }
         catch (HttpRequestException)
         {

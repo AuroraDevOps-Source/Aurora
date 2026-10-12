@@ -45,7 +45,7 @@ Reject(()=>FleetPlanning.ApplySavedFleet(fleetInput,fleet,"OTHER"),"another term
 unit.Available=false;
 Reject(()=>FleetPlanning.ApplySavedFleet(fleetInput,fleet,terminal),"unavailable saved truck cannot optimize");
 unit.Available=true;
-Check(WorkspaceOrderStatus.Label(WorkspaceOrderStatus.Ready)=="Ready to Ship" && WorkspaceOrderStatus.All.Contains("AwaitingAppointment"),"Nova lifecycle labels include requested ready state");
+Check(WorkspaceOrderStatus.Label(WorkspaceOrderStatus.Ready)=="Ready to Route" && WorkspaceOrderStatus.All.Contains("AwaitingAppointment"),"Nova lifecycle labels include requested ready state");
 var connection=Environment.GetEnvironmentVariable("WORKSPACE_CHECK_CONNECTION");
 if(connection is not null)
 {
@@ -67,6 +67,8 @@ if(connection is not null)
  await equipment.AddMissing(fleet,default);
  Check((await equipment.List(default)).Units.Single().UseForRouting,"planning eligibility persists in tenant equipment table");
  var draft=await store.CreateDraft(new(import.Id,ids),"owner",default);
+ Check((await store.OpenDrafts("owner",default)).Any(d=>d.Id==draft.Id && d.OrderCount==ids.Length),"open plan recovery lists owned draft and order count");
+ Check(!(await store.OpenDrafts("other",default)).Any(),"open plan recovery hides other owners");
  Check((await store.Draft(draft.Id,"owner",default)).Id==draft.Id,"draft recovery");
  try { await store.Draft(draft.Id,"other",default);throw new Exception("owner isolation"); }catch(KeyNotFoundException){Check(true,"draft owner isolation");}
  var otherTenant=new TestTenant(Guid.NewGuid());
@@ -77,14 +79,15 @@ if(connection is not null)
  Check(!(await new EquipmentStore(otherFactory,otherTenant).List(default)).Units.Any(),"another tenant cannot read saved trucks");
  var tenantFleetDraft=RoutingInput.Parse(draft.RequestJson);
  Check(tenantFleetDraft["vehicles"]!.AsArray().Count==1,"database draft contains only eligible tenant fleet");
- var conflicting=await store.CreateDraft(new(import.Id,ids),"owner",default);
+ try {await store.CreateDraft(new(import.Id,ids),"owner",default);throw new Exception("overlapping draft accepted");}catch(FormatException){Check(true,"open planning lock rejects overlapping draft");}
  var session=Guid.NewGuid();
  var manifests=await store.Finish(draft.Id,session,"owner",result,default);
+ Check(!(await store.OpenDrafts("owner",default)).Any(d=>d.Id==draft.Id),"finished plan leaves open plan recovery list");
  Check(manifests.Count==1 && manifests[0].Route.Pros.Single().ProNumber==ids[0],"one persisted manifest per route");
  Check((await store.Orders(import.Id,null,null,"ReadyToRoute",default)).Count()==2,"unscheduled orders remain available");
  Check((await store.Finish(draft.Id,session,"owner",result,default)).Single().Id==manifests[0].Id,"finish retry returns same manifest");
- try {await store.Finish(conflicting.Id,Guid.NewGuid(),"owner",result,default);throw new Exception("conflict missing");}catch(FormatException){Check(true,"overlapping plan cannot duplicate assignment");}
- Check((await store.Manifests(default)).Count==1,"conflicting finish is atomic");
+ try {await store.CreateDraft(new(import.Id,ids),"owner",default);throw new Exception("assigned order accepted");}catch(FormatException){Check(true,"manifested orders cannot enter a new plan");}
+ Check((await store.Manifests(default)).Count==1,"rejected overlapping plan does not create another manifest");
  var details=new ManifestDetailsDto {BillToCode="ACCT-100",BillToName="Test Bill To",Carrier="Test Carrier",Driver="Test Driver",Notes="Handle carefully"};
  var editedManifest=await store.UpdateManifest(manifests[0].Id,new(details,0),default);
  Check(editedManifest.Details?.BillToCode=="ACCT-100" && editedManifest.Revision==1,"manifest details persist with revision");
@@ -166,7 +169,7 @@ if(connection is not null)
  await Fails(()=>hiddenTms.ChangeOrders(fresh.Id,new([key],1),true,false,default),"cross tenant membership rejected");
  await tms.ChangeOrders(fresh.Id,new([key],1),true,false,default);
  loaded=(await tms.Orders(null,null,null,"CRUD-100",null,default)).Single();
- Check(loaded.Status==WorkspaceOrderStatus.Ready && loaded.ManifestId is null,"removing order returns it to Ready to Ship");
+ Check(loaded.Status==WorkspaceOrderStatus.Ready && loaded.ManifestId is null,"removing order returns it to Ready to Route");
  await tms.ChangeOrders(fresh.Id,new([key],2),false,false,default);
  await tms.ChangeOrders(fresh.Id,new([],3),true,true,default);
  Check(!(await tms.Manifests(default)).Any(m=>m.Id==fresh.Id),"deleted manifest disappears");

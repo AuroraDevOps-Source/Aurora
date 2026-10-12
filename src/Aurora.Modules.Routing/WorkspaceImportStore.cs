@@ -39,6 +39,8 @@ public sealed class WorkspaceImportStore(NpgsqlConnectionFactory factory, ITenan
         {
             // Pause writers while replacing the related rows, including writers on existing CRUD endpoints.
             await db.ExecuteAsync(new CommandDefinition("LOCK TABLE aurora_terminal,aurora_customer,aurora_order_source,aurora_order,aurora_planning_draft,aurora_manifest,aurora_manifest_order,routing_equipment_type,routing_equipment_unit,route_plan IN SHARE ROW EXCLUSIVE MODE",transaction:tx,cancellationToken:ct));
+            if (await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_freight_workflow WHERE tenant_id=@TenantId)", new {tenant.TenantId}, tx, cancellationToken:ct)))
+                throw new FormatException("Workspace replacement would erase saved freight workflows. Use a separate test company or update orders individually.");
         }
         var types=(await db.QueryAsync<string>(new CommandDefinition("SELECT data::text FROM routing_equipment_type WHERE tenant_id=@TenantId",new {tenant.TenantId},tx,cancellationToken:ct)))
             .Select(s=>JsonSerializer.Deserialize<EquipmentTypeDto>(s)!).ToDictionary(t=>t.Code);

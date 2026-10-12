@@ -1,0 +1,1556 @@
+[
+  {
+    "NAME": "ACCOUNT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "ACIMAGE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "ACMESSFIX",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_AGENT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_AGENT_CONTRACTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_AGENT_INTER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_AGENT_SRV_POINTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_COLLECTION_NOTES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_CONTACT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_NOTES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_RPT_SHIPMENTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_RPT_SHPMNT_LINES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_SKU",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_XREF",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AC_YARD",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "AGENTROUTING",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CASHRECPTBDY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CASHRECPTHDR",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CA_AVAILABLE_EQUIP",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CA_EQUIP_INVENTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CA_HISTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CA_INSURANCE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CA_OPER_STATES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CLAIM_HEADER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CLAIM_OTHER_PARTIES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CLAIM_PAYINFO",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CNTR_TRACK_BOLS",
+    "KIND": 0,
+    "DESCRIPTION": "Ocean Carrier Tracking service carrier BOL master.",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CNTR_TRACK_CONTAINER",
+    "KIND": 0,
+    "DESCRIPTION": "Container tracking container info",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CNTR_TRACK_EVENTS",
+    "KIND": 0,
+    "DESCRIPTION": "Container tracking event history",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CODFEE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "COMOD_PAY_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "COMOD_TABLE_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "COMOD_TARIFF_CONTROL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "COMOD_TARIFF_GROUPING",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "COMOD_TARIFF_RATE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "COMOD_TARIFF_TABLE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_210_REASONS",
+    "KIND": 0,
+    "DESCRIPTION": "210 correction indicator codes",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_214_REASONS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_990_REASONS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_API_CONNECT_INFO",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_BATCH",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_CARD_TYPES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_CLAIM_STATUS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_CNTR_TRACK",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_CNTR_TRACK_STATUS",
+    "KIND": 0,
+    "DESCRIPTION": "Ocean Carrier Tracking Service tracking event status codes.",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_COMMODITY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_COUNTRIES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_DESC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_DQ_DESC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_DQ_STATUS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_EVENT_CODES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_EXCEL_INV_LAYOUT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_FLEETS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_GRID_COLUMNS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_INS_TYPES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_NOVA_OPTIONS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_NUMBER_TYPES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_OMNITRACS_XRS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_PEOPLENET",
+    "KIND": 0,
+    "DESCRIPTION": "Parameters required for Peoplenet integration.",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_POINTMILES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_QUALCOMM",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_RAND_MCNALLY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_REGION_IDS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_REGION_RANGES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_REGION_USER_DEFS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_ROUTES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_SALESMAN",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_SERV_AREAS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_STAT",
+    "KIND": 0,
+    "DESCRIPTION": "Dispatch status codes",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_STATE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_STAT_FROM",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_SYSTEM_OPTIONS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_TYPE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_VMRS_CTL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_WHSE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_WHSE_LOCS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_WHSE_UNITS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "CT_ZIP",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "D83_MINS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "D83_PNTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "D83_SEC3",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "D83_SEC4",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "D83_SEC6",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DAT_ACCOUNT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DAT_EQUIPMENT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DAT_HISTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DAT_QUEUE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DB_VERSION",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIVER_CONTACTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIVER_HEADER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIVER_HOS_DETAIL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIVER_HOS_SUMMARY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIVER_PKUP_DELV",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIVER_QUAL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIV_ADVANCE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIV_EXPENSE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRIV_WORKFLOW_HIST",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DRVSETL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSADJUST",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSCNTRLS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSCONTKW",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSCONTMI",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSCONTRACT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSCONTREV",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSCONTSTAT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSPAYTYPES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DSPRELIM",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DS_CALLIN",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DS_POINT_PAY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "DYMAST",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EDI_PIF",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_AVAIL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_DESC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_EVENT",
+    "KIND": 0,
+    "DESCRIPTION": "EQUIPMENT/DRIVER INCIDENTS/EVENTS TABLE",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_HEADER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_HISTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_PM",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_POSITIONS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "EQUIP_STATUS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "FUEL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "FUELCOSTDAILY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "FUEL_CARD",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "FUEL_SURCHARGE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "FUEL_SURCHARGE_DATA",
+    "KIND": 0,
+    "DESCRIPTION": "Fuel Surcharge Scales - Can Be Either A Scale Of Weight Or Miles",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "GOMOTIVELANDING",
+    "KIND": 0,
+    "DESCRIPTION": "When a client from GoMotive wants ASI to connect to Motive, they need to do an authorization click through Motives Marketplace.  When they click the \"install\" button, they send us an AUTH code.  We use the AUTH code to get tokens.  We use the tokens to get company info and forms available to this client.  When all of this is done, it is written to this table so it can be set up in the clients NOVA.",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "HAZ",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "HAZ_CLASS_DESC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "HAZ_DESC_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "IFTA_RATES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "ILOG_REPEAT_SHIP",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "IMSEND",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "IMSENT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "IM_CONT_CHRG_MX",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "ISAPI_QUEUE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "ITEM_WEIGHT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "KEYWORDB",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "LOCMAST",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MC_FORMS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MC_FORM_CATEGORIES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MC_MESSAGES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MC_QUEUES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MC_QUEUE_ITEMS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MC_ROUTING",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MENUS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MENU_FAVORITES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MENU_ITEMS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MENU_ITEM_SECURITY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MENU_RECENT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "MENU_TODO",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "NOTIFY_TEXT_CARRIER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_AGENTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_AG_LINES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_DRVPAY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_EDI_HISTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_EDI_RESEND",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_HEADER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_HISTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_LINE_ITEMS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_MANIFEST_STOPS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_MFST_INFO",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_NUMBERS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_OTHER_PARTIES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_STOP_REC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "OPS_STOP_TLR_SPACES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PALLET_MILEAGE_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PALLET_TABLE_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PALLET_TARIFF_KEYS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PALLET_TARIFF_TABLE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PN_ACTIVITIES",
+    "KIND": 0,
+    "DESCRIPTION": "Peoplenet activity tracker",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_ASC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_ASC_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_FAK",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_FAK_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_FROM_TO",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_FROM_TO_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_IL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_IL_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_MAX_CHGS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_SPECIAL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_SPECIAL_DATA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_TB",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICE_WGT_BRKS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PRICING",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PTB_INTRA",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PTB_TAR_DISC",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PTB_TAR_PRIO",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PUC_RATES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "PUC_WGT",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "QUAL128",
+    "KIND": 0,
+    "DESCRIPTION": "EDI marks & numbers qualifiers.",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "QUALG62_176",
+    "KIND": 0,
+    "DESCRIPTION": "EDI time qualifiers",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "QUALG62_432",
+    "KIND": 0,
+    "DESCRIPTION": "EDI date qualifiers",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "QUALN1_98",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "SUBSYSTEM_TYPES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_ADJUSTMENTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_BASES",
+    "KIND": 0,
+    "DESCRIPTION": "Tariff Bases",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_COMMON_POINTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_CONTROL",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_MASTER",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_POINTS",
+    "KIND": 0,
+    "DESCRIPTION": "Tariff Zip Points",
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_POI_RATES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TARIFF_RATES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TERMINALSERVICE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "TRIPMILES",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "USERS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "USERS_CONTROL_CONFIG",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "USER_SUBSYSTEMS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VINVENTORY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VINVHIST",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VPOBODY",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VPOHEAD",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VREPAIRDRVEXP",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VREPAIRHDR",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VREPAIRLABOR",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VREPAIROUTSIDE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VREPAIRPARTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VRREPAIRCODE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "VRWORKACCCODE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "WEBHOOK_QUEUE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "WEB_ALLOWED_ACCTS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "WEB_DASHBOARD_ITEMS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "WEB_USERS",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  },
+  {
+    "NAME": "ZIPSERVICE",
+    "KIND": 0,
+    "DESCRIPTION": null,
+    "VIEW_SOURCE": null,
+    "EXTERNAL_FILE": null
+  }
+]

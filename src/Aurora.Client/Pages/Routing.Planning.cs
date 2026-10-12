@@ -11,24 +11,27 @@ public partial class Routing
     public Guid? WorkspaceDraftId { get; set; }
     private string PlanningStorageKey => "aurora-planning-session" + (WorkspaceDraftId is { } id ? "-" + id : "");
     private Guid? _completedSessionId;
-    private bool _workspaceFinished, _savingManifest, _planCancelled, _confirmCancel;
+    private bool _workspaceFinished, _savingManifest, _planCancelled, _cancellingPlan;
     private string? _planName;
-    // Routes the planner accepts as manifests; unchecked routes send their orders back to Ready to Ship.
+    // Routes the planner accepts as manifests; unchecked routes send their orders back to Ready to Route.
     private readonly HashSet<string> _accepted = new(StringComparer.Ordinal);
     private int AcceptedRoutes => _result?.Routes.Count(r => _accepted.Contains(r.Vehicle) && r.Pros.Count > 0) ?? 0;
     private void Accept(string vehicle, bool include) { if (include) _accepted.Add(vehicle); else _accepted.Remove(vehicle); }
     private async Task CancelPlan()
     {
-        if (WorkspaceDraftId is not { } draft || IsWorking) return;
-        _confirmCancel = false; _error = null;
+        if (WorkspaceDraftId is not { } draft || IsWorking || _workspaceFinished || _planCancelled) return;
+        _cancellingPlan = true; _error = null;
         try
         {
             using var response = await Http.PostAsync($"api/v1/aurora/drafts/{draft}/cancel", null);
             if (!response.IsSuccessStatusCode) throw new FormatException((await ReadApiError(response)).Error);
             _planCancelled = true;
-            await JS.InvokeVoidAsync("sessionStorage.removeItem", PlanningStorageKey);
+            // Browser storage cleanup must not strand a successfully cancelled plan.
+            try { await JS.InvokeVoidAsync("sessionStorage.removeItem", PlanningStorageKey); } catch (JSException) { }
+            Navigation.NavigateTo("/aurora/route-optimization", replace: true);
         }
         catch (Exception ex) { _error = "Could not cancel the plan. " + ex.Message; }
+        finally { _cancellingPlan = false; }
     }
     private async Task FinishWorkspace()
     {

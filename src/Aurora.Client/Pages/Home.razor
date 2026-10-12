@@ -3,6 +3,5 @@
 @inject NavigationManager Navigation
 
 @code {
-    // The product header is the navigation now; land on Aurora's own workspace.
-    protected override void OnInitialized() => Navigation.NavigateTo("aurora/orders", replace: true);
+    protected override void OnInitialized() => Navigation.NavigateTo(ProductWorkspace.RouteFor(ProductWorkspace.Aurora), replace: true);
 }
