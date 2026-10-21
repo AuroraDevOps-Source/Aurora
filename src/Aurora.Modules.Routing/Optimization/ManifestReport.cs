@@ -130,7 +130,7 @@ public static class ManifestReportExtractor
                 ?? 0;
             routes[vehicleId] = new RouteManifestDetail(
                 vehicleId,
-                VehicleBudgetSeconds(vehicle),
+                VehicleBudgetSeconds(reporting?[PlannerOvertime.ShiftKey]?[vehicleId] as JsonObject ?? vehicle),
                 estimatedSeconds,
                 pros.Select(pro => pro.StopNumber).Distinct().Count(),
                 Sum(pros, pro => pro.Units),

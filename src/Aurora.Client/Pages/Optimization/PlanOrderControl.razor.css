@@ -1,0 +1,10 @@
+.remove-order { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #c62828; font-size: 22px; font-weight: 500; line-height: 1; cursor: pointer; }
+.remove-order:hover:not(:disabled) { background: #fdecec; }
+.remove-order:focus-visible { outline: 2px solid #c62828; outline-offset: 2px; }
+.remove-order:disabled { opacity: .4; cursor: default; }
+select { max-width:150px; min-height:28px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px; background:#fff; }
+
+.assign-order { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; padding: 0; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; color: #2363eb; cursor: pointer; vertical-align: middle; }
+.assign-order:hover:not(:disabled) { background: #edf3ff; border-color: #2363eb; }
+.assign-order:focus-visible { outline: 2px solid #2363eb; outline-offset: 2px; }
+.assign-order:disabled { opacity: .4; cursor: default; }

@@ -1,0 +1,7 @@
+@using Microsoft.AspNetCore.Components.Authorization
+<CascadingValue Value="_auth">
+    <Aurora.Client.Pages.Shared.NovaMasters Kind="terminals" />
+</CascadingValue>
+@code {
+    readonly Task<AuthenticationState> _auth=Task.FromResult(new AuthenticationState(new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity())));
+}

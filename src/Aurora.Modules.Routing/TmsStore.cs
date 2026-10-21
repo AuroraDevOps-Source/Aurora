@@ -16,6 +16,9 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       'Cube',COALESCE((SELECT l->'value' FROM jsonb_array_elements(s.request#>'{orders,deliveries}') d CROSS JOIN LATERAL jsonb_array_elements(d#>'{properties,loads}') l WHERE d->>'id'=o.id AND l->>'dimension'='volume' LIMIT 1),'0'::jsonb),
       'Pieces',COALESCE(s.request->'reporting'->'orders'->o.id->'units','0'::jsonb),
       'Notes',COALESCE(s.request->'reporting'->'orders'->o.id->>'specialInstructions','')) || o.details || jsonb_build_object('SourceId',o.source_id,'Id',o.id,'ScheduledAt',o.scheduled_at,
+      'UseConsigneeAddress',s.request#>>'{reporting,firebirdSource}' IS NOT NULL,
+      'ReceivingTerminal',(SELECT r.receiving_terminal FROM aurora_order_routing r WHERE r.tenant_id=o.tenant_id
+          AND r.source_key=s.request#>>'{reporting,firebirdSource}' AND 'FB-' || r.order_id::text=o.id),
       'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,'TerminalId',COALESCE(o.terminal_id,NULLIF(o.details->>'TerminalId','')::uuid),
       'TerminalCode',COALESCE((SELECT code FROM aurora_terminal t WHERE (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id)),o.details->>'TerminalCode'),
       'CustomerId',o.customer_id,'CustomerCode',(SELECT code FROM aurora_customer c WHERE (c.tenant_id,c.id)=(o.tenant_id,o.customer_id)),

@@ -147,9 +147,6 @@ if (connection is not null)
     await tms.SaveOrder(changedOrder, false, default);
     Check((await store.Get(order.SourceId, order.Id, default)).Events.Count == 2, "ordinary order edits retain execution history");
     await RejectAsync(() => tms.DeleteOrder(order.SourceId, order.Id, changedOrder.Revision + 1, default), "executed freight cannot be deleted");
-    var importer = new WorkspaceImportStore(factory, tenant);
-    await RejectAsync(() => importer.Execute(new() { Version = 1, Trucks = [], Terminals = [], Customers = [], Orders = [], Manifests = [] }, true, default), "workspace replacement cannot erase freight workflows");
-    Check((await store.Get(order.SourceId, order.Id, default)).Events.Count == 2, "failed replacement leaves history intact");
     var missingId = "MISSING";
     await RejectAsync(() => store.Get(order.SourceId, missingId, default), "missing orders return not found");
     var dispatchedOrder = new TmsOrder { Id = "DISPATCH-CHECK", Customer = "Consignee", Shipper = "Factory", Address = "2 Delivery Rd", OriginAddress = "1 Origin Rd" };

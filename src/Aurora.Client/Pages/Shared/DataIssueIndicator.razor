@@ -1,0 +1,21 @@
+@if (Issues.Length > 0)
+{
+    <button type="button" class="data-issue-indicator" title="View data requirements" aria-label="@($"View {Issues.Length} data requirements for {RecordName}")" @onclick="()=>_open=true" @onclick:stopPropagation="true" @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true">!</button>
+}
+@if (_open)
+{
+    <EditPopup Title="@($"Data requirements · {RecordName}")" OnClose="()=>_open=false">
+        <ul class="data-issue-list">
+        @foreach (var issue in Issues)
+        {
+            <li><p>@issue.Message</p>@if(issue.ActionUrl is not null){<a href="@issue.ActionUrl">@issue.ActionLabel</a>}</li>
+        }
+        </ul>
+        <button type="button" class="outline-button" @onclick="()=>_open=false">Close</button>
+    </EditPopup>
+}
+@code {
+    [Parameter] public string RecordName { get; set; } = "Record";
+    [Parameter] public DataRequirementIssue[] Issues { get; set; } = [];
+    private bool _open;
+}

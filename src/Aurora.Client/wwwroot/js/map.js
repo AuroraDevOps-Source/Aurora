@@ -1,6 +1,8 @@
-window.routeMap = (() => {
+﻿window.routeMap = (() => {
     let map;
+    let resizeObserver;
     let bounds;
+    let orderMarkers = [];
     let routes = [];
     let droppedPoints = [];
     let droppedMarkers = [];
@@ -9,10 +11,57 @@ window.routeMap = (() => {
     let roadMode = false;
     let selectedVehicle = null;
 
+    const splitterElements = new WeakSet();
+    function initSplitter(elementId) {
+        const grid = document.getElementById(elementId);
+        const divider = grid?.querySelector('.planner-divider');
+        if (!divider || splitterElements.has(grid)) return;
+        splitterElements.add(grid);
+        const key = 'aurora-manifest-map-split';
+        let fraction = .62;
+        try { const saved = Number(sessionStorage.getItem(key)); if (saved >= .25 && saved <= .75) fraction = saved; } catch { }
+        function apply(value, save = true) {
+            fraction = Math.max(.25, Math.min(.75, value));
+            grid.style.setProperty('--planner-split', String(fraction));
+            grid.style.setProperty('--planner-left', `${fraction / (1 - fraction)}fr`);
+            const percent = Math.round(fraction * 100);
+            divider.setAttribute('aria-valuenow', String(percent));
+            divider.setAttribute('aria-valuetext', `Manifest ${percent}%, map ${100 - percent}%`);
+            if (save) { try { sessionStorage.setItem(key, String(fraction)); } catch { } }
+        }
+        let pointer = null;
+        divider.addEventListener('pointerdown', event => {
+            if (event.button !== 0) return;
+            pointer = event.pointerId;
+            divider.setPointerCapture(pointer);
+            event.preventDefault();
+        });
+        divider.addEventListener('pointermove', event => {
+            if (pointer !== event.pointerId) return;
+            const rect = grid.getBoundingClientRect();
+            if (rect.width > 14) apply((event.clientX - rect.left - 7) / (rect.width - 14));
+        });
+        const end = () => { pointer = null; };
+        divider.addEventListener('pointerup', end);
+        divider.addEventListener('pointercancel', end);
+        divider.addEventListener('lostpointercapture', end);
+        divider.addEventListener('dblclick', () => apply(.62));
+        divider.addEventListener('keydown', event => {
+            const value = { ArrowLeft: fraction - .02, ArrowRight: fraction + .02, Home: .25, End: .75 }[event.key];
+            if (value === undefined) return;
+            event.preventDefault();
+            apply(value);
+        });
+        apply(fraction, false);
+    }
+
     function dispose() {
+        resizeObserver?.disconnect();
+        resizeObserver = null;
         if (map) map.remove();
         map = null;
         bounds = null;
+        orderMarkers = [];
         routes = [];
         droppedPoints = [];
         droppedMarkers = [];
@@ -34,6 +83,8 @@ window.routeMap = (() => {
         if (!element || !window.L) return false;
 
         map = L.map(element, { zoomControl: false, attributionControl: true });
+        resizeObserver = new ResizeObserver(() => map?.invalidateSize({ pan: false }));
+        resizeObserver.observe(element);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -56,10 +107,11 @@ window.routeMap = (() => {
             const first = group[0], point = [first.latitude, first.longitude];
             points.push(point);
             const icon = L.divIcon({ className: '', html: `<span class="map-preview-pin ${first.isDepot ? 'depot' : ''}">${first.isDepot ? 'D' : group.length > 1 ? group.length : '•'}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] });
-            L.marker(point, { icon }).addTo(map).bindPopup(
+            const marker = L.marker(point, { icon }).addTo(map).bindPopup(
                 `<strong>${first.isDepot ? 'Depot' : 'Unassigned delivery location'}</strong><br>` +
                 group.slice(0, 10).map(p => `${escapeHtml(p.id)} · ${escapeHtml(p.label)}`).join('<br>') +
                 (group.length > 10 ? `<br>and ${group.length - 10} more` : ''));
+            group.forEach(p => orderMarkers.push({ id: String(p.id), marker }));
         });
         bounds = points.length ? L.latLngBounds(points) : null;
         fit();
@@ -90,6 +142,7 @@ window.routeMap = (() => {
                         iconSize: [28, 28], iconAnchor: [14, 14]
                     })
                 }).addTo(layer);
+                (stop.orderIds || []).forEach(id => orderMarkers.push({ id: String(id), vehicle: route.vehicle, marker }));
                 const orders = (stop.orderIds || []).length ? stop.orderIds.map(escapeHtml).join(', ') : 'No delivery';
                 marker.bindPopup(`<strong>${escapeHtml(route.vehicle)}</strong><br>${escapeHtml(stop.locationId)}<br><small>${orders}<br>Arrival: ${escapeHtml(stop.arrival)}<br>Departure: ${escapeHtml(stop.departure)}</small>`);
             });
@@ -105,11 +158,14 @@ window.routeMap = (() => {
             const point = [orders[0].latitude, orders[0].longitude];
             allPoints.push(point);
             droppedPoints.push(point);
-            const icon = L.divIcon({ className: '', html: `<span class="map-dropped">${orders.length > 1 ? orders.length : '!'}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+            const label = orders.map(order => order.number).join(", ");
+            const width = Math.max(26, label.length * 7 + 12);
+            const icon = L.divIcon({ className: '', html: `<span class="map-dropped" style="width:${width}px">${escapeHtml(label)}</span>`, iconSize: [width, 26], iconAnchor: [width / 2, 13] });
             const marker = L.marker(point, { icon, zIndexOffset: 1000 })
                 .addTo(map)
-                .bindPopup(`<strong>${orders.length} unscheduled order(s)</strong><br>` + orders.map(order => `<strong>${escapeHtml(order.orderId)}</strong><br><small>${escapeHtml(order.reason)}</small>`).join('<hr>'));
+                .bindPopup(`<strong>${orders.length} unscheduled order(s)</strong><br>` + orders.map(order => `<strong>${escapeHtml(String(order.number))}. ${escapeHtml(order.orderId)}</strong><br><small>${escapeHtml(order.reason)}</small>`).join('<hr>'));
             droppedMarkers.push(marker);
+            orders.forEach(order => orderMarkers.push({ id: String(order.orderId), marker }));
         });
 
         bounds = allPoints.length ? L.latLngBounds(allPoints) : null;
@@ -163,6 +219,13 @@ window.routeMap = (() => {
         if (map) map.setView([latitude, longitude], 17);
     }
 
+    function focusOrder(orderId, vehicle) {
+        const match = orderMarkers.find(entry => entry.id === String(orderId) && (!vehicle || entry.vehicle === vehicle));
+        if (!map || !match) return;
+        map.setView(match.marker.getLatLng(), 16);
+        match.marker.openPopup();
+    }
+
     function downloadJson(fileName, content) {
         downloadText(fileName, content, 'application/json');
     }
@@ -177,5 +240,42 @@ window.routeMap = (() => {
         URL.revokeObjectURL(url);
     }
 
-    return { render, preview, filter, fit, focus, dispose, setRoadRoute, setMode, downloadJson, downloadText };
+    function initDeliveryDrag(elementId, receiver) {
+        const grid = document.getElementById(elementId);
+        if (!grid || grid.deliveryDragInitialized) return;
+        grid.deliveryDragInitialized = true;
+        let active = null, target = null;
+        const clear = () => {
+            target?.classList.remove('delivery-drop-target');
+            active = target = null;
+        };
+        grid.addEventListener('pointerdown', event => {
+            const handle = event.target.closest('[data-drag-order]');
+            if (!handle || handle.disabled || event.button !== 0) return;
+            event.preventDefault();
+            handle.setPointerCapture(event.pointerId);
+            active = { handle, pointer: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+        });
+        grid.addEventListener('pointermove', event => {
+            if (!active || event.pointerId !== active.pointer) return;
+            if (Math.hypot(event.clientX - active.x, event.clientY - active.y) < 5 && !active.moved) return;
+            active.moved = true;
+            const next = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-route-truck]');
+            target?.classList.remove('delivery-drop-target');
+            target = next && grid.contains(next) && next.dataset.routeTruck !== active.handle.dataset.fromTruck ? next : null;
+            target?.classList.add('delivery-drop-target');
+        });
+        grid.addEventListener('pointerup', event => {
+            if (!active || event.pointerId !== active.pointer) return;
+            const order = active.handle.dataset.dragOrder;
+            const truck = active.moved && !active.handle.disabled ? target?.dataset.routeTruck : null;
+            clear();
+            if (truck) receiver.invokeMethodAsync('MoveDelivery', order, truck).catch(error => console.error('Delivery move failed', error));
+        });
+        grid.addEventListener('pointercancel', clear);
+        grid.addEventListener('lostpointercapture', clear);
+        grid.addEventListener('keydown', event => { if (event.key === 'Escape') clear(); });
+    }
+
+    return { initDeliveryDrag, initSplitter, render, preview, filter, fit, focus, focusOrder, dispose, setRoadRoute, setMode, downloadJson, downloadText };
 })();

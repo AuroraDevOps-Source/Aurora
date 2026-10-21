@@ -39,8 +39,16 @@ Check((await source.ReadRecord("orders",order.Id,default)).Revision==order.Revis
 edits.Values[stop.Key]["OPS_APPT_HIGH"]="2026-10-09T08:00";await Reject(()=>source.SaveRecord("orders",order.Id,edits,default,true),"reversed appointment rejected atomically");
 edits=Edit(order);edits.Values[stop.Key]["OPS_ADDR1"]="Test address";saved=await source.SaveRecord("orders",order.Id,edits,default,true);
 Check(saved.Parts.Single(p=>p.Key==stop.Key).Fields.Where(f=>f.Key is "OPS_LATITUDE" or "OPS_LONGITUDE").All(f=>f.Value is null),"address change clears stale coordinates");
-edits=Edit(order);edits.Values["header"]["PB_STATUS"]="999";await Reject(()=>source.SaveRecord("orders",order.Id,edits,default,true),"status cannot be changed through general editor");
+edits=Edit(order);edits.Values["header"]["PB_STATUS"]="999";await Reject(()=>source.SaveRecord("orders",order.Id,edits,default,true),"unknown order status rejected");
+var nextStatus=lookup.Statuses.First(s=>s.Id.ToString()!=order.Parts[0].Fields.Single(f=>f.Key=="PB_STATUS").Value);
+edits=Edit(order);edits.Values["header"]["PB_STATUS"]=nextStatus.Id.ToString();
+saved=await source.SaveRecord("orders",order.Id,edits,default,true);
+Check(saved.Parts[0].Fields.Single(f=>f.Key=="PB_STATUS").Value==nextStatus.Id.ToString(),"existing order status can be changed to a valid database status");
+Check((await source.ReadRecord("orders",order.Id,default)).Revision==order.Revision,"status change rolled back without changing business data");
+edits=Edit(order);edits.Values["header"]["PB_STATUS"]=null;await Reject(()=>source.SaveRecord("orders",order.Id,edits,default,true),"blank order status rejected");
 var list=await source.RecordList("orders","10927",0,default);Check(list.Records.Any(o=>o.Id==10927),"order search returns native record");
+foreach (var alias in new[] { "FB-10927", "fb10927" })
+    Check((await source.RecordList("orders",alias,0,default)).Records.Any(o=>o.Id==10927),"order search resolves " + alias);
 var other=new Tenant(Guid.NewGuid());var disabled=new FirebirdRoutingSource(new NpgsqlConnectionFactory(ds,other),other,options);
 await Reject(()=>disabled.ReadRecord("fleet",truck.Id,default),"other tenant cannot read records");
 await Reject(()=>disabled.SaveRecord("orders",order.Id,Edit(order),default,true),"other tenant cannot write records");

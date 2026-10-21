@@ -6,6 +6,9 @@ public sealed class TmsOrder
     public string Id { get; set; } = "";
     public Guid? TerminalId { get; set; }
     public string? TerminalCode { get; set; }
+    // Nova orders route to their consignee; legacy delivery-terminal metadata is not a destination.
+    public bool UseConsigneeAddress { get; set; }
+    public string? ReceivingTerminal { get; set; }
     public Guid? CustomerId { get; set; }
     public string? CustomerCode { get; set; }
     public DateTimeOffset ScheduledAt { get; set; } = DateTimeOffset.Now;

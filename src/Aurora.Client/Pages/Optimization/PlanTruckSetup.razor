@@ -1,0 +1,7 @@
+<h3>Available trucks</h3>
+<PlanFleetAvailability SourceJson="@SourceJson" OnApply="OnApply" />
+
+@code {
+    [Parameter] public string SourceJson { get; set; } = "{}";
+    [Parameter] public EventCallback<string> OnApply { get; set; }
+}

@@ -21,11 +21,11 @@ Check(DataRequirements.Depot("MHT",0,0).Single().Code=="depot-coordinates", "unl
 Check(DataRequirements.Depot("PWM",43,-70).Length==0, "corrected depots clear their issue");
 Check(DataRequirements.HasCoordinates(0,15) && DataRequirements.HasCoordinates(15,0), "equator and prime meridian coordinates remain valid");
 Check(!DataRequirements.HasCoordinates(double.NaN,10) && !DataRequirements.HasCoordinates(42,null), "nonfinite and incomplete coordinates are excluded");
-Check(DataRequirements.Fleet("MHT",true,null,null,20000,1700).Single().ActionUrl=="aurora/terminals", "fleet depot issue links to Transportation Nodes");
-Check(DataRequirements.Fleet("",false,null,null,0,null).Select(i=>i.Code).SequenceEqual(new[]{"fleet-terminal","fleet-weight","fleet-cubes"}), "fleet shows each missing planning requirement without duplicate depot errors");
-Check(DataRequirements.Fleet("UNKNOWN",false,null,null,20000,1700).Single().Code=="unknown-terminal", "unknown fleet terminal is distinguished from missing coordinates");
-Check(DataRequirements.Fleet("MHT",true,42,-71,20000,1700).Length==0, "ready fleet rows have no issue indicator");
-Check(DataRequirements.Order(1,1,"MHT",true).Single().Code=="delivery-coordinates", "order coordinate requirements use the same issue contract");
+Check(DataRequirements.Fleet("MHT",true,null,null,null,20000,1700).Single().ActionUrl=="aurora/terminals", "fleet depot issue links to Transportation Nodes");
+Check(DataRequirements.Fleet("",false,null,null,null,0,null).Select(i=>i.Code).SequenceEqual(new[]{"fleet-terminal","fleet-weight","fleet-cubes"}), "fleet shows each missing planning requirement without duplicate depot errors");
+Check(DataRequirements.Fleet("UNKNOWN",false,null,null,null,20000,1700).Single().Code=="unknown-terminal", "unknown fleet terminal is distinguished from missing coordinates");
+Check(DataRequirements.Fleet("MHT",true,"14 LIBERTY DRIVE","LONDONDERRY","03053",20000,1700).Length==0, "fleet with terminal address and capacities needs no stored coordinates for its issue indicator");
+Check(DataRequirements.Order(1,1,"MHT",true).Length==0, "missing delivery coordinates are resolved during planning instead of flagged as an order issue");
 Check(DataRequirements.Order(2,0,"MHT",true).Single().Code=="delivery-count", "unsupported multiple deliveries are identified");
 Check(DataRequirements.Order(1,0,"MHT",true).Length==0, "ready orders have no issues");
 
@@ -50,6 +50,32 @@ if (Environment.GetEnvironmentVariable("FIREBIRD_CHECK_CONFIG") is { Length: > 0
     var tenant=new TestTenant(options.TenantId);
     var factory=new NpgsqlConnectionFactory(dataSource,tenant);
     var source=new FirebirdRoutingSource(factory,tenant,Options.Create(options));
+    var settingsKey="consolidation-check-"+Guid.NewGuid().ToString("N");
+    var settingsSource=new FirebirdRoutingSource(factory,tenant,Options.Create(new FirebirdRoutingOptions {Enabled=true,TenantId=options.TenantId,SourceKey=settingsKey,ConnectionString=options.ConnectionString}));
+    try
+    {
+        var nodes=await settingsSource.ReadTerminals(default);
+        var marked=nodes[0]; marked.IsConsolidation=true; marked.ServiceArea="00001";
+        var saved=await settingsSource.SaveTerminalRouting(marked.Code,marked,default);
+        var reread=(await settingsSource.ReadTerminals(default)).Single(n=>n.Code==marked.Code);
+        Check(reread.IsConsolidation && reread.ServiceArea=="00001" && reread.Revision==1,"native terminal routing settings persist in source-scoped Aurora storage");
+        try {await settingsSource.SaveTerminalRouting(marked.Code,marked,default);throw new Exception("Stale routing settings accepted");}
+        catch(FormatException){Check(true,"stale terminal routing save rejected");}
+        var secondNode=nodes[1];
+        saved.OutboundRoutes=[new(){DestinationTerminalId=secondNode.Id}];
+        saved=await settingsSource.SaveTerminalRouting(saved.Code,saved,default);
+        var lanes=(await settingsSource.ReadTerminals(default)).Single(n=>n.Id==saved.Id).OutboundRoutes;
+        Check(lanes.Count==1 && lanes[0].DestinationTerminalId==secondNode.Id && lanes[0].ViaTerminalId is null,"origin destination routing rule persists");
+        saved.OutboundRoutes.Add(new(){DestinationTerminalId=secondNode.Id});
+        try {await settingsSource.SaveTerminalRouting(saved.Code,saved,default);throw new Exception("Duplicate lane accepted");}
+        catch(FormatException){Check(true,"duplicate terminal lane rejected");}
+
+    }
+    finally
+    {
+        await using var cleanup=await factory.OpenConnectionAsync();
+        await cleanup.ExecuteAsync("DELETE FROM aurora_terminal_routing WHERE tenant_id=@TenantId AND source_key=@settingsKey",new{TenantId=options.TenantId,settingsKey});
+    }
     var disabled=new FirebirdRoutingSource(factory,new TestTenant(Guid.NewGuid()),Options.Create(options));
     Check(!disabled.Enabled,"another tenant cannot access the Firebird connection");
     try { await disabled.Synchronize(default); throw new Exception("Cross-tenant refresh was allowed"); }
@@ -100,6 +126,11 @@ if (Environment.GetEnvironmentVariable("FIREBIRD_CHECK_CONFIG") is { Length: > 0
     var transferManifests=await source.Export(transferDraft,Guid.NewGuid(),transferRoot.ToJsonString(),[transferRoute],default,rollbackOnly:true);
     Check(transferManifests.Count==1,"Nova line haul header, two terminal routing stops and receiving-terminal membership verified before rollback");
     Check(await fb.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM OPS_HEADER WHERE PB_EXTERNAL_REF STARTING WITH @prefix",new{prefix=FirebirdRoutingSource.ExportPrefix(options.TenantId,transferDraft)})==0,"line haul rollback leaves no demo manifest");
+    transferRoot["reporting"]!["transferKind"]=PlanningBatch.Consolidation;
+    var consolidationDraft=Guid.NewGuid();
+    var consolidationManifests=await source.Export(consolidationDraft,Guid.NewGuid(),transferRoot.ToJsonString(),[transferRoute],default,rollbackOnly:true);
+    Check(consolidationManifests.Count==1,"native consolidation manifest and terminal membership export succeeds before rollback");
+    Check(await fb.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM OPS_HEADER WHERE PB_EXTERNAL_REF STARTING WITH @prefix",new{prefix=FirebirdRoutingSource.ExportPrefix(options.TenantId,consolidationDraft)})==0,"consolidation rollback leaves no manifest");
     root["reporting"]!["orders"]![ids[0]]!["nativeStopId"] = long.MaxValue;
     try { await source.Export(Guid.NewGuid(),Guid.NewGuid(),root.ToJsonString(),[route],default,rollbackOnly:true); throw new Exception("Stale native identity was accepted"); }
     catch(FormatException) { Check(true,"stale or foreign delivery stop fails before manifest creation"); }

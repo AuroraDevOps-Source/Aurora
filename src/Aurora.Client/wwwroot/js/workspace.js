@@ -1,5 +1,21 @@
 window.auroraWorkspace = (() => {
     let popup, onFocus, onStorage;
+    // Native dialogs handle Escape through their cancel event. Older overlay
+    // dialogs use their close button so Escape follows the same busy guards.
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
+        const nativeDialog = [...document.querySelectorAll('dialog[open]')].at(-1);
+        const scope = nativeDialog ?? document;
+        const overlays = [...scope.querySelectorAll('.modal-backdrop [role="dialog"]')]
+            .filter(dialog => dialog.getClientRects().length > 0);
+        const overlay = overlays.at(-1);
+        if (!overlay) return;
+        const close = overlay.querySelector(':scope > .modal-header .modal-close');
+        if (!close) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!close.disabled) close.click();
+    });
     return {
         showEditor(dialog, dotnet) {
             dialog.addEventListener('cancel', event => { event.preventDefault(); dotnet.invokeMethodAsync('Close').catch(() => {}); });
@@ -12,6 +28,12 @@ window.auroraWorkspace = (() => {
         cancel() { if (popup && !popup.closed && popup.location.href === 'about:blank') popup.close(); },
         utc(value) { return new Date(value).toISOString(); },
         changed() { localStorage.setItem('aurora-manifests-updated', Date.now().toString()); },
+        reset() {
+            for (const key of Object.keys(sessionStorage)) {
+                if (key.startsWith('aurora-planning-session')) sessionStorage.removeItem(key);
+            }
+            this.changed();
+        },
         finish() {
             try { this.changed(); } catch { /* Storage may be disabled; still close after a confirmed save. */ }
             try { if (window.opener && !window.opener.closed) window.opener.focus(); } catch { }

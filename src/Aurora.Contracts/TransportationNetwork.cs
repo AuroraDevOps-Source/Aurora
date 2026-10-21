@@ -70,6 +70,7 @@ public static class PlanningBatch
     // A plan started with the batch filter on "All batches" can contain several batches.
     public const string Mixed = "Mixed";
     public static readonly string[] All = [General, LineHaul, Consolidation];
+    public static string TransferTo(TerminalDto destination) => destination.IsConsolidation ? Consolidation : LineHaul;
     public static string Label(string batch) => batch switch { LineHaul => "Line haul", Consolidation => "Consolidation", Mixed => "All batches", _ => "General routing" };
     // The batch a plan is named for: the requested one, else the single batch its orders share, else Mixed.
     public static string For(string? requested, IEnumerable<BatchAssignment> assignments)
@@ -88,36 +89,70 @@ public static class PlanningBatches
 {
     public static BatchAssignment Classify(TmsOrder order, TerminalDto active, IReadOnlyList<TerminalDto> nodes)
     {
+        if (order.UseConsigneeAddress)
+        {
+            if (!string.IsNullOrWhiteSpace(order.ReceivingTerminal))
+            {
+                var receiving = nodes.SingleOrDefault(n => n.NodeType == NodeVocabulary.Terminal && n.Code.Equals(order.ReceivingTerminal, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new FormatException($"Order {order.Id}'s receiving terminal is no longer available. Edit the order's Line Haul setting.");
+                if (receiving.Id == active.Id) throw new FormatException($"Order {order.Id} needs a receiving terminal different from its starting terminal.");
+                return new(order.Id, PlanningBatch.TransferTo(receiving), receiving.Id, $"Line haul to selected terminal {receiving.Code}");
+            }
+            return new(order.Id, PlanningBatch.General, null, "Deliver to consignee address");
+        }
         var activeArea = ServiceArea.Parse(active.ServiceArea);
+        if (order.DeliverToNodeId is { } requested && !nodes.Any(n => n.Id == requested))
+            throw new FormatException($"Order {order.Id} has a receiving location that is no longer available. Update its destination before planning.");
+        if (order.DeliverToNodeId == active.Id)
+            return new(order.Id, PlanningBatch.General, null, $"At final terminal {active.Code}");
         // An explicit deliver-to node (agent, airport, rail yard...) replaces the consignee as the destination.
         if (order.DeliverToNodeId is { } nodeId && nodeId != active.Id && nodes.FirstOrDefault(n => n.Id == nodeId) is { } deliverTo)
         {
-            if (activeArea.IsEmpty || activeArea.Contains(deliverTo.PostalCode))
+            if (deliverTo.NodeType != NodeVocabulary.Terminal && (activeArea.IsEmpty || activeArea.Contains(deliverTo.PostalCode)))
                 return new(order.Id, PlanningBatch.General, deliverTo.Id, $"Deliver to {deliverTo.Code}");
-            var target = SameRegion(deliverTo, active) ? deliverTo : RouteVia(deliverTo, nodes);
-            return new(order.Id, PlanningBatch.LineHaul, target.Id, target.Id == deliverTo.Id ? $"Deliver to {deliverTo.Code}" : $"Deliver to {deliverTo.Code} via {target.Code}");
+            var target = NextTerminal(deliverTo, active, nodes);
+            return new(order.Id, PlanningBatch.TransferTo(target), target.Id, target.Id == deliverTo.Id ? $"Deliver to {deliverTo.Code}" : $"Deliver to {deliverTo.Code} via {target.Code}");
         }
         if (activeArea.IsEmpty || activeArea.Contains(order.PostalCode))
             return order.ServiceType == OrderServiceTypes.Consolidation
                 ? new(order.Id, PlanningBatch.Consolidation, null, "Consolidation job")
                 : new(order.Id, PlanningBatch.General, null, activeArea.IsEmpty ? $"{active.Code} has no service area" : $"In {active.Code} service area");
-        var serving = nodes.Where(n => n.Id != active.Id && ServiceArea.Parse(n.ServiceArea).Contains(order.PostalCode))
-            .OrderBy(n => n.RoutingRole == NodeVocabulary.Spoke ? 0 : n.RoutingRole == NodeVocabulary.Hub ? 1 : 2).ThenBy(n => n.Code, StringComparer.Ordinal).FirstOrDefault();
+        var candidates = nodes.Where(n => n.Id != active.Id && n.NodeType == NodeVocabulary.Terminal && ServiceArea.Parse(n.ServiceArea).Contains(order.PostalCode)).ToArray();
+        int Priority(TerminalDto n) => n.RoutingRole == NodeVocabulary.Spoke ? 0 : n.RoutingRole == NodeVocabulary.Hub ? 1 : 2;
+        var preferred = candidates.Length == 0 ? [] : candidates.Where(n => Priority(n) == candidates.Min(Priority)).ToArray();
+        if (preferred.Select(n => NextTerminal(n, active, nodes).Id).Distinct().Count() > 1)
+            throw new FormatException($"Order {order.Id} matches more than one receiving terminal ({string.Join(", ", preferred.Select(n => n.Code))}). Set its destination or correct the overlapping service areas before planning.");
+        var serving = preferred.OrderBy(n => n.Code, StringComparer.Ordinal).FirstOrDefault();
         // Freight outside every service area stays in general routing (workflow default: include it).
         if (serving is null) return new(order.Id, PlanningBatch.General, null, "Outside every service area");
-        var destination = SameRegion(serving, active) ? serving : RouteVia(serving, nodes);
-        return new(order.Id, PlanningBatch.LineHaul, destination.Id, destination.Id == serving.Id ? $"Served by {serving.Code}" : $"Served by {serving.Code} via {destination.Code}");
+        var destination = NextTerminal(serving, active, nodes);
+        return new(order.Id, PlanningBatch.TransferTo(destination), destination.Id, destination.Id == serving.Id ? $"Served by {serving.Code}" : $"Served by {serving.Code} via {destination.Code}");
     }
 
-    // Unset regions are treated as one network so small companies can skip region setup.
-    private static bool SameRegion(TerminalDto a, TerminalDto b) =>
-        string.IsNullOrWhiteSpace(a.Region) || string.IsNullOrWhiteSpace(b.Region) || string.Equals(a.Region.Trim(), b.Region.Trim(), StringComparison.OrdinalIgnoreCase);
+    // A transfer plan has exactly one receiving terminal. Local jobs may share a plan.
+    public static CreateOrderDraftDto[] GroupPlans(CreateOrderDraftDto input, IReadOnlyList<TmsOrder> orders,
+        TerminalDto origin, IReadOnlyList<TerminalDto> nodes)
+    {
+        if (input.OrderIds is not { Length: > 0 } || input.OrderIds.Length > 5000 || input.OrderIds.Distinct().Count() != input.OrderIds.Length)
+            throw new FormatException("Select between 1 and 5,000 distinct orders.");
+        var selected = input.OrderIds.Select(id => orders.SingleOrDefault(o => o.Id == id && o.SourceId == input.SourceId)
+            ?? throw new FormatException($"Order {id} is no longer available. Refresh Orders.")).ToArray();
+        var assignments = selected.Select(o => Classify(o, origin, nodes)).ToArray();
+        bool Transfer(BatchAssignment a) => a.DestinationNodeId is not null && a.Batch is PlanningBatch.LineHaul or PlanningBatch.Consolidation;
+        foreach (var assignment in assignments.Where(Transfer))
+            if (!nodes.Any(n => n.Id == assignment.DestinationNodeId && n.Id != origin.Id && n.NodeType == NodeVocabulary.Terminal))
+                throw new FormatException($"Order {assignment.OrderId} needs a receiving terminal. Review its destination and origin-to-destination routing rules.");
+        return assignments.GroupBy(a => Transfer(a) ? a.DestinationNodeId : null)
+            .OrderBy(g => g.Key is null ? "" : nodes.Single(n => n.Id == g.Key).Code, StringComparer.Ordinal)
+            .Select(g => input with { OrderIds = g.Select(a => a.OrderId).ToArray(),
+                Batch = g.Key is null ? null : PlanningBatch.TransferTo(nodes.Single(n => n.Id == g.Key)), ToTerminalId = g.Key }).ToArray();
+    }
 
-    // Out-of-region freight goes to the node's Route Via node, else its region's Hub, else the node itself.
-    private static TerminalDto RouteVia(TerminalDto node, IReadOnlyList<TerminalDto> nodes) =>
-        (node.RouteViaNodeId is { } via ? nodes.FirstOrDefault(n => n.Id == via) : null)
-        ?? nodes.FirstOrDefault(n => n.RoutingRole == NodeVocabulary.Hub && !string.IsNullOrWhiteSpace(node.Region) && string.Equals(n.Region?.Trim(), node.Region.Trim(), StringComparison.OrdinalIgnoreCase))
-        ?? node;
+    private static TerminalDto NextTerminal(TerminalDto destination, TerminalDto origin, IReadOnlyList<TerminalDto> nodes)
+    {
+        TerminalRoutingRules.Validate(origin, nodes);
+        return TerminalRoutingRules.Next(origin, destination, nodes);
+    }
 
     // Points each redirected order's delivery at its destination node, so the optimizer routes to the node.
     public static string ApplyDestinations(string json, IReadOnlyDictionary<string, TerminalDto> destinations)

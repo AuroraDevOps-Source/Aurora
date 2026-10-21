@@ -95,6 +95,8 @@ public static class EquipmentPlanning
         Load("weight", type.Weight); Load("volume", type.Cubes); Load("pallets", type.Pallets);
         var costs = new JsonObject();
         void Cost(string key, double? value) { if (value is not null) costs[key] = value; }
+        // Required rates may be zero, but must be explicitly configured.
+        if (type.PerHour is null || type.PerKilometer is null) throw new FormatException("Enter hourly and distance costs in Fleet Management; zero is allowed.");
         Cost("fixed", type.FixedCost); Cost("perHour", type.PerHour); Cost("perKilometer", type.PerKilometer); Cost("perStop", type.PerStop);
         var constraints = new JsonObject();
         if (loads.Count > 0) constraints["maximumLoads"] = loads;

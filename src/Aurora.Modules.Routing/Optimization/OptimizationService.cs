@@ -22,7 +22,7 @@ public sealed class OptimizationService(IOptions<PtvSettings> settings)
     {
         // A root-level reporting sidecar carries display fields PTV does not accept. Keep the
         // uploaded JSON for report enrichment and send only the canonical request to PTV.
-        requestJson = RoutingInput.Prepare(requestJson);
+        requestJson = RoutingInput.Prepare(PlanOrderDecisions.Prepare(requestJson));
         if (previousResult is not null) requestJson = QuickUpdate.Prepare(requestJson, previousResult);
         var ptvRequestJson = ManifestReportExtractor.RemoveReportingSidecar(requestJson);
 

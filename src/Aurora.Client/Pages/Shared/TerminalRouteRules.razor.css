@@ -1,0 +1,5 @@
+.terminal-route-rules { margin-top:16px; }
+.terminal-route-rules h3 { font-size:14px; margin:0 0 6px; }
+.terminal-rule { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:12px; align-items:end; margin:10px 0; max-width:760px; }
+.terminal-rule select { width:100%; }
+@media(max-width:600px) { .terminal-rule { grid-template-columns:minmax(0,1fr); } .terminal-rule button { justify-self:end; } }

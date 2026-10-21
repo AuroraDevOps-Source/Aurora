@@ -1,0 +1,22 @@
+<div class="terminal-route-rules">
+    <h3>Outbound routing</h3>
+    <p class="preview-footnote">For freight leaving this terminal, choose the final destination and any intermediate terminal. Destinations without a rule go direct.</p>
+    @if (Origin.RouteViaNodeId is not null)
+    {
+        <p role="status">The previous single Route via setting is no longer used. Add the routes you need below.</p>
+    }
+    @foreach (var rule in Origin.OutboundRoutes)
+    {
+        <div class="terminal-rule" @key="rule">
+            <label class="field">Final destination<select @bind="rule.DestinationTerminalId"><option value="@Guid.Empty">Choose terminal</option>@foreach(var node in Destinations){<option value="@node.Id">@node.Code — @node.Name</option>}</select></label>
+            <label class="field">Via<select @bind="rule.ViaTerminalId"><option value="">Direct</option>@foreach(var node in Destinations.Where(n=>n.Id!=rule.DestinationTerminalId)){<option value="@node.Id">@node.Code — @node.Name</option>}</select></label>
+            <button type="button" class="outline-button" aria-label="Remove routing rule" @onclick="()=>Origin.OutboundRoutes.Remove(rule)">×</button>
+        </div>
+    }
+    <button type="button" class="outline-button" @onclick="()=>Origin.OutboundRoutes.Add(new())">Add route</button>
+</div>
+@code {
+    [Parameter, EditorRequired] public TerminalDto Origin {get;set;}=default!;
+    [Parameter] public IReadOnlyList<TerminalDto> Nodes {get;set;}=[];
+    IEnumerable<TerminalDto> Destinations=>Nodes.Where(n=>n.Id!=Origin.Id && n.NodeType==NodeVocabulary.Terminal).OrderBy(n=>n.Code);
+}

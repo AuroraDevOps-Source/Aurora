@@ -1,0 +1,61 @@
+@inject HttpClient Http
+
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+@if(_message is not null){<p role="status">@_message</p>}
+<section class="planning-card">
+@if(!_editing)
+{
+    <div class="tms-selection"><h2>Databases</h2><button class="primary-button" disabled="@_busy" @onclick="New">Add database</button></div>
+    @if(_databases.Length==0){<p>Add a Nova database, then assign it to users.</p>}
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Name</th><th>Server</th><th>Database path</th><th>Username</th><th>Users</th><th></th></tr></thead><tbody>
+    @foreach(var database in _databases)
+    {
+        <EditGridRow Disabled="@_busy" OnEdit="()=>Edit(database)"><td>@database.Name</td><td>@database.Host:@database.Port</td><td>@database.Database</td><td>@database.UserName</td><td>@database.UserCount</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><button class="text-button" disabled="@(_busy || database.UserCount>0)" title="@(database.UserCount>0?"Reassign users before deleting this database.":"Delete database")" @onclick="()=>_delete=database">Delete</button></td></EditGridRow>
+    }
+    </tbody></table></div>
+    @if(_delete is not null){<div class="delete-prompt" role="alert">Remove the saved connection <strong>@_delete.Name</strong>? The Nova database itself will not be deleted. <button class="outline-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Delete">Delete connection</button></div>}
+}
+else
+{
+    <div class="tms-selection">
+        <h2>@(_id is null?"Add database":"Edit database")</h2>
+        <button class="outline-button" disabled="@_busy" @onclick="Test">Test connection</button>
+        <button class="outline-button" disabled="@_busy" @onclick="Cancel">Cancel</button>
+        <button class="primary-button" disabled="@_busy" @onclick="Save">@(_busy?"Working…":"Save")</button>
+    </div>
+    <div class="edit-groups">
+        <fieldset class="edit-group" disabled="@_busy"><legend>Database connection</legend>
+            <div class="database-fields">
+                <label class="field wide">Name<input @bind="_name" maxlength="200" /></label>
+                <label class="field">Server IP / hostname<input @bind="_host" autocomplete="off" /></label>
+                <label class="field">Port<input type="number" @bind="_port" min="1" max="65535" /></label>
+                <label class="field wide">Database path<input @bind="_path" autocomplete="off" /></label>
+            </div>
+        </fieldset>
+        <fieldset class="edit-group" disabled="@_busy"><legend>Credentials</legend>
+            <div class="database-fields">
+                <label class="field">Nova username<input @bind="_user" autocomplete="off" data-1p-ignore="true" data-lpignore="true" /></label>
+                <label class="field">Nova password<input type="password" @bind="_password" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" placeholder="@(_id is null?"Required":"Leave blank to keep current")" /></label>
+            </div>
+        </fieldset>
+    </div>
+}
+</section>
+
+@code {
+    const string Url="api/v1/admin/databases";
+    AdminDatabaseDto[] _databases=[];AdminDatabaseDto? _delete;
+    Guid? _id;bool _editing,_busy;int _revision,_port=3050;
+    string _name="",_host="",_path="",_user="",_password="";
+    string? _error,_message;
+    protected override Task OnInitializedAsync()=>Run(Load);
+    async Task Load(){using var response=await Http.GetAsync(Url);await ApiResponse.Check(response);_databases=await response.Content.ReadFromJsonAsync<AdminDatabaseDto[]>()??[];}
+    void New(){_id=null;_revision=0;_port=3050;_name=_host=_path=_user=_password="";_editing=true;_delete=null;_error=_message=null;}
+    void Edit(AdminDatabaseDto database){_id=database.Id;_revision=database.Revision;_name=database.Name;_host=database.Host;_port=database.Port;_path=database.Database;_user=database.UserName;_password="";_editing=true;_delete=null;_error=_message=null;}
+    void Cancel(){_editing=false;_password="";_error=_message=null;}
+    AdminDatabaseEdit Input()=>new(_name,_revision,_host,_port,_path,_user,_password);
+    Task Save()=>Run(async()=>{using var response=_id is null?await Http.PostAsJsonAsync(Url,Input()):await Http.PutAsJsonAsync($"{Url}/{_id}",Input());await ApiResponse.Check(response);_editing=false;_password="";await Load();_message="Database saved.";});
+    Task Test()=>Run(async()=>{using var response=await Http.PostAsJsonAsync(Url+"/test-connection"+(_id is null?"":$"?id={_id}"),Input());await ApiResponse.Check(response);_message="Nova connection successful. Save database to keep these settings.";});
+    Task Delete()=>Run(async()=>{using var response=await Http.DeleteAsync($"{Url}/{_delete!.Id}?revision={_delete.Revision}");await ApiResponse.Check(response);_delete=null;await Load();_message="Database connection deleted.";});
+    async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=_message=null;try{await action();}catch(Exception ex){_error=string.IsNullOrWhiteSpace(ex.Message)?"The request failed. Refresh and try again.":ex.Message;}finally{_busy=false;}}
+}

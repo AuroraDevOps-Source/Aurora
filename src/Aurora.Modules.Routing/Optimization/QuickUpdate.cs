@@ -9,7 +9,7 @@ namespace Aurora.Modules.Routing.Optimization;
 /// </summary>
 public static class QuickUpdate
 {
-    public const int CalculationSeconds = 5;
+    public const int CalculationSeconds = 10;
 
     public static string Prepare(string preparedJson, string previousResult)
     {
@@ -41,6 +41,8 @@ public static class QuickUpdate
                 var orderId = Text(task["orderId"]);
                 var type = Text(task["type"]);
                 if (orderId is null || !orders.TryGetValue(orderId, out var order)) continue;
+                var decision = PlanOrderDecisions.Get(request, orderId);
+                if (decision.StartsWith("truck:", StringComparison.Ordinal) && decision != "truck:" + vehicleId) continue;
                 if (type is not ("PICKUP" or "DELIVERY"))
                     throw new FormatException("The previous plan contains an unsupported task. Use Full optimization.");
                 if (!seenTasks.Add((orderId, type))) throw new FormatException("The previous plan contains duplicate tasks.");

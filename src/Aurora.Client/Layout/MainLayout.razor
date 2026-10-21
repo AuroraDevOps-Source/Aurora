@@ -14,12 +14,17 @@
                 <MudText Typo="Typo.h6" Class="aurora-brand"><span class="aurora-mark" aria-hidden="true"></span>Aurora</MudText>
 
                 <MudText Typo="Typo.body2" Class="aurora-user ml-auto">@context.User.Identity?.Name</MudText>
-                @if(_isAdmin)
+                @if(_isAdmin || _canViewLog)
                 {
                 <MudMenu Icon="@Icons.Material.Filled.Settings" aria-label="Admin" Color="Color.Inherit" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-                    <MudMenuItem OnClick="@(() => Navigation.NavigateTo("/aurora/users"))">Users</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => Navigation.NavigateTo("/aurora/ship-status"))">Ship Status</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => Navigation.NavigateTo("/aurora/import"))">Import</MudMenuItem>
+                    @if (_isAdmin)
+                    {
+                    <MudMenuItem Icon="@Icons.Material.Outlined.People" OnClick="@(() => Navigation.NavigateTo("/aurora/users"))">Users</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Storage" OnClick="@(() => Navigation.NavigateTo("/aurora/databases"))">Databases</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.LocalShipping" OnClick="@(() => Navigation.NavigateTo("/aurora/ship-status"))">Ship Status</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.RestartAlt" OnClick="@(() => Navigation.NavigateTo("/aurora/reset"))">Reset</MudMenuItem>
+                    }
+                    @if (_canViewLog) { <MudMenuItem Icon="@Icons.Material.Outlined.History" OnClick="@(() => Navigation.NavigateTo("/aurora/applog"))">Application Log</MudMenuItem> }
                 </MudMenu>
                 }
             </MudAppBar>
@@ -32,20 +37,29 @@
 </MudLayout>
 
 @code {
-    private bool _isAdmin;
+    private bool _isAdmin, _canViewLog;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
-        // The login page shares this layout, so check access only when signed in.
-        if (AuthState is null || (await AuthState).User.Identity?.IsAuthenticated != true)
+        var user = AuthState is null ? null : (await AuthState).User;
+        if (user?.Identity?.IsAuthenticated != true)
         {
-            _isAdmin = false;
+            _isAdmin = _canViewLog = false;
             return;
         }
 
+        // Use the authenticated identity while checking current access. A transport
+        // failure must not hide navigation; successful responses still reflect demotions.
+        // Every destination/API continues to enforce its own authorization.
+        _isAdmin = user.IsInRole("aurora:Admin");
+        _canViewLog = _isAdmin || user.IsInRole("aurora:PowerUser");
         try { _isAdmin = await Api.GetFromJsonAsync<bool>("api/v1/me/is-administrator"); }
-        catch { _isAdmin = false; }
+        catch (HttpRequestException) { }
+        catch (TaskCanceledException) { }
+        try { _canViewLog = await Api.GetFromJsonAsync<bool>("api/v1/me/can-view-applog"); }
+        catch (HttpRequestException) { }
+        catch (TaskCanceledException) { }
     }
 }

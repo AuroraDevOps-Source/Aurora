@@ -21,26 +21,59 @@ public sealed partial class FirebirdRoutingSource
     {
         ValidateSource(json);
         if (!HasCoordinates(node.Latitude, node.Longitude))
-            throw new FormatException($"Set {node.Code}'s depot coordinates in Transportation Nodes before planning.");
+            throw new FormatException($"The address for {node.Code} could not be located. Check it in Transportation Nodes and save again.");
         var root = RoutingInput.Parse(json);
         var depot = RoutingInput.Items(root["locations"]).Single(l => RoutingInput.Text(l["id"]) == "DEPOT");
         depot["latitude"] = node.Latitude; depot["longitude"] = node.Longitude;
         foreach (var location in RoutingInput.Items(root["locations"]))
         {
             if (!HasCoordinates(location["latitude"]?.GetValue<double>(), location["longitude"]?.GetValue<double>()))
-                throw new FormatException($"Order {RoutingInput.Text(location["id"])} needs valid delivery coordinates in Nova. Correct it and refresh before planning.");
+                throw new FormatException($"The delivery address for {RoutingInput.Text(location["id"])} could not be located. Check the order's address and save again.");
+        }
+        return root.ToJsonString();
+    }
+
+    public async Task ResolveNodeForPlanning(TerminalDto node, CancellationToken ct)
+    {
+        if (HasCoordinates(node.Latitude, node.Longitude)) return;
+        var current = await ReadMaster("terminals", node.Code, ct);
+        var saved = await SaveMaster("terminals", node.Code,
+            new(current.Revision, current.Fields.ToDictionary(f => f.Key, f => f.Value)), ct);
+        double? Number(string key) => double.TryParse(saved.Fields.Single(f => f.Key == key).Value,
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : null;
+        node.Latitude = Number("LM_LATITUDE"); node.Longitude = Number("LM_LONGITUDE");
+        if (!HasCoordinates(node.Latitude, node.Longitude))
+            throw new FormatException($"The address for {node.Code} could not be located. Check it in Transportation Nodes and save again.");
+    }
+
+    public async Task<string> ResolveOrdersForPlanning(string json, CancellationToken ct)
+    {
+        ValidateSource(json);
+        var root = RoutingInput.Parse(json);
+        foreach (var location in RoutingInput.Items(root["locations"]))
+        {
+            if (RoutingInput.Text(location["id"]) == "DEPOT" ||
+                HasCoordinates(location["latitude"]?.GetValue<double>(), location["longitude"]?.GetValue<double>())) continue;
+            var native = Native(root, RoutingInput.Text(location["id"])!);
+            var current = await ReadRecord("orders", native.Order, ct);
+            var saved = await SaveRecord("orders", native.Order, new(current.Revision,
+                current.Parts.ToDictionary(p => p.Key, p => p.Fields.ToDictionary(f => f.Key, f => f.Value))), ct);
+            var stop = saved.Parts.Single(p => p.Key == $"stop-{native.Stop}");
+            double? Number(string key) => double.TryParse(stop.Fields.Single(f => f.Key == key).Value,
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : null;
+            location["latitude"] = Number("OPS_LATITUDE"); location["longitude"] = Number("OPS_LONGITUDE");
         }
         return root.ToJsonString();
     }
     public static string ExportPrefix(Guid tenantId, Guid draftId) => $"aurora:{tenantId:N}:{draftId:N}:";
     public static string ExportKey(Guid tenantId, Guid draftId, string vehicle) => ExportPrefix(tenantId, draftId) + StableId(vehicle).ToString("N");
-    public static string ExportFingerprint(Guid sessionId, IReadOnlyList<RouteSummaryDto> routes, string? destination = null)
+    public static string ExportFingerprint(Guid sessionId, IReadOnlyList<RouteSummaryDto> routes, string? destination = null, string? kind = null)
     {
         var ordered = routes.OrderBy(r => r.Vehicle, StringComparer.Ordinal).ToArray();
         // Preserve existing delivery receipts; transfer receipts also bind the receiving terminal.
         var payload = destination is null ? JsonSerializer.Serialize(new { sessionId, routes = ordered })
             : JsonSerializer.Serialize(new { sessionId, routes = ordered, destination });
-        return (destination is null ? "Aurora routing export v1 " : "Aurora line haul export v1 ") +
+        return (destination is null ? "Aurora routing export v1 " : kind == PlanningBatch.Consolidation ? "Aurora consolidation export v1 " : "Aurora line haul export v1 ") +
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
     }
 
@@ -75,7 +108,7 @@ public sealed partial class FirebirdRoutingSource
         LineHaulPlanning.ValidateResult(draftJson, routes);
         var terminal = endpoints.Origin;
         var prefix = ExportPrefix(tenant.TenantId, draftId);
-        var fingerprint = ExportFingerprint(sessionId, routes, endpoints.Transfer ? endpoints.Destination : null);
+        var fingerprint = ExportFingerprint(sessionId, routes, endpoints.Transfer ? endpoints.Destination : null, RoutingInput.Text(root["reporting"]?["transferKind"]));
         await using var configDb = await factory.OpenConnectionAsync(ct);
         var readyStatuses = await ReadyStatuses(configDb, null, ct);
         await using var fb = await Open(ct);
@@ -95,7 +128,7 @@ public sealed partial class FirebirdRoutingSource
         var result = new Dictionary<string, long>();
         if (existing.Length > 0)
         {
-            if (existing.Length != routes.Count || existing.Any(e => Text(e.Notes) != fingerprint))
+            if (existing.Length != routes.Count || existing.Any(e => ManifestNotes.Receipt(e.Notes) != fingerprint))
                 throw new FormatException("This draft already exported a different result. Reconcile its Nova manifests before retrying.");
             foreach (var route in routes)
             {

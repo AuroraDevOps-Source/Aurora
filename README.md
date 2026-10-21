@@ -82,6 +82,33 @@ in Docker. Nothing here belongs in `appsettings.json`.
 | `Auth:AllowEmbeddedLogin` | Issues `SameSite=None` session cookies so products can load in workspace iframes. |
 | `Cors:AllowedOrigins` | Permitted browser origins. |
 | `Ptv:*` | PTV routing credentials. |
+| `RESEND_API_KEY` | Server-only Resend API key for user invitations. |
+| `Resend:PublicOrigin` | Public **client** origin for invitation links; falls back to `Hosting:PublicOrigin`. Use `https://localhost:7259` locally. |
+
+### User invitation emails
+
+Adding a user under Admin > Users submits an invitation through the
+[Resend Email API](https://resend.com/docs/api-reference/emails/send-email), from
+`alerts@aurorsoftware.com`. Verify that exact sender domain in Resend. The email
+includes the username and a sign-in link that continues to Change password.
+Administrators provide the initial password separately; passwords are never emailed.
+Users can also open Change password using the lock icon in the header. The email
+instructs users to change their password; other application access is not blocked
+until they do so.
+
+Add the settings from `deploy/api.env.example` to the deployment's existing
+`private/api.env`, then recreate the API container. Compose already loads that
+file into the API process. The top-level deployment `.env` only configures Compose
+substitution (such as `RELEASE_TAG`); putting a key there alone will not pass it to
+the API. Keep API keys in the ignored env file, never in client configuration.
+For local `dotnet run`, use process environment variables or API user secrets
+(`RESEND_API_KEY` and `Resend:PublicOrigin`); .NET does not automatically load `.env`.
+
+The user is committed before sending the invitation. Missing configuration or a
+Resend failure leaves the account saved and displays an email warning. Use
+**Send invitation** on that user's row to retry; editing a user does not send
+another invitation. A successful response means Resend accepted the message,
+not that the recipient's mailbox has delivered it.
 
 ## Checks
 
@@ -93,6 +120,7 @@ dotnet run --project tests/OrderWorkspaceChecks
 dotnet run --project tests/PlanningSessionChecks
 dotnet run --project tests/RoadRoutingChecks
 dotnet run --project tests/EquipmentChecks
+dotnet run --project tests/InvitationEmailChecks
 
 dotnet run --project tests/FreightWorkflowChecks
 ```

@@ -16,6 +16,6 @@ public static class ApiResponse
         try { error=(await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error; }
         catch(JsonException) { /* Plain text/HTML failures must not mask the original HTTP failure. */ }
         if(string.IsNullOrWhiteSpace(error))error=$"The server could not complete the request (HTTP {(int)response.StatusCode}). Please try again.";
-        throw new FormatException(error);
+        throw new FormatException(RoutingDisplayText.Clean(error));
     }
 }

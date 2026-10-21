@@ -29,7 +29,12 @@ public sealed class PlanningSessions
             if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-2)) File.Delete(file);
     }
     public sealed record Saved(Guid Id, string Owner, string Fingerprint, string FileName, string RequestJson, string PreparedJson,
-        DateTimeOffset Started, string? ProviderId = null, string Status = "SUBMITTING", OptimizationResultDto? Result = null, Guid? WorkspaceDraftId = null);
+        DateTimeOffset Started, string? ProviderId = null, string Status = "SUBMITTING", OptimizationResultDto? Result = null, Guid? WorkspaceDraftId = null)
+    {
+        public SavedCandidate[] Candidates { get; init; } = [];
+        public string? AcceptedCandidateId { get; init; }
+    }
+    public sealed record SavedCandidate(string Id, DateTimeOffset Time, OptimizationResultDto Result);
 
     public static string Owner(ClaimsPrincipal user)
     {
@@ -54,6 +59,23 @@ public sealed class PlanningSessions
         File.Move(temp, path, true);
     }
     private SemaphoreSlim Gate(Guid id) => _locks[(id.GetHashCode() & int.MaxValue) % _locks.Length];
+    public async Task<WorkspaceResetResult> ResetWorkspace(Func<Task<(WorkspaceResetResult Result, Guid[] Drafts)>> reset)
+    {
+        var acquired = new List<SemaphoreSlim>();
+        try
+        {
+            foreach (var gate in _locks) { await gate.WaitAsync(); acquired.Add(gate); }
+            var (result, drafts) = await reset();
+            var ids = drafts.ToHashSet();
+            foreach (var file in Directory.EnumerateFiles(_directory, "*.json"))
+            {
+                var saved = JsonSerializer.Deserialize<Saved>(_protector.Unprotect(File.ReadAllText(file)));
+                if (saved?.WorkspaceDraftId is { } draft && ids.Contains(draft)) File.Delete(file);
+            }
+            return result;
+        }
+        finally { foreach (var gate in acquired) gate.Release(); }
+    }
     public async Task<IResult> Start(StartPlanningDto input, ClaimsPrincipal user)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey)) return Error(503, "PTV is not configured.");
@@ -121,8 +143,16 @@ public sealed class PlanningSessions
             if (!response.IsSuccess) return Error(502, "Could not refresh the plan. The existing PTV job has not been resubmitted.", response.Body);
             var body = JsonNode.Parse(response.Body)!;
             var status = body["status"]?.GetValue<string>() ?? "UNKNOWN";
-            var result = status == "SUCCEEDED" ? OptimizationService.Describe(saved.FileName, saved.PreparedJson,
+            var snapshot = (status is "RUNNING" or "STOPPING" or "SUCCEEDED") && body["routes"] is JsonArray ? OptimizationService.Describe(saved.FileName, saved.PreparedJson,
                 new PtvRun(saved.ProviderId, status, response, DateTimeOffset.UtcNow - saved.Started)) : null;
+            var result = status == "SUCCEEDED" ? snapshot : null;
+            if (snapshot?.Summary is not null)
+            {
+                var identity = new JsonObject { ["routes"] = body["routes"]?.DeepClone(), ["metrics"] = body["metrics"]?.DeepClone(), ["unscheduledOrders"] = body["unscheduledOrders"]?.DeepClone() };
+                var candidateId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToJsonString())));
+                if (!saved.Candidates.Any(c=>c.Id==candidateId))
+                    saved = saved with { Candidates = [..saved.Candidates, new(candidateId, DateTimeOffset.UtcNow, snapshot)] };
+            }
             var samples = new List<PlanningSampleDto>();
             string? warning = null;
             if (body["metrics"] is JsonObject current) samples.Add(Sample(DateTimeOffset.UtcNow, current));
@@ -144,7 +174,7 @@ public sealed class PlanningSessions
             }
             if (status == "FAILED") warning = body["error"]?["description"]?.GetValue<string>() ?? "PTV could not complete this plan. Your previous result is unchanged.";
             saved = saved with { Status = status, Result = result };
-            if (saved.Status != Read(owner, id)?.Status || result is not null) Save(saved);
+            Save(saved);
             return Results.Ok(View(saved, samples, warning, includeInputs));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
@@ -160,15 +190,59 @@ public sealed class PlanningSessions
             var saved = Read(Owner(user), id);
             if (saved?.WorkspaceDraftId != draftId || saved.Status != "SUCCEEDED" || saved.Result is null)
                 throw new FormatException("A completed optimization belonging to this selection is required. Reconnect to the wizard first.");
+            var unscheduledPins = PlanOrderDecisions.UnscheduledPins(saved.RequestJson, saved.Result);
+            if (unscheduledPins.Count > 0)
+                throw new FormatException("Pinned orders were not scheduled on their selected trucks: " + string.Join(", ", unscheduledPins) + ". Adjust the plan and re-optimize before creating manifests.");
             return saved.Result;
         }
         finally { gate.Release(); }
     }
+    public async Task<IResult> Accept(Guid id, string candidateId, ClaimsPrincipal user, CancellationToken ct)
+    {
+        var gate = Gate(id);
+        await gate.WaitAsync(ct);
+        try
+        {
+            var saved = Read(Owner(user), id);
+            if (saved is null) return Error(404, "This planning session is unavailable or expired.");
+            if (saved.AcceptedCandidateId is not null)
+                return saved.AcceptedCandidateId == candidateId ? Results.Ok(View(saved)) : Error(409, "A different plan has already been accepted.");
+            var candidate = Candidates(saved).SingleOrDefault(c=>c.Id==candidateId);
+            if (candidate is null) return Error(404, "That result is unavailable. Reconnect to refresh the list.");
+            if (!PtvClient.IsTerminal(saved.Status) && saved.ProviderId is not null)
+            {
+                using var client = new PtvClient(_settings);
+                var stopped = await client.StopAsync(saved.ProviderId, ct);
+                if (!stopped.IsSuccess)
+                {
+                    var latest = await client.ResultAsync(saved.ProviderId, ct);
+                    var providerStatus = latest.IsSuccess ? JsonNode.Parse(latest.Body)?["status"]?.GetValue<string>() : null;
+                    if (!PtvClient.IsTerminal(providerStatus)) return Error(502, "Could not stop the search. Your selected result is saved; try Accept again.");
+                }
+            }
+            // Use the stored selection, never a newer provider result. Mark it usable by manifest/quick-update flows.
+            var raw = JsonNode.Parse(candidate.Result.RawResponse)!;
+            raw["status"] = "SUCCEEDED";
+            var accepted = candidate.Result with { Status="SUCCEEDED", RawResponse=raw.ToJsonString(), Summary=candidate.Result.Summary! with { Status="SUCCEEDED" } };
+            saved = saved with { Status="SUCCEEDED", Result=accepted, AcceptedCandidateId=candidateId };
+            Save(saved);
+            return Results.Ok(View(saved));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        { return Error(502, "Acceptance could not be confirmed. Reconnect and retry the same result."); }
+        finally { gate.Release(); }
+    }
+    private static SavedCandidate[] Candidates(Saved saved) => saved.Candidates.Length > 0 ? saved.Candidates
+        : saved.Result?.Summary is not null ? [new("final", saved.Started.AddSeconds(saved.Result.ElapsedSeconds), saved.Result)] : [];
     public static PlanningSampleDto Sample(DateTimeOffset time, JsonObject metrics) => new(time,
         metrics["numberOfScheduledOrders"]?.GetValue<int>() ?? 0, metrics["numberOfUnscheduledOrders"]?.GetValue<int>() ?? 0,
         metrics["numberOfRoutes"]?.GetValue<int>() ?? 0,
         metrics["costs"]?["grossTotal"]?.GetValue<double>() ?? metrics["totalCost"]?.GetValue<double>());
     private static PlanningSessionDto View(Saved s, IReadOnlyList<PlanningSampleDto>? samples = null, string? warning = null, bool includeInputs = false) =>
-        new(s.Id, s.Status, s.FileName, includeInputs ? s.RequestJson : "", s.Result?.ElapsedSeconds ?? (DateTimeOffset.UtcNow - s.Started).TotalSeconds, samples ?? [], s.Result, warning);
+        new(s.Id, s.Status, s.FileName, includeInputs ? s.RequestJson : "", s.Result?.ElapsedSeconds ?? (DateTimeOffset.UtcNow - s.Started).TotalSeconds, samples ?? [], s.Result, warning)
+        {
+            Candidates=Candidates(s).Where(c=>c.Result.Summary is not null).Select(c=>new PlanningCandidateDto(c.Id,c.Time,c.Result.Summary!)).ToArray(),
+            AcceptedCandidateId=s.AcceptedCandidateId
+        };
     private static IResult Error(int status, string message, string? detail = null) => Results.Json(new ApiErrorDto(message, detail is null ? null : [detail]), statusCode: status);
 }

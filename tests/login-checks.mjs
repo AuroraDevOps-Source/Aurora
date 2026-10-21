@@ -29,7 +29,7 @@ assert.throws(() => read({}), /Expected the Aurora sign-in form/);
 form.id = 'unrelated-form';
 assert.throws(() => read(form), /Expected the Aurora sign-in form/);
 
-const page = fs.readFileSync('src/Aurora.Client/Pages/Login.razor', 'utf8');
+const page = fs.readFileSync('src/Aurora.Client/Pages/Account/Login.razor', 'utf8');
 assert.match(page, /<form[^>]*id="aurora-login-form"/);
 assert.match(page, /name="username" type="text" autocomplete="username"/);
 assert.match(page, /name="password" type="password" autocomplete="current-password"/);

@@ -7,3 +7,5 @@ deploy/private/
 *.pfx
 *.key
 *.env
+.env.*
+!.env.example

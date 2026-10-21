@@ -1,0 +1,5 @@
+.data-issue-indicator { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin:0; padding:0; border:2px solid #b42318; border-radius:50%; color:#b42318; background:#fff1f0; font-weight:800; font-size:16px; cursor:pointer; vertical-align:middle; }
+.data-issue-indicator:hover { background:#fee4e2; }
+.data-issue-indicator:focus-visible { outline:3px solid #2363eb; outline-offset:3px; }
+.data-issue-list { padding-left:24px; }
+.data-issue-list li { margin-bottom:16px; }

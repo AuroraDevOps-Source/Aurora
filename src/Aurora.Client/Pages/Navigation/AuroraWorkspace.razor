@@ -1,0 +1,24 @@
+@page "/aurora/{WorkspaceView}"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+<PageTitle>Aurora · @Title</PageTitle>
+<div class="tms-workspace @(WorkspaceView == "route-optimization" ? "tms-route-setup" : null)">
+ <AuroraSidebar />
+ <main class="tms-main"><header class="planner-header"><h1>@Title</h1></header>
+ @if(WorkspaceView=="fleet"){<NovaRecords Kind="fleet" @key="WorkspaceView" />}
+ else if(WorkspaceView=="manifests"){<NovaManifests @key="WorkspaceView" />}
+ else if(WorkspaceView=="terminals"){<NovaMasters Kind="terminals" @key="WorkspaceView" />}
+ else if(WorkspaceView=="customers"){<NovaMasters Kind="customers" @key="WorkspaceView" />}
+ else if(WorkspaceView=="databases"){<AuthorizeView Roles="aurora:Admin"><Authorized><DatabaseAdministration /></Authorized><NotAuthorized><p role="alert">Administrator access is required.</p></NotAuthorized></AuthorizeView>}
+ else if(WorkspaceView=="applog"){<AuthorizeView Roles="aurora:Admin,aurora:PowerUser"><Authorized><ApplicationLog /></Authorized><NotAuthorized><p role="alert">Administrator or Power User access is required.</p></NotAuthorized></AuthorizeView>}
+ else if(WorkspaceView=="users"){<AuthorizeView Roles="aurora:Admin"><Authorized><UserAdministration /></Authorized><NotAuthorized><p role="alert">Administrator access is required.</p></NotAuthorized></AuthorizeView>}
+ else if(WorkspaceView is "ship-status" or "configuration"){<AuthorizeView Roles="aurora:Admin"><Authorized><RoutingConfiguration /></Authorized><NotAuthorized><p role="alert">A company administrator is required to manage ship statuses.</p></NotAuthorized></AuthorizeView>}
+ else if(WorkspaceView=="reset"){<AuthorizeView Roles="aurora:Admin"><Authorized><WorkspaceResetPage /></Authorized><NotAuthorized><p role="alert">A company administrator is required to reset testing data.</p></NotAuthorized></AuthorizeView>}
+ else {<NovaRecords Kind="orders" @key="WorkspaceView" />}
+ </main>
+</div>
+@code {
+ [Parameter] public string WorkspaceView {get;set;}="orders";
+ protected override void OnParametersSet() { if(WorkspaceView=="route-optimization") Navigation.NavigateTo("/aurora/orders",replace:true); if(WorkspaceView=="dispatch") Navigation.NavigateTo("/aurora/manifests",replace:true); }
+ string Title=>WorkspaceView=="route-optimization"?"Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifests":WorkspaceView=="terminals"?"Terminals":WorkspaceView=="customers"?"Customers":WorkspaceView=="databases"?"Databases":WorkspaceView=="users"?"Users":WorkspaceView=="applog"?"Application Log":WorkspaceView is "ship-status" or "configuration"?"Ship Status":WorkspaceView=="reset"?"Reset":"Orders";
+}

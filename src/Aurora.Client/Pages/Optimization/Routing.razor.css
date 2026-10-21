@@ -1,0 +1,18 @@
+.manifest-table .order-remove-cell { width: 36px; min-width: 36px; padding: 4px; text-align: right; position: sticky; right: 0; background: #fff; }
+.shift-overtime { color: #9a5200; background: #fff3d6; border-radius: 4px; padding: 2px 6px; font-weight: 600; }
+.delivery-drag-handle { display:inline-block; padding:5px; border:0; background:transparent; color:#64748b; font-size:20px; user-select:none; touch-action:none; }
+.delivery-drag-handle:not(:disabled) { cursor:grab; }
+.delivery-drag-handle:active { cursor:grabbing; }
+.route-card.delivery-drop-target { outline:2px solid #2363eb; background:#edf3ff; }
+.manifest-table .routed-order-actions { min-width:180px; }
+
+.planning-split-grid { grid-template-columns: minmax(240px, var(--planner-left, 1.6316fr)) 14px minmax(280px, 1fr); gap: 0; }
+.planning-split-grid > .content-panel, .planning-split-grid > .map-panel { min-width: 0; }
+.planner-divider { align-self: stretch; min-height: 180px; display: flex; align-items: flex-start; justify-content: center; cursor: col-resize; touch-action: none; user-select: none; border-radius: 5px; }
+.planner-divider span { position: sticky; top: 120px; margin-top: 80px; width: 4px; height: 44px; border-radius: 4px; background: #c2ccdb; }
+.planner-divider:hover, .planner-divider:focus-visible { background: #e5edff; outline: none; }
+.planner-divider:hover span, .planner-divider:focus-visible span { background: #2363eb; }
+@media (max-width: 1100px) {
+    .planning-split-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .planner-divider { display: none; }
+}

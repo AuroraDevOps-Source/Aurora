@@ -3,6 +3,7 @@
 @code {
     protected override void OnInitialized()
     {
-        Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+        var changePassword = new Uri(Navigation.Uri).AbsolutePath == "/account/change-password";
+        Navigation.NavigateTo(changePassword ? "/login?changePassword=true" : $"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
     }
 }

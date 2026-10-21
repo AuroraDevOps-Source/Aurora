@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Aurora.Api.Auth;
 using Aurora.Api.Features.Auth;
 using Aurora.Api.Features.Launcher;
@@ -72,7 +74,7 @@ builder.Services.AddDbContext<AuroraDbContext>((sp, options) =>
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
-        options.Password.RequiredLength = 12;
+        LoginPasswordPolicy.Configure(options.Password);
         options.User.RequireUniqueEmail = true;
     })
     .AddRoles<ApplicationRole>()
@@ -210,6 +212,9 @@ builder.Services.Configure<Aurora.Modules.Routing.FirebirdRoutingOptions>(builde
 builder.Services.AddScoped<Aurora.Modules.Routing.FirebirdRoutingSource>();
 builder.Services.AddScoped<NovaUserConnections>();
 builder.Services.AddScoped<AdminUsers>();
+builder.Services.AddHttpClient<IInvitationEmail, ResendInvitationEmail>(client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<AdminDatabases>();
+builder.Services.AddScoped<AppLog>();
 builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Modules.Routing.FirebirdRoutingOptions>>(sp =>
 {
     var context=sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
@@ -219,15 +224,24 @@ builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Modules.
 builder.Services.AddScoped<Aurora.Modules.Routing.TmsStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.FreightWorkflowStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.TerminalStore>();
-builder.Services.AddScoped<Aurora.Modules.Routing.WorkspaceImportStore>();
+builder.Services.AddScoped<Aurora.Modules.Routing.WorkspaceResetStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.CustomerStore>();
 builder.Services.Configure<PtvSettings>(builder.Configuration.GetSection(PtvSettings.SectionName));
+builder.Services.AddHttpClient<Aurora.Modules.Routing.MasterAddressLookup>(client => client.Timeout = TimeSpan.FromSeconds(12));
 builder.Services.AddHttpClient("PtvRoadRouting", client => client.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddScoped<OptimizationService>();
 builder.Services.AddSingleton<Aurora.Api.Features.Routing.PlanningSessions>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddPolicy("nova-launch", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 var app = builder.Build();
 
@@ -268,6 +282,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseMiddleware<AppLogMiddleware>();
 app.UseCors("wasm-client");
 app.Use(async (context, next) =>
 {
@@ -287,19 +302,26 @@ app.Use(async (context, next) =>
     }
     await next();
 });
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseMiddleware<UserAccessMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapLoginEndpoints();
-app.MapAdminUserEndpoints();
-app.MapLauncherEndpoints();
-app.MapRoutingEndpoints();
-app.MapOrderWorkspaceEndpoints();
-app.MapTmsEndpoints();
-app.MapWorkspaceImportEndpoints();
+var loggedApi = app.MapGroup("").AddEndpointFilter<AppLogResultFilter>();
+loggedApi.MapLoginEndpoints();
+loggedApi.MapNovaLaunch();
+loggedApi.MapNovaApiLaunch();
+loggedApi.MapAccountPasswordEndpoints();
+loggedApi.MapAdminUserEndpoints();
+loggedApi.MapAdminDatabaseEndpoints();
+loggedApi.MapAppLogEndpoints();
+loggedApi.MapLauncherEndpoints();
+loggedApi.MapRoutingEndpoints();
+loggedApi.MapOrderWorkspaceEndpoints();
+loggedApi.MapTmsEndpoints();
+loggedApi.MapWorkspaceResetEndpoints();
 
 app.MapGet("/health/live", () => Results.Ok()).AllowAnonymous();
 app.MapGet("/health/ready", async (AuroraDbContext db, CancellationToken ct) =>

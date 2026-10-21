@@ -1,0 +1,109 @@
+@inject HttpClient Http
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+@if(_notice is not null){<p class="alert" role="status">@_notice</p>}
+<section class="planning-card">
+@if(_record is null)
+{
+    <div class="tms-filters"><label class="field">Search<input @bind="_search" @onkeydown="Key" placeholder="Code, name or city" /></label><button class="outline-button" disabled="@_busy" @onclick="Search">Search / Refresh</button><button class="primary-button" disabled="@_busy" @onclick="New">@(Kind=="terminals"?"Add terminal":"Add customer")</button></div>
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th class="data-issue-column" aria-label="Data requirements"></th><th>Code</th><th>Name</th><th>City</th></tr></thead><tbody>
+    @foreach(var row in _rows){<EditGridRow Disabled="@(_busy)" OnEdit="()=>Open(row.Id)"><td class="data-issue-column"><DataIssueIndicator @key="row.Id" RecordName="@row.Id" Issues="@row.Issues" /></td><td><strong>@row.Id</strong></td><td>@row.Name</td><td>@row.City</td></EditGridRow>}
+    </tbody></table></div>
+    @if(!_busy && _rows.Length==0 && _error is null){<p>No records match your search.</p>}
+    <div class="tms-selection"><span>Page @(_page+1)</span><button class="outline-button" disabled="@(_busy || _page==0)" @onclick="Previous">Previous</button><button class="outline-button" disabled="@(_busy || !_more)" @onclick="Next">Next</button></div>
+}
+else
+{
+    <div class="tms-selection"><h2>@(_new?(Kind=="terminals"?"Add terminal":"Add customer"):_record.Id)</h2>
+    @if (!_new && Kind=="terminals") { <DeleteRecordButton @key="_record.Id" RecordType="terminal" Name="@_record.Id" Disabled="@_busy" OnDelete="Delete" /> }
+    <button class="outline-button" disabled="@_busy" @onclick="Cancel">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Save">@(_busy?"Saving…":"Save")</button></div>
+    <div class="edit-groups">
+    @foreach(var group in _record.Fields.Where(field => field.Kind is not ("latitude" or "longitude")).GroupBy(FieldGroup))
+    {
+        <fieldset class="edit-group" disabled="@_busy"><legend>@group.Key</legend><div class="master-fields">
+        @foreach(var field in group){<label class="field">@field.Label<input type="@(field.Kind is "latitude" or "longitude"?"number":"text")" step="any" maxlength="@field.MaxLength" readonly="@field.ReadOnly" @bind="_values[field.Key]" /></label>}
+        </div></fieldset>
+    }
+    @if (_node is { } node)
+    {
+        <fieldset class="edit-group" disabled="@_busy"><legend>Routing</legend>
+            <label><input type="checkbox" @bind="node.IsConsolidation" /> Consolidation terminal</label>
+            <p class="preview-footnote">A consolidation terminal combines freight for onward transport. Transfers arriving here are grouped into consolidation manifests, separate from local delivery routes.</p>
+            <div class="master-fields">
+                <label class="field">Routing role<select @bind="node.RoutingRole"><option value="">None</option>@foreach(var role in NodeVocabulary.Roles){<option>@role</option>}</select></label>
+                <label class="field">Direct service area<textarea @bind="node.ServiceArea" rows="2" maxlength="4000" placeholder="ZIP codes or prefixes, e.g. 030-038" /></label>
+            </div>
+            <TerminalRouteRules Origin="node" Nodes="_nodes" />
+        </fieldset>
+    }
+    </div>
+}
+@if(_busy){<p role="status">Loading Nova records…</p>}
+</section>
+@code {
+    [Parameter] public string Kind {get;set;}="terminals";
+    string? _loaded,_error,_notice;string _search="";int _page;bool _busy,_more,_new;
+    TerminalDto[] _nodes=[];TerminalDto? _node;
+    NovaMasterSummary[] _rows=[];NovaMasterDocument? _record;Dictionary<string,string?> _values=[];
+    string Url=>$"api/v1/aurora/firebird/masters/{Kind}";
+    static string FieldGroup(NovaField field)=>field.Key switch
+    {
+        "LM_PHONE" or "LM_MANAGER" or "AC_PHONE"=>"Contact details",
+        _ when field.Key.Contains("ADDR") || field.Key.EndsWith("CITY") || field.Key.EndsWith("STATE") || field.Key.EndsWith("ZIP") || field.Key.Contains("COUNTRY")=>"Address",
+        _=>"Identification & assignment"
+    };
+    protected override async Task OnParametersSetAsync(){if(_loaded==Kind)return;_loaded=Kind;_record=null;_page=0;await Load();}
+    async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=null;_notice=null;try{await action();}catch(Exception e){_error=e.Message;}finally{_busy=false;}}
+    Task Load()=>Run(LoadRows);
+    async Task LoadRows(){using var r=await Http.GetAsync($"{Url}?page={_page}&search={Uri.EscapeDataString(_search)}");await ApiResponse.Check(r);var result=(await r.Content.ReadFromJsonAsync<NovaMasterPage>())!;_rows=result.Records;_more=result.HasMore;}
+    async Task Search(){_page=0;await Load();}
+    async Task Key(KeyboardEventArgs e){if(e.Key=="Enter")await Search();}
+    async Task Previous(){_page--;await Load();}async Task Next(){_page++;await Load();}
+    async Task LoadRouting(string? code)
+    {
+        _node=null;_nodes=[];
+        if(Kind!="terminals")return;
+        using var r=await Http.GetAsync("api/v1/aurora/firebird/terminals");
+        await ApiResponse.Check(r);
+        _nodes=await r.Content.ReadFromJsonAsync<TerminalDto[]>()??[];
+        _node=code is null?new TerminalDto():_nodes.SingleOrDefault(n=>n.Code==code)
+            ??throw new FormatException("Terminal no longer exists.");
+    }
+    async Task Open(string id)=>await Run(async()=>{
+        using var r=await Http.GetAsync($"{Url}/{Uri.EscapeDataString(id)}");await ApiResponse.Check(r);
+        var record=(await r.Content.ReadFromJsonAsync<NovaMasterDocument>())!;
+        await LoadRouting(id);_record=record;_new=false;_values=_record.Fields.ToDictionary(f=>f.Key,f=>f.Value);
+    });
+    async Task New()=>await Run(async()=>{
+        using var r=await Http.GetAsync($"{Url}/new");await ApiResponse.Check(r);
+        var record=(await r.Content.ReadFromJsonAsync<NovaMasterDocument>())!;
+        await LoadRouting(null);_record=record;_new=true;_values=_record.Fields.ToDictionary(f=>f.Key,f=>f.Value);
+    });
+    void Cancel(){_record=null;_node=null;_nodes=[];_new=false;_values=[];_error=null;}
+    async Task Delete()=>await Run(async()=>{using var r=await Http.DeleteAsync($"{Url}/{Uri.EscapeDataString(_record!.Id)}?revision={Uri.EscapeDataString(_record.Revision)}");await ApiResponse.Check(r);Cancel();await LoadRows();if(_rows.Length==0 && _page>0){_page--;await LoadRows();}_notice="Terminal deleted.";});
+    async Task Save()=>await Run(async()=>{
+        if(_node is not null)
+        {
+            _node.Code=_values.GetValueOrDefault("LM_ID")??_record!.Id;
+            _node.Name=_values.GetValueOrDefault("LM_NAME")??"";
+            _node.Validate();
+            TerminalRoutingRules.Validate(_node,_nodes);
+        }
+        var wasNew=_new;
+        var input=new NovaMasterEdit(_record!.Revision,_values);
+        using var r=_new?await Http.PostAsJsonAsync(Url,input):await Http.PutAsJsonAsync($"{Url}/{Uri.EscapeDataString(_record.Id)}",input);
+        await ApiResponse.Check(r);
+        var saved=(await r.Content.ReadFromJsonAsync<NovaMasterDocument>())!;
+        // Retain the saved native revision so a routing failure can be retried without creating a duplicate.
+        _record=saved;_new=false;_values=saved.Fields.ToDictionary(f=>f.Key,f=>f.Value);
+        if(_node is not null)
+        {
+            try {
+                using var routing=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/terminals/{Uri.EscapeDataString(saved.Id)}/routing",_node);
+                await ApiResponse.Check(routing);
+                _node=await routing.Content.ReadFromJsonAsync<TerminalDto>();
+            } catch(Exception e){throw new FormatException($"Terminal details saved, but routing settings were not saved. {e.Message}");}
+        }
+        if(wasNew){_search="";_page=0;}
+        Cancel();await LoadRows();_notice=saved.LocationWarning;
+    });
+}

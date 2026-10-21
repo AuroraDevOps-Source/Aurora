@@ -1,0 +1,145 @@
+@inject HttpClient Http
+<EditPopup Title="Update consignee" Busy="_busy" OnClose="OnClose">
+    @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+    <p>@OrderIds.Length selected orders. Only checked fields will change. Check a field and leave it blank to clear it.</p>
+    <fieldset disabled="@(_busy || _preview || _finished)">
+        <div class="record-fields">
+            @foreach(var field in _fields)
+            {
+                @if(field.Key=="OPS_NAME")
+                {
+                    <div><label class="field"><span><input type="checkbox" @bind="field.Apply" /> Update name</span></label>
+                        <NovaAccountLookup Label="Consignee name" Value="@field.Value" MaxLength="@field.Length"
+                            Disabled="@(_busy || _preview || _finished || !field.Apply)" ValueChanged="value=>ChangeName(field,value)" OnSelected="SelectAccount" />
+                    </div>
+                }
+                else
+                {
+                <label class="field"><span><input type="checkbox" @bind="field.Apply" /> @field.Label</span><input @bind="field.Value" maxlength="@field.Length" disabled="@(!field.Apply)" /></label>
+                }
+            }
+        </div>
+        <label class="field"><span><input type="checkbox" @bind="_changeRouting" /> Update Line Haul setting</span></label>
+        @if(_changeRouting)
+        {
+            <label class="field"><span><input type="checkbox" @bind="_lineHaul" /> Line Haul</span></label>
+            @if(_lineHaul)
+            {
+                <label class="field">Receiving terminal<select @bind="_receiving">
+                    <option value="">Select receiving terminal</option>
+                    @foreach(var node in _nodes.Where(n=>!_items.Any(i=>Origin(i.Document)==n.Code)))
+                    {<option value="@node.Code">@node.Code — @node.Name — @node.Address, @node.City, @node.State @node.PostalCode</option>}
+                </select></label>
+            }
+        }
+    </fieldset>
+    @if(_preview || _finished)
+    {
+        <p>@ChangeSummary</p>
+        @if(_changeRouting){<p>Routing: @(_lineHaul?$"Line haul → {_receiving}":"Consignee address")</p>}
+        <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>PRO</th><th>Current consignee</th><th>Current address</th><th>Result</th></tr></thead><tbody>
+            @foreach(var item in _items)
+            {
+                var stop=Delivery(item.Document);
+                <tr><td>@Pro(item.Document)</td><td>@stop.Fields.Single(f=>f.Key=="OPS_NAME").Value</td><td>@stop.Fields.Single(f=>f.Key=="OPS_ADDR1").Value, @stop.Fields.Single(f=>f.Key=="OPS_CITY").Value</td><td>@item.Result</td></tr>
+            }
+        </tbody></table></div>
+        <p>Orders are saved individually. Any failures will be listed here; successful changes remain saved.</p>
+    }
+    <div class="popup-actions">
+        @if(!_finished)
+        {
+            @if(_preview){<button class="outline-button" disabled="@_busy" @onclick="()=>_preview=false">Back</button><button class="primary-button" disabled="@_busy" @onclick="Apply">Apply to @_items.Count orders</button>}
+            else{<button class="primary-button" disabled="@(_busy || _items.Count!=OrderIds.Length)" @onclick="Preview">Review changes</button>}
+        }
+        <button class="outline-button" disabled="@_busy" @onclick="OnClose">@(_finished?"Close":"Cancel")</button>
+    </div>
+</EditPopup>
+@code {
+    [Parameter] public long[] OrderIds {get;set;}=[];
+    [Parameter] public EventCallback OnClose {get;set;}
+    sealed class EditField(string key,string label,int length){public string Key=key;public string Label=label;public int Length=length;public bool Apply;public string Value="";}
+    sealed class Item(NovaRecordDocument document,NovaOrderRouting routing){public NovaRecordDocument Document=document;public NovaOrderRouting Routing=routing;public string Result="Not saved";}
+    EditField[] _fields=[new("OPS_NAME","Name",40),new("OPS_ADDR1","Address",50),new("OPS_ADDR2","Address 2",50),new("OPS_ADDR3","Address 3",50),new("OPS_CITY","City",35),new("OPS_STATE","State",2),new("OPS_ZIP","ZIP",9),new("OPS_COUNTRY","Country",4),new("OPS_CONTACT","Contact",40),new("OPS_PHONE","Phone",32),new("OPS_CONTACT_EMAIL","Email",150)];
+    List<Item> _items=[];
+    TerminalDto[] _nodes=[];
+    bool _busy,_preview,_finished,_changeRouting,_lineHaul;
+    string _receiving="";
+    string? _error;
+    string? _accountId;
+    string ChangeSummary=>string.Join("; ", _fields.Where(f=>f.Apply).Select(f=>$"{f.Label}: {(string.IsNullOrWhiteSpace(f.Value)?"(clear)":f.Value)}"));
+    static NovaRecordPart Delivery(NovaRecordDocument doc)=>doc.Parts.Single(p=>p.Title.StartsWith("Consignee"));
+    static string? Origin(NovaRecordDocument doc)=>doc.Parts[0].Fields.Single(f=>f.Key=="PB_LOCATION").Value;
+    static string? Pro(NovaRecordDocument doc)=>doc.Parts[0].Fields.Single(f=>f.Key=="PBNUM").Value;
+    static async Task Check(HttpResponseMessage r){if(!r.IsSuccessStatusCode)throw new FormatException((await r.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Request failed.");}
+    void ChangeName(EditField field,string? value){field.Value=value??"";_accountId=null;}
+    async Task SelectAccount(string id)
+    {
+        _busy=true;_error=null;
+        try
+        {
+            using var response=await Http.GetAsync("api/v1/aurora/firebird/masters/customers/"+Uri.EscapeDataString(id));await Check(response);
+            var account=(await response.Content.ReadFromJsonAsync<NovaMasterDocument>())!;
+            var values=NovaAccountSelection.Values(account,false);
+            foreach(var field in _fields)
+                if(values.TryGetValue(field.Key,out var value)){field.Value=value??"";field.Apply=true;}
+            _accountId=account.Id;
+        }
+        catch(Exception ex){_error=ex.Message;}finally{_busy=false;}
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        _busy=true;
+        try
+        {
+            using var nodes=await Http.GetAsync("api/v1/aurora/firebird/terminals");await Check(nodes);
+            _nodes=await nodes.Content.ReadFromJsonAsync<TerminalDto[]>() ?? [];
+            foreach(var id in OrderIds)
+            {
+                using var response=await Http.GetAsync($"api/v1/aurora/firebird/records/orders/{id}");await Check(response);
+                var document=(await response.Content.ReadFromJsonAsync<NovaRecordDocument>())!;
+                if(document.Parts.Count(p=>p.Title.StartsWith("Consignee"))!=1)throw new FormatException($"Order {Pro(document)} needs exactly one consignee for bulk updates.");
+                using var routing=await Http.GetAsync($"api/v1/aurora/firebird/orders/{id}/routing");await Check(routing);
+                _items.Add(new(document,(await routing.Content.ReadFromJsonAsync<NovaOrderRouting>())!));
+            }
+        }
+        catch(Exception ex){_error=ex.Message;}finally{_busy=false;}
+    }
+    void Preview()
+    {
+        _error=null;
+        if(!_fields.Any(f=>f.Apply) && !_changeRouting){_error="Choose at least one field to update.";return;}
+        if(_changeRouting && _lineHaul && (string.IsNullOrEmpty(_receiving) || _items.Any(i=>Origin(i.Document)==_receiving))){_error="Choose a receiving terminal different from every selected order's starting terminal.";return;}
+        _preview=true;
+    }
+    async Task Apply()
+    {
+        if(_busy)return;_busy=true;_error=null;
+        foreach(var item in _items)
+        {
+            var detailsSaved=false;
+            try
+            {
+                var document=item.Document;
+                if(_fields.Any(f=>f.Apply))
+                {
+                    var values=document.Parts.ToDictionary(p=>p.Key,p=>p.Fields.ToDictionary(f=>f.Key,f=>f.Value));
+                    foreach(var field in _fields.Where(f=>f.Apply))values[Delivery(document).Key][field.Key]=field.Value;
+                    if(_fields.Any(f=>f.Key=="OPS_NAME" && f.Apply))values[Delivery(document).Key]["OPS_ACCTID"]=_accountId;
+                    using var save=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/records/orders/{document.Id}",new NovaRecordEdit(document.Revision,values));
+                    await Check(save);document=(await save.Content.ReadFromJsonAsync<NovaRecordDocument>())!;detailsSaved=true;
+                }
+                var receiving=_lineHaul?_receiving:null;
+                if(_changeRouting && receiving!=item.Routing.ReceivingTerminal)
+                {
+                    using var save=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/orders/{document.Id}/routing",new NovaOrderRoutingEdit(receiving,item.Routing.Revision,document.Revision));
+                    await Check(save);
+                }
+                item.Result=document.LocationWarnings.Length>0?"Saved. "+string.Join(" ",document.LocationWarnings):"Saved";
+            }
+            catch(Exception ex){item.Result=(detailsSaved?"Consignee saved; routing not confirmed. ":"Save not confirmed. ")+ex.Message;}
+            await InvokeAsync(StateHasChanged);
+        }
+        _finished=true;_busy=false;
+    }
+}

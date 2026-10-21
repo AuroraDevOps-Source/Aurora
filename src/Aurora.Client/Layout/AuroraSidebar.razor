@@ -1,14 +1,14 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
-<aside class="tms-sidebar">
+@inject SidebarState Sidebar
+<aside class="tms-sidebar @(Sidebar.Collapsed ? "is-collapsed" : null)" aria-label="Main navigation">
+    <button type="button" class="sidebar-toggle" @onclick="() => Sidebar.Collapsed = !Sidebar.Collapsed" aria-expanded="@(!Sidebar.Collapsed ? "true" : "false")" aria-label="@(Sidebar.Collapsed ? "Expand menu" : "Collapse menu")" title="@(Sidebar.Collapsed ? "Expand menu" : "Collapse menu")"><i class="mdi @(Sidebar.Collapsed ? "mdi-chevron-double-right" : "mdi-chevron-double-left")" aria-hidden="true"></i></button>
     <h2>Aurora</h2><p>@(_company?.Name ?? "Your company")</p>
-    @* The planner opened by Start belongs to this entry too. *@
-    <NavLink href="aurora/route-optimization" class="@(OnPlanner ? "active" : null)"><i class="mdi mdi-map-marker-path" aria-hidden="true"></i>Optimization</NavLink>
-    <NavLink href="aurora/orders"><i class="mdi mdi-clipboard-text-outline" aria-hidden="true"></i>Orders</NavLink>
-    <NavLink href="aurora/manifests"><i class="mdi mdi-file-document-multiple-outline" aria-hidden="true"></i>Manifest</NavLink>
-    <NavLink href="aurora/fleet"><i class="mdi mdi-truck-outline" aria-hidden="true"></i>Fleet Management</NavLink>
-    <NavLink href="aurora/terminals"><i class="mdi mdi-warehouse" aria-hidden="true"></i>Transportation Nodes</NavLink>
-    <NavLink href="aurora/customers"><i class="mdi mdi-account-group-outline" aria-hidden="true"></i>Customers</NavLink>
+    <NavLink href="aurora/orders" title="Orders" aria-label="Orders" class="@(OnPlanner ? "active" : null)"><i class="mdi mdi-clipboard-text-outline" aria-hidden="true"></i><span>Orders</span></NavLink>
+    <NavLink href="aurora/manifests" title="Manifests" aria-label="Manifests"><i class="mdi mdi-file-document-multiple-outline" aria-hidden="true"></i><span>Manifests</span></NavLink>
+    <NavLink href="aurora/fleet" title="Equipment" aria-label="Equipment"><i class="mdi mdi-truck-outline" aria-hidden="true"></i><span>Equipment</span></NavLink>
+    <NavLink href="aurora/terminals" title="Terminals" aria-label="Terminals"><i class="mdi mdi-warehouse" aria-hidden="true"></i><span>Terminals</span></NavLink>
+    <NavLink href="aurora/customers" title="Customers" aria-label="Customers"><i class="mdi mdi-account-group-outline" aria-hidden="true"></i><span>Customers</span></NavLink>
 </aside>
 @code {
     private WorkspaceTenantDto? _company;

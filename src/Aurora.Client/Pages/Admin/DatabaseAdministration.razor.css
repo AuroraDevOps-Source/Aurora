@@ -1,0 +1,6 @@
+.database-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 16px; }
+.database-fields .field { min-width:0; }
+.database-fields input { width:100%; }
+.database-fields .wide { grid-column:1 / -1; }
+.delete-prompt { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:16px; background:#fff2f2; margin-top:16px; }
+@media(max-width:600px) { .database-fields { grid-template-columns:1fr; } }

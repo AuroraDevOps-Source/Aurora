@@ -1,0 +1,7 @@
+.record-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+fieldset { border:0; padding:0; margin:0 0 16px; }
+.field { min-width:0; }
+.field input:not([type=checkbox]), .field select { width:100%; }
+.field input[type=checkbox] { width:auto; margin-right:6px; }
+.manifest-table-wrap { max-height:280px; overflow:auto; margin:12px 0; }
+@media(max-width:700px) { .record-fields { grid-template-columns:1fr; } }

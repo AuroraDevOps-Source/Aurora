@@ -30,7 +30,24 @@ Reject(()=>OrderWorkspace.Assignments(result,[ids[1]]),"unknown result order rej
 Reject(()=>OrderWorkspace.Assignments(result with { Routes=result.Routes.Concat(result.Routes).ToArray() },ids),"duplicate result assignment rejected");
 Reject(()=>OrderWorkspace.Assignments(result with { Status="RUNNING" },ids),"interim result cannot be finished");
 var terminal=RoutingInput.Text(root["reporting"]?["terminal"])!;
-var type=new EquipmentTypeDto {Code="CHECK",Description="Saved truck",Weight=12345,PerHour=42};
+var originNode = new TerminalDto { Id=Guid.NewGuid(),Code="ORIGIN",Latitude=39.1,Longitude=-94.5 };
+var receivingNode = new TerminalDto { Id=Guid.NewGuid(),Code="DEST",Latitude=38.6,Longitude=-90.2 };
+var nativeSelected=RoutingInput.Parse(selected);
+nativeSelected["reporting"]!["terminal"]="ORIGIN";
+var transferJson=LineHaulPlanning.SetFleetDestination(LineHaulPlanning.Prepare(nativeSelected.ToJsonString(),originNode,receivingNode));
+var endpoints=FirebirdRoutingSource.ExportEndpoints(transferJson);
+Check(endpoints.Transfer && endpoints.Origin=="ORIGIN" && endpoints.Destination=="DEST", "automatic transfer request exports as a terminal-to-terminal manifest");
+Check(!FirebirdRoutingSource.ExportEndpoints(nativeSelected.ToJsonString()).Transfer, "local request remains a local manifest");
+var editedTransfer=RoutingInput.Parse(transferJson);
+editedTransfer["reporting"]!.AsObject().Remove("lineHaulTo");
+editedTransfer["orders"]!["deliveries"]![0]!["delivery"]!["locationId"]="DEPOT";
+var restoredTransfer=RoutingInput.Parse(LineHaulPlanning.RestoreDestination(transferJson,editedTransfer.ToJsonString()));
+Check(RoutingInput.Text(restoredTransfer["reporting"]?["lineHaulTo"])=="DEST" && RoutingInput.Items(restoredTransfer["orders"]?["deliveries"]).All(o=>RoutingInput.Text(o["delivery"]?["locationId"])=="NODE-DEST"), "reoptimization cannot turn a transfer back into customer delivery");
+Reject(()=>LineHaulPlanning.ValidateResult(transferJson,result.Routes), "transfer cannot export a result going to the customer");
+var consolidationReceipt=FirebirdRoutingSource.ExportFingerprint(Guid.NewGuid(),result.Routes,"DEST",PlanningBatch.Consolidation);
+Check(consolidationReceipt.StartsWith("Aurora consolidation export v1 ") && ManifestNotes.Receipt(ManifestNotes.Write(consolidationReceipt,"Receiving instructions"))==consolidationReceipt,"consolidation manifest identity survives dispatcher note edits");
+Check(ManifestNotes.Read(consolidationReceipt)=="", "consolidation export identity is hidden from notes");
+var type=new EquipmentTypeDto {Code="CHECK",Description="Saved truck",Weight=12345,PerHour=42,PerKilometer=0};
 var unit=new EquipmentUnitDto {Id=truck,TypeCode=type.Code,Terminal=terminal,UseForRouting=true,ShiftStart="20:00",ShiftEnd="06:00"};
 var fleet=new EquipmentCatalogDto([type],[unit]);
 var fleetInput=FleetPlanning.Build(selected,fleet);
@@ -201,28 +218,6 @@ if(connection is not null)
  await tms.DeleteOrder(customerOrder.SourceId,customerOrder.Id,0,default);
  await customers.Delete(savedCustomer.Id,1,default);
  Check(!(await customers.List(default)).Any(c=>c.Id==savedCustomer.Id),"customer delete persists");
- var importText=File.ReadAllText("src/Aurora.Client/wwwroot/samples/workspace-import.json");
- var replacement=WorkspaceImport.Parse(importText);
- var importer=new WorkspaceImportStore(factory,tenant);
- var oldCount=(await tms.Orders(null,null,null,null,null,default)).Count;
- await importer.Execute(replacement,false,default);
- Check((await tms.Orders(null,null,null,null,null,default)).Count==oldCount,"import validation does not mutate orders");
- await using(var db=await otherFactory.OpenConnectionAsync()) await db.ExecuteAsync("INSERT INTO tenant(id,name,slug) VALUES (@Id,'Other checks',@Slug)",new { Id=otherTenant.TenantIdOrNull,Slug=Guid.NewGuid().ToString("N") });
- var foreignOrder=new TmsOrder{Id="KEEP-OTHER-COMPANY",Customer="Untouched"};await hiddenTms.SaveOrder(foreignOrder,true,default);
- replacement.Customers[0].Address="\0";
- try {await importer.Execute(replacement,true,default);throw new Exception("Expected SQL rejection");} catch(PostgresException) {Check(true,"late import failure rejected");}
- Check((await tms.Orders(null,null,null,null,null,default)).Count==oldCount,"failed import rolls back deleted records");
- replacement=WorkspaceImport.Parse(importText);await importer.Execute(replacement,true,default);
- Check((await tms.Orders(null,null,null,null,null,default)).Count==3,"import replaces existing orders");
- Check((await customers.List(default)).Count==3 && (await terminals.List(default)).Count==1,"import replaces customers and terminals");
- Check((await tms.Manifests(default)).Single().OrderCount==1,"import preserves manifest assignments");
- Check((await hiddenTms.Orders(null,null,null,null,null,default)).Single().Id==foreignOrder.Id,"import preserves other company records");
- var importedOrder=(await tms.Orders(null,null,null,"TEST_SOUTH",null,default)).Single();
- Check(importedOrder.CustomerCode=="C002" && importedOrder.TerminalCode=="KC","import resolves customer and terminal identities");
- await store.CreateDraft(new(importedOrder.SourceId,[importedOrder.Id]),"owner",default);
- Check(true,"example imported orders support planning");
- await importer.Execute(new(){Version=1,Terminals=[],Customers=[],Orders=[],Trucks=[],Manifests=[]},true,default);
- Check(!(await customers.List(default)).Any() && !(await tms.Orders(null,null,null,null,null,default)).Any(),"empty import clears company operational records");
  if(args.Length>0) { await store.Import(new("Desktop appointment file",File.ReadAllText(args[0])),default); var desktop=(await store.Sources(default)).Single(s=>s.Name=="Desktop appointment file"); Check((await store.Orders(desktop.Id,null,null,null,default)).Count()==100,"all 100 desktop orders import with dates"); }
 }
 Console.WriteLine($"{count} order workspace checks passed.");

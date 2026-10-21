@@ -176,18 +176,33 @@ code { color: var(--ink); }
 .dispatch-dialog .appointment-fields > p,.dispatch-dialog .appointment-fields .planning-tools { grid-column:1/-1; margin:0; }
 .dispatch-dialog .appointment-fields .planning-tools { display:flex; flex-direction:row; gap:8px; }
 .dispatch-dialog .appointment-fields .planning-tools button { flex:none; width:auto; }
+.popup-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+.popup-actions > button { flex:none; width:auto; }
+.dispatch-dialog.route-schedule-dialog { max-width:640px; }
+.plan-group-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--border, #dce3ed); }
+.plan-group-row .outline-button { flex:none; }
+.dispatch-dialog.optimizing-dialog { max-width:320px; }
+.optimizing-indicator { display:flex; flex-direction:column; align-items:center; gap:18px; padding:26px; }
+.optimizing-logo { animation:optimizing-orbit 2.8s linear infinite; }
+@keyframes optimizing-orbit { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .optimizing-logo { animation:none; } }
+.route-schedule-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; border:0; padding:0; margin:0; min-width:0; }
+@media(max-width:550px) { .route-schedule-fields { grid-template-columns:1fr; } }
+.native-manifest-details { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start; padding-top:16px; }
+.manifest-details-fields { border:0; margin:0; padding:0; min-width:0; }
+.manifest-detail-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.manifest-detail-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px 18px; margin:0 0 20px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+.manifest-detail-summary dt { color:var(--muted); font-size:12px; margin-bottom:3px; }
+.manifest-detail-summary dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+.manifest-assignment-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.manifest-assignment-fields select { width:100%; min-width:0; }
+.manifest-dispatch-notes { margin-top:20px; }
+.manifest-dispatch-notes textarea { width:100%; resize:vertical; }
+.native-manifest-details .manifest-map-panel { margin:0; }
+@media(max-width:550px) { .manifest-detail-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .manifest-assignment-fields { grid-template-columns:1fr; } }
 .dispatch-dialog .appointment-fields > label { margin:0; }
 .dispatch-dialog .appointment-fields .planner-time { margin:0; }
 @media(max-width:650px) { .dispatch-dialog .appointment-fields { grid-template-columns:1fr; } }
-.workspace-import-card { max-width:900px; padding:16px 20px; }
-.import-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
-.import-heading h2 { margin:0; font-size:15px; }
-.import-heading a,.import-format-help { font-size:13px; }
-.import-warning { margin:12px 0; padding:8px 12px; background:#fff7ed; border:1px solid #fed7aa; border-left:3px solid #f97316; border-radius:6px; font-size:13px; }
-.import-counts { display:flex; flex-wrap:wrap; gap:20px; padding:12px 0; }
-.import-counts strong { color:var(--ink); }
-.import-format-help { margin-top:14px; color:var(--muted); }
-.import-format-help summary { cursor:pointer; }
 .compact-order-editor .manifest-edit-grid { margin:0 0 10px; gap:8px 12px; }
 .compact-order-editor .order-parties { gap:10px; }
 .compact-order-editor .order-address-fields { gap:6px 8px; }
@@ -318,3 +333,12 @@ code { color: var(--ink); }
 .edit-group input:read-only { background:#f0f3f8; }
 .edit-group .status-option { background:#fff; }
 @media(max-width:600px) { .edit-group { padding:10px 12px 12px; } }
+
+.manifest-table .editable-grid-row:not([aria-disabled=true]) { cursor:pointer; }
+.manifest-table .editable-grid-row:not([aria-disabled=true]):hover > td { background:#eef4fc; }
+.manifest-table .editable-grid-row:focus-visible { outline:2px solid #2363eb; outline-offset:-2px; }
+.manifest-table .data-issue-column { width:36px; min-width:36px; padding:3px 6px; text-align:center; }
+/* Live optimization choices use the same accessible modal as other editors. */
+.optimization-results-dialog { width: min(1000px, 94vw); }
+.optimization-results-dialog .manifest-table-wrap { max-height: 55vh; overflow: auto; }
+.optimization-results-dialog th { position: sticky; top: 0; background: #eef3fa; }

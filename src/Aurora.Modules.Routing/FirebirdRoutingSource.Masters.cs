@@ -16,6 +16,7 @@ public sealed partial class FirebirdRoutingSource
             row.Id=StableId($"firebird-node:{tenant.TenantId}:{Options.SourceKey}:{row.Code}");
             if(!HasCoordinates(row.Latitude,row.Longitude)){row.Latitude=null;row.Longitude=null;}
         }
+        await ApplyTerminalRouting(rows,ct);
         return rows;
     }
     public async Task<EquipmentCatalogDto> ReadFleet(CancellationToken ct)
@@ -25,6 +26,7 @@ public sealed partial class FirebirdRoutingSource
             SELECT h.EH_ID AS NativeId, TRIM(h.EH_UNIT_ID) AS Unit, TRIM(h.EH_DOMICILE) AS Terminal,
                 TRIM(t.CTT_CODE) AS Kind, TRIM(t.CTT_DESC) AS Description,
                 h.EH_MAX_WEIGHT AS Weight, h.EH_MAX_CUBE AS Cubes,
+                h.EH_TOT_FIXED_COST_HR AS PerHour, h.EH_TOT_VAR_COST_MI AS PerMile,
                 TRIM(h.EH_STD_START_TM) AS StartTime, TRIM(h.EH_STD_END_TM) AS EndTime
             FROM EQUIP_HEADER h JOIN CT_TYPE t ON t.CTT_ID=h.EH_UNIT_TYPE
             WHERE h.EH_DELETE_DATE IS NULL AND t.CTT_CODE<>'DRV' ORDER BY h.EH_UNIT_ID
@@ -38,6 +40,8 @@ public sealed partial class FirebirdRoutingSource
         public string Terminal {get;set;}="";
         public string Kind {get;set;}="";
         public string Description {get;set;}="";
+        public double? PerHour {get;set;}
+        public double? PerMile {get;set;}
         public double? Weight {get;set;}
         public double? Cubes {get;set;}
         public string? StartTime {get;set;}
@@ -50,10 +54,10 @@ public sealed partial class FirebirdRoutingSource
         {
             var code=$"NOVA-{r.NativeId}";
             // Capacity belongs to the individual Nova unit, not the equipment-type dictionary.
-            types.Add(new(){Code=code,Description=r.Description,Weight=r.Weight,Cubes=r.Cubes,PowerOnly=r.Description.Contains("tractor",StringComparison.OrdinalIgnoreCase)});
+            types.Add(new(){Code=code,Description=r.Description,Weight=r.Weight,Cubes=r.Cubes,PerHour=r.PerHour,PerKilometer=r.PerMile / 1.609344,PowerOnly=r.Description.Contains("tractor",StringComparison.OrdinalIgnoreCase)});
             string Clock(string? v,string fallback)=>TimeOnly.TryParseExact(v,"HHmm",CultureInfo.InvariantCulture,DateTimeStyles.None,out var t)?t.ToString("HH:mm"):fallback;
             units.Add(new(){Id=r.Unit,TypeCode=code,Terminal=r.Terminal??"",Available=true,
-                UseForRouting=!string.IsNullOrWhiteSpace(r.Terminal) && r.Weight>0 && r.Cubes>0,
+                UseForRouting=!string.IsNullOrWhiteSpace(r.Terminal) && r.Weight>0 && r.Cubes>0 && r.PerHour>=0 && r.PerMile>=0,
                 ShiftStart=Clock(r.StartTime,"06:00"),ShiftEnd=Clock(r.EndTime,"18:00"),UtcOffset=offset});
         }
         if(units.GroupBy(u=>u.Id,StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new FormatException("Nova has duplicate equipment unit numbers. Correct them before planning.");
@@ -76,16 +80,16 @@ public sealed partial class FirebirdRoutingSource
         var name=fields[1].Column;var city=kind=="terminals"?"LM_CITY":"AC_CITY";
         await using var db=await Open(ct);
         var prefix=kind=="terminals"?"LM_":"AC_";
-        var rows=(await db.QueryAsync<MasterListRow>(new CommandDefinition($"SELECT TRIM({key}) AS Id, TRIM({name}) AS Name, TRIM({city}) AS City, {prefix}LATITUDE AS Latitude, {prefix}LONGITUDE AS Longitude FROM {table} WHERE {key} CONTAINING @search OR {name} CONTAINING @search OR {city} CONTAINING @search ORDER BY {key} ROWS @first TO @last",new{search=search?.Trim()??"",first=page*50+1,last=page*50+51},cancellationToken:ct))).ToArray();
+        var rows=(await db.QueryAsync<MasterListRow>(new CommandDefinition($"SELECT TRIM({key}) AS Id, TRIM({name}) AS Name, TRIM({city}) AS City, TRIM({prefix}ADDR1) AS Street, TRIM({prefix}ZIP) AS PostalCode FROM {table} WHERE {key} CONTAINING @search OR {name} CONTAINING @search OR {city} CONTAINING @search ORDER BY {key} ROWS @first TO @last",new{search=search?.Trim()??"",first=page*50+1,last=page*50+51},cancellationToken:ct))).ToArray();
         return new(rows.Take(50).Select(r=>new NovaMasterSummary(r.Id,r.Name,r.City)
         {
-            Issues=kind=="terminals"?DataRequirements.Depot(r.Id,r.Latitude,r.Longitude):[]
+            Issues=DataRequirements.Address(r.Street,r.City,r.PostalCode)
         }).ToArray(),rows.Length>50);
     }
     private sealed class MasterListRow
     {
         public string Id {get;set;}=""; public string Name {get;set;}=""; public string City {get;set;}="";
-        public double? Latitude {get;set;} public double? Longitude {get;set;}
+        public string? Street {get;set;} public string? PostalCode {get;set;}
     }
     public async Task<NovaMasterDocument> ReadMaster(string kind,string id,CancellationToken ct)
     {
@@ -102,6 +106,17 @@ public sealed partial class FirebirdRoutingSource
     }
     public async Task<NovaMasterDocument> SaveMaster(string kind,string id,NovaMasterEdit input,CancellationToken ct,bool rollbackOnly=false)
     {
+        string? locationWarning = null;
+        if (addressLookup is not null)
+        {
+            // Network lookup happens before taking a write lock. The revision is checked again below.
+            var snapshot = await ReadMaster(kind,id,ct);
+            if(snapshot.Revision!=input.Revision)throw new FormatException("This record changed in Nova. Reload it before saving.");
+            CreationValues(snapshot.Fields,input.Values);
+            foreach(var field in snapshot.Fields.Where(f=>f.ReadOnly))
+                if(field.Value!=input.Values[field.Key])throw new FormatException($"{field.Label} cannot be changed here.");
+            (input,locationWarning)=await addressLookup.Resolve(kind,input,snapshot,ct);
+        }
         await using var db=await Open(ct);
         await using var tx=db.BeginTransaction(new FbTransactionOptions{TransactionBehavior=FbTransactionBehavior.Write|FbTransactionBehavior.ReadCommitted|FbTransactionBehavior.NoRecVersion|FbTransactionBehavior.Wait,WaitTimeout=TimeSpan.FromSeconds(10)});
         var current=await ReadMaster(db,tx,kind,id,true,ct);
@@ -116,7 +131,7 @@ public sealed partial class FirebirdRoutingSource
         }
         var prefix=kind=="terminals"?"LM_":"AC_";
         var latKey=prefix+"LATITUDE";var lonKey=prefix+"LONGITUDE";
-        if(edits.Keys.Any(k=>k.Contains("ADDR") || k==prefix+"CITY" || k==prefix+"STATE" || k==prefix+"ZIP" || k.StartsWith(prefix+"COUNTRY")) && !edits.ContainsKey(latKey) && !edits.ContainsKey(lonKey)){edits[latKey]=null;edits[lonKey]=null;}
+        if(addressLookup is null && edits.Keys.Any(k=>k.Contains("ADDR") || k==prefix+"CITY" || k==prefix+"STATE" || k==prefix+"ZIP" || k.StartsWith(prefix+"COUNTRY")) && !edits.ContainsKey(latKey) && !edits.ContainsKey(lonKey)){edits[latKey]=null;edits[lonKey]=null;}
         object? Coordinate(string key)=>edits.TryGetValue(key,out var v)?v:ParseField(current.Fields.Single(f=>f.Key==key),input.Values[key]);
         if((Coordinate(latKey) is null)!=(Coordinate(lonKey) is null))throw new FormatException("Provide both latitude and longitude, or leave both blank.");
         if(edits.TryGetValue("AC_TERM_LOC",out var terminal) && terminal is string code && !await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM LOCMAST WHERE LM_ID=@code) FROM RDB$DATABASE",new{code},tx,cancellationToken:ct)))throw new FormatException("Choose an existing Nova terminal.");
@@ -128,6 +143,6 @@ public sealed partial class FirebirdRoutingSource
         }
         var saved=await ReadMaster(db,tx,kind,id,false,ct);
         if(rollbackOnly)await tx.RollbackAsync(ct);else await tx.CommitAsync(ct);
-        return saved;
+        return saved with { LocationWarning = locationWarning };
     }
 }

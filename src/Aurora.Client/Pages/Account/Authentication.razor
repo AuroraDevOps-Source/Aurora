@@ -1,0 +1,7 @@
+@page "/authentication/{action}"
+@layout SignInLayout
+<RemoteAuthenticatorView Action="@Action" />
+
+@code {
+    [Parameter] public string? Action { get; set; }
+}

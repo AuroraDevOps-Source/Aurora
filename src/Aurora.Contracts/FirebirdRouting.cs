@@ -5,10 +5,15 @@ public sealed record NovaRoutingConfiguration(int[] ReadyStatuses, NovaManifestS
 public sealed record NovaRoutingConfigurationEdit(int[] ReadyStatuses);
 public sealed record FirebirdSyncResult(int Orders, string[] Terminals, string[] Warnings, Guid[] SourceIds);
 public sealed record NovaManifestStatus(int Id, string Name);
+public sealed record NovaManifestCreate(string Origin,string Destination,DateOnly Date);
 public sealed record NovaManifestList(DateOnly Today, NovaManifestStatus[] Statuses, NovaManifest[] Manifests);
 public sealed class NovaManifest
 {
     public string StartTerminal { get; set; } = "";
+    public string EndTerminal { get; set; } = "";
+    public double? EndLatitude { get; set; }
+    public double? EndLongitude { get; set; }
+    public bool IsTransfer => !string.IsNullOrWhiteSpace(EndTerminal) && !StartTerminal.Equals(EndTerminal,StringComparison.OrdinalIgnoreCase);
     public double? DepotLatitude { get; set; }
     public double? DepotLongitude { get; set; }
     public long Id { get; set; }

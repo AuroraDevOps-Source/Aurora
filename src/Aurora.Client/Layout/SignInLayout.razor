@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="AuroraTheme.Hub" IsDarkMode="false" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@* Authentication pages must not render account controls from a cached identity. *@
+<MudLayout>
+    <MudAppBar Elevation="0" Fixed="true" Class="aurora-appbar">
+        <MudText Typo="Typo.h6" Class="aurora-brand"><span class="aurora-mark" aria-hidden="true"></span>Aurora</MudText>
+    </MudAppBar>
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>

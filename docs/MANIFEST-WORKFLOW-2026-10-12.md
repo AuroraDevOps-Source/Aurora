@@ -1,0 +1,11 @@
+# Manifest workflow
+
+Manifests now owns assignment and status changes. The separate Dispatch navigation is removed; old `/aurora/dispatch` links redirect to `/aurora/manifests`. The list defaults to all statuses and filters by manifest date. Click a manifest number to open its assignment, status, orders, map, and status history.
+
+Select a driver and review the accepted optimizer truck. Select Assigned or Dispatched and save. A dispatched manifest can move to In transit with an actual departure time. An in-transit manifest can close with an actual return/close time after its work is reconciled. Nova's native codes are ASG, DPCH, ENR, and CPLT. Other native statuses remain visible in filters but do not gain arbitrary transitions.
+
+Each write is transactional and checks the saved revision. Repeating an identical departure or closure after a lost response does not repeat history. Transitions cannot go backwards, change assignments after dispatch, use future event times, or close before delivery/receipt. Local departure updates linked order statuses without inventing delivery timestamps. Closing does not mark any order delivered. Local routes require recorded deliveries; line-haul requires destination receipt recorded in Nova. Individual delivery/exception entry, print/send, and driver-device integration are not implemented by this change.
+
+Status history reads existing Nova header history, including previous/new status, recorded time, event time, and Nova operator initials. Nova limits initials to eight characters. The application log separately retains the full signed-in username and customer-facing references. New order actions log PRO numbers; truck actions log unit numbers; manifest creation logs every returned manifest number. Existing native dispatch entries expose their previously saved manifest numbers. Missing historical business references remain blank rather than substituting internal keys.
+
+Validation: 53 dispatch/workflow checks against synthetic WayTest records rolled back at completion; 38 application-log checks including persistence, search, authorization, and legacy encoding. API/client Release builds passed. Live verification reads real manifests/history without changing their assignments or execution status.

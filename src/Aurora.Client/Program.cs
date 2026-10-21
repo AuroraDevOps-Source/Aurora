@@ -11,6 +11,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 var apiBaseAddress = builder.Configuration["ApiBaseUrl"] ?? builder.HostEnvironment.BaseAddress;
 
 builder.Services.AddMudServices();
+builder.Services.AddScoped<Aurora.Client.Layout.SidebarState>();
 
 builder.Services.AddOidcAuthentication(options =>
 {
@@ -26,7 +27,10 @@ builder.Services.AddOidcAuthentication(options =>
 // Named client the API calls go through — BaseAddressAuthorizationMessageHandler attaches the
 // access token automatically.
 builder.Services.AddTransient<SessionExpiryHandler>();
+builder.Services.AddScoped<ClientErrorReporter>();
+builder.Services.AddTransient<ClientErrorHandler>();
 builder.Services.AddHttpClient(ApiClients.Authorized, client => client.BaseAddress = new Uri(apiBaseAddress))
+    .AddHttpMessageHandler<ClientErrorHandler>()
     .AddHttpMessageHandler<SessionExpiryHandler>()
     .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
         .ConfigureHandler(authorizedUrls: [apiBaseAddress]));

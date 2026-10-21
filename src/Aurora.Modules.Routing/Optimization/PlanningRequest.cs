@@ -8,7 +8,7 @@ public static class PlanningRequest
     public static string Prepare(StartPlanningDto input)
     {
         if (input.DurationSeconds is < 5 or > 1200) throw new FormatException("Choose a search budget between 5 and 1200 seconds.");
-        var prepared = RoutingInput.Prepare(input.RequestJson);
+        var prepared = RoutingInput.Prepare(PlanOrderDecisions.Prepare(input.RequestJson));
         if (input.KeepAssignments && input.PreviousResult is null) throw new FormatException("Keeping assignments needs a previous successful plan.");
         if (input.PreviousResult is not null) prepared = QuickUpdate.Prepare(prepared, input.PreviousResult);
         var root = RoutingInput.Parse(prepared);
@@ -28,7 +28,8 @@ public static class PlanningRequest
                 var assigned = RoutingInput.Items(route["stops"]).SelectMany(s => RoutingInput.Items(s["appointments"]))
                     .SelectMany(a => RoutingInput.Items(a["tasks"]))
                     .Where(t => RoutingInput.Text(t["type"]) == "DELIVERY")
-                    .Select(t => RoutingInput.Text(t["orderId"])!).Distinct().Where(orders.ContainsKey).ToList();
+                    .Select(t => RoutingInput.Text(t["orderId"])!).Distinct()
+                    .Where(orderId => orders.ContainsKey(orderId) && PlanOrderDecisions.Get(root, orderId) == "").ToList();
                 if (assigned.Count == 0) continue;
                 if (!vehicles.TryGetValue(id, out var vehicle)) throw new FormatException($"Truck {id} has protected assignments. Restore it or turn off Keep assignments.");
                 // Random category avoids collision with imported customer categories.

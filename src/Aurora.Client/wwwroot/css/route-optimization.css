@@ -845,3 +845,29 @@ code { font: 400 12px Consolas, "Cascadia Mono", monospace; }
 .plan-schedule strong { font-size:var(--fs); font-weight:600; }
 .appointment-grid td small { display:block; color:#64748b; margin-top:2px; }
 @media(max-width:900px) { .overview-columns { grid-template-columns:1fr; } .overview-orders .manifest-table-wrap { max-height:300px; } }
+
+/* Keep navigation available as an icon rail while giving the workspace more room. */
+.sidebar-toggle { display:flex; align-items:center; justify-content:center; width:32px; height:32px; margin:0 0 8px auto; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); cursor:pointer; font-size:20px; }
+.sidebar-toggle:hover { background:#edf3ff; }
+.sidebar-toggle:focus-visible { outline:2px solid var(--accent, #245df5); outline-offset:2px; }
+.tms-sidebar.is-collapsed h2,.tms-sidebar.is-collapsed p,.tms-sidebar.is-collapsed a span { display:none; }
+.tms-sidebar.is-collapsed a { justify-content:center; padding:0; }
+.tms-sidebar.is-collapsed .sidebar-toggle { margin-left:auto; margin-right:auto; }
+@media(min-width:751px) { .tms-workspace:has(> .tms-sidebar.is-collapsed) { grid-template-columns:58px minmax(0,1fr); } }
+@media(max-width:750px) { .sidebar-toggle { flex:none; margin:0; } .tms-sidebar.is-collapsed a { width:32px; } }
+.overview-map .planning-map-wrap { min-height:clamp(480px, 65vh, 820px); }
+.route-review #route-map { height:clamp(480px, 65vh, 820px); }
+@media(max-width:750px) { .overview-map .planning-map-wrap { min-height:420px; } .route-review #route-map { height:420px; } }
+
+.map-order-link { padding:0; border:0; background:none; color:var(--blue, #245df5); font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+.map-order-link:disabled { color:inherit; text-decoration:none; cursor:default; }
+.map-stop-link { cursor:pointer; }
+.map-order-link:focus-visible,.map-stop-link:focus-visible { outline:2px solid #245df5; outline-offset:3px; }
+
+.route-plan-setup { max-width:960px; margin:16px auto; }
+.route-plan-setup > fieldset, .route-plan-setup fieldset fieldset { border:0; padding:0; min-width:0; }
+.route-plan-setup h3 { margin:20px 0 10px; }
+.plan-truck-schedule { margin-bottom:14px; }
+.planning-advanced { margin:14px 0; }
+.planning-advanced > summary { color:var(--muted); cursor:pointer; padding:8px 0; }
+.planning-advanced .manifest-table-wrap { max-height:280px; overflow:auto; }

@@ -1,4 +1,5 @@
-@using Aurora.Client.Pages
+@using Aurora.Client.Pages.Optimization
+@using Aurora.Client.Pages.FleetManagement
 @using Aurora.Contracts
 <main class="planner-page"><header class="planner-header"><div><h1>Route planner preview</h1><p>Local component test with synthetic data and an in-memory equipment catalog.</p></div></header><div class="planning-tools"><button class="primary-button" @onclick="() => _fleet = true">Schedule &amp; trucks</button><button class="outline-button" @onclick="() => _appointments = true">Appointments</button><button class="outline-button" @onclick="() => _equipment = true">Equipment catalog</button></div><p role="status">@_status</p><details><summary>Current plan JSON</summary><pre>@_json</pre></details></main>
 <button class="outline-button" @onclick="() => _scenario = true">Compare scenario preview</button>

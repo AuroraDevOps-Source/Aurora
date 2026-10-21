@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
-    <ReleaseVersion Condition="'$(ReleaseVersion)' == ''">Development</ReleaseVersion>
+    <ReleaseVersion Condition="'$(ReleaseVersion)' == ''">1.0.0</ReleaseVersion>
     <InformationalVersion>$(ReleaseVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>

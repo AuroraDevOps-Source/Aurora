@@ -24,6 +24,7 @@ public static class LineHaulPlanning
                 foreach(var key in report.Select(p=>p.Key).Where(k=>k.Equals("appointment",StringComparison.OrdinalIgnoreCase) || k.Equals("appointmentDetail",StringComparison.OrdinalIgnoreCase)).ToArray())report.Remove(key);
         }
         root["reporting"]!["lineHaulTo"]=destination.Code;
+        root["reporting"]!["transferKind"]=PlanningBatch.TransferTo(destination);
         root["reporting"]!["lineHaulEndLocation"]="NODE-"+destination.Code.ToUpperInvariant();
         return root.ToJsonString();
     }
@@ -46,6 +47,7 @@ public static class LineHaulPlanning
         root["reporting"] ??= new JsonObject();
         foreach (var key in new[] { "terminal", "lineHaulTo", "lineHaulEndLocation" })
             root["reporting"]![key] = saved["reporting"]![key]!.DeepClone();
+        root["reporting"]!["transferKind"] = RoutingInput.Text(saved["reporting"]?["transferKind"]) ?? PlanningBatch.LineHaul;
         var end = RoutingInput.Text(saved["reporting"]!["lineHaulEndLocation"])!;
         var savedLocations = RoutingInput.Items(saved["locations"]).ToDictionary(l => RoutingInput.Text(l["id"])!);
         var depot = RoutingInput.Text(RoutingInput.Items(saved["depots"]).FirstOrDefault()?["locationId"]) ?? "DEPOT";

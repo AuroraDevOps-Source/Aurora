@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace Aurora.Modules.Routing;
 
-public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factory, ITenantContext tenant, IOptions<FirebirdRoutingOptions> configuration)
+public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factory, ITenantContext tenant, IOptions<FirebirdRoutingOptions> configuration, MasterAddressLookup? addressLookup = null)
 {
     private FirebirdRoutingOptions Options => configuration.Value;
     public bool Enabled => Options.Enabled && Options.TenantId != Guid.Empty && tenant.TenantId == Options.TenantId;
@@ -100,6 +100,7 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
                 var order = new TmsOrder
                 {
                     SourceId = source, Id = row.Id, TerminalId = node.Id, TerminalCode = node.Code,
+                    UseConsigneeAddress = true,
                     Customer = Text(row.Customer), Address = Text(row.Address), City = Text(row.City), State = Text(row.State), PostalCode = Text(row.PostalCode),
                     Reference = Text(row.Reference), Pieces = row.Pieces ?? 0, Weight = row.Weight ?? 0, Cube = row.Cube ?? 0,
                     ScheduledAt = row.AppointmentFrom is { } start ? LocalTime(start) : LocalTime(DateTime.Today)
@@ -129,8 +130,6 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
                     AND d.source_id=o.source_id AND o.id=ANY(d.order_ids) AND d.finished_session IS NULL AND d.cancelled_at IS NULL)
             """, new { tenant.TenantId, Options.SourceKey, keys }, tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
-        var missing = valid.Count(r => !HasCoordinates(r.Latitude, r.Longitude));
-        if (missing > 0) warnings.Add($"{missing} orders need delivery coordinates in Nova before they can be optimized.");
         var codes = valid.Select(r => Text(r.Terminal)).Distinct().Order().ToArray();
         return new(valid.Count, codes, warnings.ToArray(), codes.Select(SourceId).ToArray());
     }
@@ -160,7 +159,7 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
         var startTime = LocalTime(DateTime.Today.AddHours(6));
         return new JsonObject
         {
-            ["settings"] = new JsonObject { ["duration"] = 5 }, ["locations"] = locations,
+            ["settings"] = new JsonObject { ["duration"] = 10 }, ["locations"] = locations,
             ["depots"] = new JsonArray(new JsonObject { ["id"] = "DEPOT", ["locationId"] = "DEPOT" }),
             ["orders"] = new JsonObject { ["deliveries"] = deliveries },
             // Date seed only: FleetPlanning replaces this with the company's saved fleet.

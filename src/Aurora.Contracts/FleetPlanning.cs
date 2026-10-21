@@ -6,7 +6,7 @@ public static class FleetPlanning
 {
     public static EquipmentUnitDto[] Eligible(EquipmentCatalogDto catalog,string terminal) => catalog.Units
         .Where(u=>u.UseForRouting && u.Available && u.Terminal.Equals(terminal,StringComparison.OrdinalIgnoreCase)
-            && catalog.Types.Any(t=>t.Code==u.TypeCode && !t.PowerOnly)).OrderBy(u=>u.Id,StringComparer.Ordinal).ToArray();
+            && catalog.Types.Any(t=>t.Code==u.TypeCode && !t.PowerOnly && t.PerHour>=0 && t.PerKilometer>=0)).OrderBy(u=>u.Id,StringComparer.Ordinal).ToArray();
     public static string Build(string json,EquipmentCatalogDto catalog)
     {
         var root=RoutingInput.Parse(json);
@@ -20,7 +20,7 @@ public static class FleetPlanning
                 .SelectMany(a=>a?.Windows ?? []).Select(w=>w.EarliestStart).FirstOrDefault(d=>d is not null)
                 ?? throw new FormatException("Choose a planning date for these orders.")).DateTime);
         var eligible=Eligible(catalog,terminal);
-        if(eligible.Length==0)throw new FormatException($"No planning-ready trucks are available for {terminal}. Check the Nova terminal, weight and cubic capacities in Fleet Management. Power-only tractors require a trailer configuration.");
+        if(eligible.Length==0)throw new FormatException($"No planning-ready trucks are available for {terminal}. Check the Nova terminal, weight, cubic capacities, and operating costs in Fleet Management. Power-only tractors require a trailer configuration.");
         var vehicles=new JsonArray();
         foreach(var unit in eligible)
         {

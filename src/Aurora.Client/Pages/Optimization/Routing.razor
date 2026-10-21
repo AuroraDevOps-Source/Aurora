@@ -1,0 +1,644 @@
+@page "/routing"
+@page "/aurora/planning"
+@layout PlanningLayout
+@inject NavigationManager Navigation
+@attribute [Authorize]
+@inject HttpClient Http
+@inject IJSRuntime JS
+@implements IDisposable
+@using System.Globalization
+@using System.Text
+
+<PageTitle>Plan routes - Aurora</PageTitle>
+
+<section class="planner-page">
+    <header class="planner-header">
+        <div>
+            <h1>@(_result is null ? "Plan routes" : "Review routes")</h1>
+            <p>@(_planName ?? "")</p>
+        </div>
+        <div class="planner-header-actions">
+            <button class="text-button" @onclick="CancelPlan" disabled="@(IsWorking || _workspaceFinished || _planCancelled || WorkspaceDraftId is null)">@(_cancellingPlan ? "Cancelling…" : "Cancel plan")</button>
+            @if (_result is not null)
+            {
+                <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="OpenTruckSettings">Trucks</button>
+                <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="()=>_showAppointments=true">Appointments</button>
+                <button class="outline-button" disabled="@(!CanOptimize)" @onclick="() => Optimize()">@(_busy ? "Optimizing..." : "Re-optimize")</button>
+                <button class="primary-button" @onclick="FinishWorkspace" disabled="@(_savingManifest || IsWorking || _appointmentEditing || _workspaceFinished || _planCancelled || _completedSessionId is null || UnscheduledPins.Count > 0 || _result?.Summary?.Scheduled is not > 0 || AcceptedRoutes == 0)">@(_savingManifest ? "Saving..." : AcceptedRoutes == 1 ? "Create manifest" : $"Create {AcceptedRoutes} manifests")</button>
+            }
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert planner-alert" role="alert">@RoutingDisplayText.Clean(_error)</div> }
+    @if (_workspaceFinished) { <div class="finish-notice">Manifests saved. <a href="/aurora/manifests">View manifests</a>.</div> }
+    @if (_planCancelled) { <div class="finish-notice cancelled-notice">This plan was cancelled and its orders were released. <a href="/aurora/orders">Start a new plan</a>.</div> }
+    @if (_sessionId is not null && !_busy) { <button class="outline-button" @onclick="ResumePlanning">Reconnect to this plan</button> }
+    @if (_busy && !DebugOptimization && _showPlanning)
+    {
+        <EditPopup Title="Optimizing" ShowHeader="false" Class="optimizing-dialog" OnClose="()=>_showPlanning=false">
+            <div class="optimizing-indicator" role="status" aria-label="Optimizing">
+                <img src="images/aurora-orbit.svg" class="optimizing-logo" width="80" height="80" alt="" />
+                <span>Optimizing</span>
+            </div>
+        </EditPopup>
+    }
+    else if (_busy)
+    {
+        <div class="planner-progress" role="status"><span>@_busyLabel</span></div>
+    }
+    @if (DebugOptimization && _showPlanning)
+    {
+        <EditPopup Title="Optimization results" Class="optimization-results-dialog" Busy="@(_busy || _accepting)" OnClose="()=>_showPlanning=false">
+            <p role="status">@(_accepting ? "Accepting your selected plan…" : _busyLabel)</p>
+            @if (_error is not null) { <p class="alert" role="alert">@RoutingDisplayText.Clean(_error)</p> }
+            @if (_session?.Warning is { } warning) { <p role="status">@RoutingDisplayText.Clean(warning)</p> }
+                <div class="manifest-table-wrap"><table class="manifest-table">
+                    <thead><tr><th>Result</th><th>Orders routed</th><th>Unrouted</th><th>Trucks</th><th>Miles</th><th>Cost</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var candidate in _session?.Candidates.Reverse() ?? Enumerable.Empty<PlanningCandidateDto>())
+                    {
+                        <tr @key="candidate.Id"><td>@candidate.Time.ToLocalTime().ToString("h:mm:ss tt")</td><td>@candidate.Summary.Scheduled</td><td>@candidate.Summary.Unscheduled</td><td>@candidate.Summary.RoutesUsed</td><td>@((candidate.Summary.Kilometers / 1.609344).ToString("N1"))</td><td>@candidate.Summary.Cost.ToString("N2")</td><td><button class="primary-button" disabled="@_accepting" @onclick="()=>AcceptCandidate(candidate.Id)">Accept</button></td></tr>
+                    }
+                    </tbody>
+                </table></div>
+        </EditPopup>
+    }
+
+@if (_result is not null && _completedSessionId is null && !IsWorking)
+{
+    <p class="alert" role="status">Changes are pending. Re-optimize before creating manifests. The routes below show the previous result.</p>
+}
+@if (UnscheduledPins.Count > 0)
+{
+    <p class="alert" role="alert">Manually assigned orders could not be scheduled on their selected trucks: @string.Join(", ", UnscheduledPins). Review the routes and Left off. Check appointments, capacity, or driving limits, then re-optimize.</p>
+}
+@if (_result is null)
+{
+    <section class="planning-card route-plan-setup">
+        <div class="tms-selection"><h2>Set up routes</h2><span>@(_draft?.Orders ?? 0) orders selected</span></div>
+        @if (_sourceJson is not null)
+        {
+            <fieldset disabled="@(IsWorking || _workspaceFinished || _planCancelled)">
+                <PlanTruckSetup SourceJson="@_sourceJson" OnApply="ApplyFleet" />
+                <details class="planning-advanced"><summary>Selected orders (@_draft?.Orders)</summary>
+                    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Customer / destination</th></tr></thead><tbody>
+                        @foreach (var order in _draft?.Deliveries ?? []) { <tr><td>@order.Id</td><td>@order.Name</td></tr> }
+                    </tbody></table></div>
+                </details>
+                @if (_draft is { Trucks: 0 }) { <p role="status">Select at least one available truck.</p> }
+                <div class="popup-actions">
+                    <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="()=>_showAppointments=true">Appointments</button>
+                    <button class="primary-button" disabled="@(!CanOptimize)" @onclick="() => Optimize()">@(_busy ? "Optimizing..." : "Optimize")</button>
+                </div>
+            </fieldset>
+        }
+        else if (!_workspaceFinished && _error is null) { <p role="status">Loading selected orders...</p> }
+    </section>
+}
+else
+{
+    <section class="results-page">
+
+        @if (!string.IsNullOrWhiteSpace(_result.SummaryError))
+        {
+            <div class="alert">The route summary could not be loaded: @RoutingDisplayText.Clean(_result.SummaryError)</div>
+        }
+        @if (_result.Summary is { Violations: > 0 })
+        {
+            <div class="alert" role="alert">This plan has scheduling conflicts. Review the routes before creating manifests.</div>
+        }
+
+        <div id="planning-results-grid" class="workspace-grid planning-split-grid @(_tab is ResultTab.Manifest or ResultTab.LeftOff ? "report-view" : string.Empty)">
+            <article class="content-panel">
+                <nav class="view-tabs" aria-label="Result views">
+                    <button class="@TabClass(ResultTab.Manifest)" @onclick="() => SelectTab(ResultTab.Manifest)">Manifest</button>
+                    <button class="@TabClass(ResultTab.Summary)" @onclick="() => SelectTab(ResultTab.Summary)">Summary</button>
+                    <button class="@TabClass(ResultTab.LeftOff)" @onclick="() => SelectTab(ResultTab.LeftOff)">
+                        Left off <span class="count-pill">@LeftOffOrders.Count</span>
+                    </button>
+                </nav>
+
+                @if (_tab == ResultTab.Manifest)
+                {
+                    <div class="panel-body">
+                        <div class="section-title"><div><span>ROUTE MANIFEST</span><h2>Truck assignments</h2></div><small>@_result.Routes.Count routes</small></div>
+                        <p class="preview-footnote">Load is the optimizer's reported truck capacity usage. Route time includes travel and stops; appointments and working hours can limit a route even when load is low. Fewer trucks can leave more orders off.</p>
+                        <p class="preview-footnote">Drag a delivery onto another truck to move it and recalculate routes and KPIs. You can also use Move to truck on a delivery. Manual assignments may extend the truck's shift; overtime is shown on the result.</p>
+                        @if (_result.Routes.Count == 0)
+                        {
+                            <div class="empty-state compact">No routes were returned.</div>
+                        }
+                        @foreach (var route in _result.Routes)
+                        {
+                            var color = RouteColor(_result.Routes.ToList().IndexOf(route));
+                            var costPerStop = route.ManifestStops > 0 ? (route.Cost / route.ManifestStops).ToString("C2") : "N/A";
+                            <details class="route-card @(_selectedVehicle == route.Vehicle ? "map-selected" : "")" open="@(_selectedVehicle == route.Vehicle)" @key="(_result, route.Vehicle)" data-route-truck="@route.Vehicle">
+                                <summary @onclick="()=>SelectManifest(_selectedVehicle == route.Vehicle ? null : route.Vehicle)" @onclick:preventDefault>
+                                    <span class="route-swatch" style="background:@color"></span>
+                                    <span class="truck-icon">▰</span>
+                                    <strong>@route.Vehicle</strong>
+                                    <span>@route.Pros.Count PROs</span><span>@route.ManifestStops stops</span><span>@((route.Kilometers * 0.621371).ToString("N0")) mi</span>
+                                    <span title="Optimizer-reported load utilization for this truck, separate from its working hours">@route.LoadUtilization.ToString("P0") load</span>
+                                    <b>@Duration(route.EstimatedSeconds)</b>
+                                    @if (_sourceJson is not null && PlannerOvertime.OverShiftMinutes(_sourceJson, route) is > 0 and var overtime)
+                                    {
+                                        <span class="shift-overtime" title="Time beyond the planned shift">@overtime min over shift</span>
+                                    }
+                                    <b class="manifest-cost" title="Estimated route cost from configured rates">@route.Cost.ToString("C2")</b>
+                                    <b class="manifest-cost" title="Estimated route cost divided by manifest stops">@costPerStop / stop</b>
+                                </summary>
+                                <div class="manifest-detail">
+                                    <div class="manifest-header-grid">
+                                        <div><span>Date optimized</span><strong>@_result.OptimizedAt.ToLocalTime().ToString("M/d/yyyy h:mm tt")</strong></div>
+                                        <div><span>Terminal</span><strong>@route.Terminal</strong></div>
+                                        <div><span>Hours budgeted</span><strong>@Duration(route.BudgetedSeconds)</strong></div>
+                                        <div><span>Estimated manifest</span><strong>@Duration(route.EstimatedSeconds)</strong></div>
+                                        <div><span>Departure</span><strong>@ScheduleTime(route.Departure)</strong></div>
+                                        <div><span>Return</span><strong>@ScheduleTime(route.Return)</strong></div>
+                                        <div><span>Distance</span><strong>@((route.Kilometers * 0.621371).ToString("N1")) miles</strong></div>
+                                        <div><span>Estimated cost</span><strong>@route.Cost.ToString("C2")</strong></div>
+                                    </div>
+                                    @if (PreviousRoute(route.Vehicle) is { } previous)
+                                    {
+                                        <p class="manifest-comparison">Same truck, previous run: @MoneyDelta(route.Cost - previous.Cost) cost · @DistanceDelta(route.Kilometers - previous.Kilometers). Orders may have moved between trucks.</p>
+                                    }
+                                    <div class="manifest-totals">
+                                        <div><span>Stops</span><strong>@route.ManifestStops.ToString("N0")</strong></div>
+                                        <div><span>Cost per stop</span><strong>@costPerStop</strong></div>
+                                        <div><span>PROs</span><strong>@route.Pros.Count.ToString("N0")</strong></div>
+                                        <div><span>Units</span><strong>@Metric(route.Units)</strong></div>
+                                        <div><span>Weight</span><strong>@Metric(route.Weight)</strong></div>
+                                        <div><span>Cubes</span><strong>@Metric(route.Cubes)</strong></div>
+                                    </div>
+                                    @if (route.Pros.Count == 0)
+                                    {
+                                        <div class="empty-state compact">No assigned PRO detail was returned.</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="manifest-table-wrap">
+                                            <table class="manifest-table">
+                                                <thead><tr><th>Stop</th><th>PRO</th><th>Ship to</th><th>Appointment</th><th>Arrival</th><th>Departure</th><th>Units</th><th>Wt.</th><th>Cubes</th><th>Bill type</th><th>Service time</th><th class="order-remove-cell" aria-label="Order actions"></th></tr></thead>
+                                                <tbody>
+                                                @foreach (var pro in route.Pros.OrderBy(pro => pro.StopNumber).ThenBy(pro => pro.ProNumber).Where(pro => !IsRemoved(pro.ProNumber)))
+                                                {
+                                                    <tr @key="pro.ProNumber">
+                                                        <td><button type="button" class="delivery-drag-handle" disabled="@(!CanEditOrders || !CanOptimize)" data-drag-order="@pro.ProNumber" data-from-truck="@route.Vehicle" title="Drag delivery to another truck" aria-label="Drag @pro.ProNumber to another truck">⠿</button><button type="button" class="table-stop map-stop-link" style="border-color:@color" title="Show stop on map" @onclick="() => FocusOrder(pro.ProNumber, route.Vehicle)">@pro.StopNumber</button></td>
+                                                        <td><button type="button" class="map-order-link pro-number" title="Show order on map" @onclick="() => FocusOrder(pro.ProNumber, route.Vehicle)">@pro.ProNumber</button></td>
+                                                        <td><strong>@pro.ShipToName</strong><small>@Address(pro.Address1, pro.City, pro.State, pro.PostalCode)</small></td>
+                                                        <td class="appointment-cell"><AppointmentDisplay Appointment="pro.Appointment" /></td>
+                                                        <td class="schedule-cell">@ScheduleTime(pro.Arrival)</td>
+                                                        <td class="schedule-cell">@ScheduleTime(pro.Departure)</td>
+                                                        <td>@Metric(pro.Units)</td>
+                                                        <td>@Metric(pro.Weight)</td>
+                                                        <td>@Metric(pro.Cubes)</td>
+                                                        <td>@pro.BillType</td>
+                                                        <td>@StopTime(pro.AllottedStopSeconds)</td>
+                                                        <td class="order-remove-cell routed-order-actions"><PlanOrderControl SourceJson="@(_sourceJson ?? "{}")" OrderId="@pro.ProNumber" CurrentTruck="@route.Vehicle" Routed="true" Disabled="@(!CanEditOrders || !CanOptimize)" OnApply="ApplyOrderDecision" OnMove="MoveOrder" /></td>
+                                                        
+                                                    </tr>
+                                                }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                </div>
+                            </details>
+                        }
+                    </div>
+                }
+                else if (_tab == ResultTab.Summary)
+                {
+                    <div class="panel-body">
+                        <div class="section-title"><h2>Plan summary</h2></div>
+                        @if (_result.Summary is { } s)
+                        {
+                            <div class="summary-table">
+                                <div><span>Trucks used</span><strong>@s.RoutesUsed / @s.VehiclesOffered</strong></div>
+                                <div><span>Orders routed</span><strong>@s.Scheduled</strong></div>
+                                <div><span>Left off</span><strong>@LeftOffOrders.Count</strong></div>
+                                <div><span>Removed by planner</span><strong>@LeftOffOrders.Count(o => IsRemoved(o.OrderId))</strong></div>
+                                <div><span>Total miles</span><strong>@((s.Kilometers / 1.609344).ToString("N1"))</strong></div>
+                                <div><span>Driving time</span><strong>@Duration(s.DriveSeconds)</strong></div>
+                                <div><span>Estimated cost</span><strong>@s.Cost.ToString("C2")</strong></div>
+                                <div><span>Scheduling conflicts</span><strong>@s.Violations</strong></div>
+                            </div>
+                            <div class="manifest-table-wrap"><table class="manifest-table">
+                                <thead><tr><th>Truck</th><th>Stops</th><th>Orders</th><th>Miles</th><th>Route time</th><th>Estimated cost</th></tr></thead>
+                                <tbody>@foreach (var route in _result.Routes)
+                                {
+                                    <tr><td>@route.Vehicle</td><td>@route.ManifestStops</td><td>@route.Pros.Count</td><td>@((route.Kilometers / 1.609344).ToString("N1"))</td><td>@Duration(route.EstimatedSeconds)</td><td>@route.Cost.ToString("C2")</td></tr>
+                                }</tbody>
+                            </table></div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="panel-body">
+                        <div class="section-title"><div><span>UNSCHEDULED</span><h2>Left off</h2></div><small>@LeftOffOrders.Count orders</small></div>
+                        @if (LeftOffOrders.Count == 0)
+                        {
+                            <div class="all-loaded"><span>✓</span><div><strong>All orders are routed.</strong></div></div>
+                        }
+                        else
+                        {
+                            <div class="manifest-table-wrap">
+                                <table class="manifest-table dropped-table">
+                                    <thead><tr><th>Stop</th><th>PRO</th><th>Ship to</th><th>Reason</th><th class="order-remove-cell" aria-label="Order actions"></th></tr></thead>
+                                    <tbody>
+                                    @foreach (var row in LeftOffOrders.Select((order, index) => new { Order = order, Number = index + 1 }))
+                                    {
+                                        var order = row.Order;
+                                        <tr @key="order.OrderId">
+                                            <td><button type="button" class="table-stop map-stop-link" style="border-color:#dc2626;color:#dc2626" disabled="@(order.Latitude is null || order.Longitude is null)" title="Show left-off stop on map" @onclick="() => FocusOrder(order.OrderId)">@row.Number</button></td>
+                                            <td><strong class="pro-number">@order.OrderId</strong></td>
+                                            <td><strong>@order.ShipToName</strong><small>@Address(order.Address1, order.City, order.State, order.PostalCode)</small></td>
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            <td class="reason-cell">@RoutingDisplayText.Clean(order.Reason)</td>
+                                            <td class="order-remove-cell"><PlanOrderControl SourceJson="@(_sourceJson ?? "{}")" OrderId="@order.OrderId" Disabled="@(!CanEditOrders)" OnApply="ApplyOrderDecision" /></td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            <div class="planner-divider" role="separator" tabindex="0" aria-label="Resize manifest and map" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="62" title="Drag to resize. Double-click to reset."><span></span></div>
+            <aside class="map-panel">
+                <div class="map-heading"><div><span>MANIFEST MAP</span><h2>Route sequence</h2></div><button title="Fit selected routes" aria-label="Fit selected routes" @onclick="FitMap">⌗</button></div>
+                <div class="map-filter">
+                    <div class="map-view-toggle" role="group" aria-label="Route view">
+                        <button class="@(!_roadMode ? "active" : "")" aria-pressed="@(!_roadMode)" @onclick="() => ChangeMapMode(false)">Bird’s-eye</button>
+                        <button class="@(_roadMode ? "active" : "")" aria-pressed="@_roadMode" @onclick="() => ChangeMapMode(true)">Turn-by-turn</button>
+                    </div>
+                    @if (_loadingRoads) { <p role="status">Loading road routes…</p> }
+                    @if (_roadError is not null)
+                    {
+                        <p class="map-data-warning" role="alert">@RoutingDisplayText.Clean(_roadError)</p>
+                        <button class="road-retry" @onclick="() => ChangeMapMode(true)">Retry road routes</button>
+                    }
+                    <label for="manifest-filter">Show manifest</label>
+                    <select id="manifest-filter" value="@(_selectedVehicle ?? "")" @onchange="ManifestChanged">
+                        <option value="">All manifests</option>
+                        @foreach (var route in _result.Routes) { <option value="@route.Vehicle">@route.Vehicle</option> }
+                    </select>
+                    @if (LeftOffOrders.Any(o => o.Latitude is null || o.Longitude is null))
+                    {
+                        <p class="map-data-warning">@LeftOffOrders.Count(o => o.Latitude is null || o.Longitude is null) unscheduled orders have no coordinates; see Left off.</p>
+                    }
+                </div>
+                <div id="route-map"></div>
+                @if (_roadMode)
+                {
+                    <div class="map-directions">
+                        @foreach (var route in _result.Routes.Where(r => _selectedVehicle is null || r.Vehicle == _selectedVehicle))
+                        {
+                            @if (_roadDirections.TryGetValue(route.Vehicle, out var directions))
+                            {
+                                <details>
+                                    <summary>@route.Vehicle · @directions.Count directions</summary>
+                                    @if (directions.Count == 0) { <p>No maneuver instructions were returned for this route.</p> }
+                                    <ol>
+                                        @foreach (var direction in directions)
+                                        {
+                                            <li><button @onclick="() => FocusDirection(direction)">@RoutingDisplayText.Clean(direction.Description)</button></li>
+                                        }
+                                    </ol>
+                                </details>
+                            }
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_result.RouteDetailWarning))
+                {
+                    <div class="map-warning">@RoutingDisplayText.Clean(_result.RouteDetailWarning)</div>
+                }
+                <div class="map-legend">
+                    @for (var i = 0; i < _result.Routes.Count; i++)
+                    {
+                        var legendRoute = _result.Routes[i];
+                        <button class="legend-route @(_selectedVehicle is not null && _selectedVehicle != legendRoute.Vehicle ? "dimmed" : "")" @onclick="() => SelectManifest(legendRoute.Vehicle)"><i style="background:@RouteColor(i)"></i>@legendRoute.Vehicle</button>
+                    }
+                    @if (LeftOffOrders.Any(order => order.Latitude is not null))
+                    {
+                        <span><i class="dropped-dot"></i>Left off</span>
+                    }
+                </div>
+            </aside>
+        </div>
+    </section>
+}
+    @if (_setupMessage is not null) { <p role="status">@_setupMessage</p> }
+
+    @if (_showTruckSettings && _truckEditJson is not null)
+    {
+        <EditPopup Title="Trucks" Busy="IsWorking" OnClose="CloseTruckSettings">
+            <PlanTruckSetup SourceJson="@_truckEditJson" OnApply="json=>_truckEditJson=json" />
+            <div class="popup-actions">
+                <button class="primary-button" disabled="@(IsWorking)" @onclick="SaveTruckSettings">Save</button>
+                <button class="outline-button" disabled="@IsWorking" @onclick="CloseTruckSettings">Cancel</button>
+            </div>
+        </EditPopup>
+    }
+    @if (_showAppointments)
+    {
+        <EditPopup Title="Appointments" Busy="@(IsWorking || _appointmentEditing)" OnClose="()=>_showAppointments=false">
+            <PlanAppointments IsOpen="true" Inline="true" SourceJson="@_sourceJson" OnApply="ApplyAppointments" OnEditingChanged="value=>_appointmentEditing=value" />
+            <button class="outline-button" disabled="@_appointmentEditing" @onclick="()=>_showAppointments=false">Done</button>
+        </EditPopup>
+    }
+</section>
+
+@code {
+    private bool _appointmentEditing, _showAppointments, _showTruckSettings;
+    private string? _truckEditJson;
+    private bool CanEditSettings => !IsWorking && !_workspaceFinished && !_planCancelled && !_appointmentEditing;
+    private void OpenTruckSettings() { _truckEditJson = _sourceJson; _showTruckSettings = true; }
+    private void CloseTruckSettings() { _showTruckSettings = false; _truckEditJson = null; }
+    private void SaveTruckSettings()
+    {
+        if (_truckEditJson is null) return;
+        if (_truckEditJson != _sourceJson) ApplyFleet(_truckEditJson);
+        CloseTruckSettings();
+    }
+    private readonly string[] _colors = ["#2363eb", "#f59e0b", "#16a078", "#8259d6", "#0e9fbd", "#b8652f", "#64748b", "#a855a1"];
+    private string? _sourceJson;
+    private string _sourceName = "manifest.json";
+    private RoutingDraft? _draft;
+    private string? _setupMessage;
+    private string? _selectedVehicle;
+    private OptimizationResultDto? _result;
+    private OptimizationResultDto? _previousResult;
+    private bool CanQuickUpdate => _previousResult is { Status: "SUCCEEDED", Routes.Count: > 0 };
+    private ComparisonSnapshot? _comparison;
+    private CancellationTokenSource? _cts;
+    private bool _busy;
+    private bool _renderMap;
+    private bool _roadMode;
+    private bool _loadingRoads;
+    private string? _roadError;
+    private CancellationTokenSource? _roadCts;
+    private readonly HashSet<string> _loadedRoads = [];
+    private readonly Dictionary<string, List<RoadDirectionDto>> _roadDirections = [];
+
+    private void ApplyAppointments(string json) { SetInput(json, _sourceName, preserveResult: true); _setupMessage = "Appointments updated. Optimize routes to calculate the schedule."; }
+    private string _busyLabel = "Preparing route calculation…";
+    private string? _error;
+    private ResultTab _tab = ResultTab.Manifest;
+
+    private enum ResultTab { Manifest, Summary, LeftOff }
+    private bool IsWorking => _busy || _savingManifest || _cancellingPlan || _sessionId is not null;
+    private bool CanOptimize => !_workspaceFinished && !_planCancelled && !_appointmentEditing && !_showTruckSettings && !_showAppointments && !IsWorking && _draft is { Orders: > 0, Trucks: > 0 };
+
+    private void SetInput(string json, string fileName, bool preserveResult = false)
+    {
+        var draft = RoutingDraft.Read(json); // Validate everything before replacing the current draft.
+        if (_sessionId is null) { _completedSessionId = null; _session = null; }
+        _sourceJson = json;
+        _sourceName = fileName;
+        _draft = draft;
+        if (!preserveResult) { _result = null; _renderMap = false; }
+    }
+
+    private async Task Optimize(bool quick = false)
+    {
+        if (!CanOptimize || _sourceJson is null) return;
+        var previous = _previousResult;
+        if (await RunOptimization(_sourceJson, _sourceName, quick))
+            _comparison = previous?.Summary is { } baseline ? new ComparisonSnapshot(previous.FileName, baseline, previous.Routes) : null;
+    }
+
+    private Task<bool> RunOptimization(string json, string fileName, bool quick = false) => StartPlanning(json, fileName, quick);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (WorkspaceDraftId is null) { Navigation.NavigateTo("/aurora/orders", replace: true); return; }
+            if (WorkspaceDraftId is { } draftId)
+            {
+                try
+                {
+                    var selection = await Http.GetFromJsonAsync<OrderDraftDto>($"api/v1/aurora/drafts/{draftId}");
+                    if (selection is null) throw new FormatException("Selection not found.");
+                    _workspaceFinished = selection.Finished;
+                    _planCancelled = selection.Cancelled;
+                    if (_planCancelled) { Navigation.NavigateTo("/aurora/orders", replace: true); return; }
+                    _planName = selection.FileName;
+                    if (_workspaceFinished) { StateHasChanged(); return; }
+                    SetInput(selection.RequestJson, selection.FileName);
+                }
+                catch (Exception ex) { _error = "Could not load selected orders. " + ex.Message; StateHasChanged(); return; }
+                StateHasChanged();
+            }
+            var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", PlanningStorageKey);
+            if (Guid.TryParse(saved, out var id)) { _sessionId = id; await ResumePlanning(); StateHasChanged(); }
+        }
+        if (_result is not null)
+        {
+            await JS.InvokeVoidAsync("routeMap.initSplitter", "planning-results-grid");
+            _dragReference ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("routeMap.initDeliveryDrag", "planning-results-grid", _dragReference);
+        }
+        if (_renderMap && _result is not null)
+        {
+            _renderMap = false;
+            _roadCts?.Cancel();
+            _roadMode = false;
+            _loadingRoads = false;
+            _roadError = null;
+            _loadedRoads.Clear();
+            _roadDirections.Clear();
+            var payload = new
+            {
+                routes = _result.Routes.Select((route, index) => new
+                {
+                    route.Vehicle,
+                    color = RouteColor(index),
+                    stops = route.RouteStops.Select(stop => new
+                    {
+                        lat = stop.Latitude,
+                        lon = stop.Longitude,
+                        stop.LocationId,
+                        stop.IsDepot,
+                        stop.OrderIds,
+                        arrival = ScheduleTime(stop.Arrival),
+                        departure = ScheduleTime(stop.Departure)
+                    })
+                }),
+                dropped = LeftOffOrders.Select((order, index) => new { order.OrderId, order.Latitude, order.Longitude, Reason = RoutingDisplayText.Clean(order.Reason), Number = index + 1 }).Where(order => order.Latitude is not null && order.Longitude is not null)
+            };
+            await JS.InvokeVoidAsync("routeMap.render", "route-map", payload);
+            await JS.InvokeVoidAsync("routeMap.filter", _selectedVehicle, _selectedVehicle is null);
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadResponse()
+    {
+        if (_result is null) return;
+        await JS.InvokeVoidAsync("routeMap.downloadJson", $"optimization-response-{DateTime.Now:yyyyMMdd-HHmmss}.json", _result.RawResponse);
+    }
+
+    private async Task DownloadStopData()
+    {
+        if (_result is null) return;
+
+        var csv = new StringBuilder();
+        csv.AppendLine("Status,Date Optimized,Terminal,Vehicle,Hours Budgeted,Estimated Hours,Stop Number,PRO,Ship To Name,Address,City,State,Zip,Units,Weight,Cubes,Bill Type,Allotted Stop Minutes,Latitude,Longitude,Reason,Appointment Windows,Appointment Confirmed,Window Enforced,Arrival,Departure");
+        foreach (var route in _result.Routes)
+        {
+            foreach (var pro in route.Pros.OrderBy(pro => pro.StopNumber).ThenBy(pro => pro.ProNumber).Where(pro => !IsRemoved(pro.ProNumber)))
+            {
+                AppendCsvRow(csv, "Optimized", _result.OptimizedAt.ToString("yyyy-MM-dd HH:mm:ss"), route.Terminal, route.Vehicle,
+                    Hours(route.BudgetedSeconds), Hours(route.EstimatedSeconds), pro.StopNumber?.ToString(), pro.ProNumber,
+                    pro.ShipToName, pro.Address1, pro.City, pro.State, pro.PostalCode, CsvNumber(pro.Units),
+                    CsvNumber(pro.Weight), CsvNumber(pro.Cubes), pro.BillType, Minutes(pro.AllottedStopSeconds),
+                    CsvNumber(pro.Latitude), CsvNumber(pro.Longitude), string.Empty,
+                    AppointmentCsv(pro.Appointment), pro.Appointment?.Confirmed?.ToString(), pro.Appointment?.Enforced.ToString(), pro.Arrival?.ToString("yyyy-MM-dd HH:mm:ss"), pro.Departure?.ToString("yyyy-MM-dd HH:mm:ss"));
+            }
+        }
+        foreach (var order in LeftOffOrders)
+        {
+            AppendCsvRow(csv, "Left off", _result.OptimizedAt.ToString("yyyy-MM-dd HH:mm:ss"), _result.Terminal, string.Empty,
+                string.Empty, string.Empty, string.Empty, order.OrderId, order.ShipToName, order.Address1,
+                order.City, order.State, order.PostalCode, CsvNumber(order.Units), CsvNumber(order.Weight),
+                CsvNumber(order.Cubes), order.BillType, Minutes(order.AllottedStopSeconds),
+                CsvNumber(order.Latitude), CsvNumber(order.Longitude), order.Reason,
+                AppointmentCsv(order.Appointment), order.Appointment?.Confirmed?.ToString(), order.Appointment?.Enforced.ToString(), "", "");
+        }
+
+        await JS.InvokeVoidAsync("routeMap.downloadText", $"route-stops-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv.ToString(), "text/csv;charset=utf-8");
+    }
+
+    private static void AppendCsvRow(StringBuilder csv, params string?[] values) =>
+        csv.AppendLine(string.Join(",", values.Select(Csv)));
+
+    private static string Csv(string? value)
+    {
+        return RoutingInput.Csv(value);
+    }
+
+    private async Task DownloadManifestData()
+    {
+        if (_result is null) return;
+        var csv = new StringBuilder("Vehicle,Terminal,PROs,Stops,Miles,Kilometers,Estimated Hours,Driving Hours,Estimated Cost,Departure,Return\r\n");
+        foreach (var route in _result.Routes)
+            AppendCsvRow(csv, route.Vehicle, route.Terminal, route.Pros.Count.ToString(), route.ManifestStops.ToString(),
+                CsvNumber(route.Kilometers * 0.621371), CsvNumber(route.Kilometers), Hours(route.EstimatedSeconds), Hours(route.DriveSeconds),
+                CsvNumber(route.Cost), route.Departure?.ToString("yyyy-MM-dd HH:mm:ss"), route.Return?.ToString("yyyy-MM-dd HH:mm:ss"));
+        await JS.InvokeVoidAsync("routeMap.downloadText", "manifest-totals.csv", csv.ToString(), "text/csv;charset=utf-8");
+    }
+
+    private async Task FocusOrder(string orderId, string? vehicle = null)
+    {
+        await SelectManifest(vehicle);
+        await JS.InvokeVoidAsync("routeMap.focusOrder", orderId, vehicle);
+    }
+
+    private Task ManifestChanged(ChangeEventArgs args) => SelectManifest(args.Value?.ToString());
+    private async Task SelectManifest(string? vehicle)
+    {
+        _selectedVehicle = string.IsNullOrEmpty(vehicle) ? null : vehicle;
+        await JS.InvokeVoidAsync("routeMap.filter", _selectedVehicle, _selectedVehicle is null);
+        if (_roadMode) await ChangeMapMode(true);
+    }
+
+    private async Task ChangeMapMode(bool roadMode)
+    {
+        _roadCts?.Cancel();
+        _roadMode = roadMode;
+        _roadError = null;
+        _loadingRoads = false;
+        await JS.InvokeVoidAsync("routeMap.setMode", roadMode);
+        if (!roadMode || _result is null) return;
+        var result = _result;
+        using var cts = new CancellationTokenSource();
+        _roadCts = cts;
+        _loadingRoads = true;
+        try
+        {
+            var source = System.Text.Json.Nodes.JsonNode.Parse(_sourceJson ?? "{}");
+            foreach (var route in result.Routes.Where(r => _selectedVehicle is null || r.Vehicle == _selectedVehicle))
+            {
+                if (_loadedRoads.Contains(route.Vehicle) || route.RouteStops.Count < 2) continue;
+                var vehicle = source?["vehicles"]?.AsArray().FirstOrDefault(v => v?["id"]?.GetValue<string>() == route.Vehicle);
+                var profile = vehicle?["routing"]?["profile"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(profile)) throw new InvalidOperationException("This manifest has no vehicle routing profile.");
+                using var response = await Http.PostAsJsonAsync("api/v1/routing/road-route",
+                    new RoadRouteRequestDto(route.RouteStops.Select(s => new RoadPointDto(s.Latitude, s.Longitude)).ToList(), profile), cts.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>(cancellationToken: cts.Token);
+                    throw new InvalidOperationException(error?.Error ?? "Road routes could not be loaded.");
+                }
+                var road = await response.Content.ReadFromJsonAsync<RoadRouteDto>(cancellationToken: cts.Token);
+                cts.Token.ThrowIfCancellationRequested();
+                if (!ReferenceEquals(result, _result)) return;
+                if (road is null || road.Points.Count < 2) throw new InvalidOperationException("No road route was returned.");
+                await JS.InvokeVoidAsync("routeMap.setRoadRoute", route.Vehicle, road.Points);
+                _loadedRoads.Add(route.Vehicle);
+                _roadDirections[route.Vehicle] = road.Directions;
+                await JS.InvokeVoidAsync("routeMap.setMode", true);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            if (ReferenceEquals(result, _result) && !cts.IsCancellationRequested)
+                _roadError = ex is InvalidOperationException ? ex.Message : "Road routes are unavailable. Retry or switch to Bird’s-eye.";
+        }
+        finally
+        {
+            if (ReferenceEquals(_roadCts, cts)) { _roadCts = null; _loadingRoads = false; }
+        }
+    }
+    private Task FocusDirection(RoadDirectionDto direction) => JS.InvokeVoidAsync("routeMap.focus", direction.Latitude, direction.Longitude).AsTask();
+    private RouteSummaryDto? PreviousRoute(string vehicle) => _comparison?.Routes.FirstOrDefault(r => r.Vehicle == vehicle);
+    private static string ScheduleTime(DateTimeOffset? value) => value?.ToString("MM/dd h:mm tt", CultureInfo.InvariantCulture) ?? "Not provided";
+    private static string AppointmentCsv(AppointmentInfoDto? value) => value is null ? "" : string.Join(" | ", value.Windows.Select(w => $"{w.EarliestStart:yyyy-MM-dd HH:mm:ss} / {w.LatestStart:yyyy-MM-dd HH:mm:ss}" + (w.LatestEnd is null ? "" : $"; finish by {w.LatestEnd:yyyy-MM-dd HH:mm:ss}")));
+
+    private static string CsvNumber(double? value) => value?.ToString("0.###", CultureInfo.InvariantCulture) ?? string.Empty;
+    private static string Hours(int? seconds) => seconds is > 0 ? (seconds.Value / 3600d).ToString("0.##", CultureInfo.InvariantCulture) : string.Empty;
+    private static string Minutes(int? seconds) => seconds is null ? string.Empty : (seconds.Value / 60d).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private Task FitMap() => JS.InvokeVoidAsync("routeMap.fit").AsTask();
+    private void Cancel()
+    {
+        _busyLabel = "Cancelling…";
+        _cts?.Cancel();
+    }
+    private void SelectTab(ResultTab tab) => _tab = tab;
+    private string TabClass(ResultTab tab) => _tab == tab ? "active" : "";
+    private string RouteColor(int index) => _colors[index % _colors.Length];
+    private static string Signed(double value) => value == 0 ? "No change" : $"{(value > 0 ? "+" : "")}{value:N0}";
+    private static string MoneyDelta(double value) => value == 0 ? "No change" : $"{(value > 0 ? "+" : "−")}{Math.Abs(value):C0}";
+    private static string DistanceDelta(double value) => value == 0 ? "No change" : $"{(value > 0 ? "+" : "−")}{Math.Abs(value):N0} km";
+    private static string DeltaClass(double value, bool lowerIsBetter) => value == 0 ? "neutral" : (value < 0) == lowerIsBetter ? "better" : "worse";
+    private static string Duration(int seconds) => seconds <= 0 ? "—" : $"{seconds / 3600}h {seconds % 3600 / 60:D2}m";
+    private static string Duration(int? seconds) => seconds is > 0 ? Duration(seconds.Value) : "Not provided";
+    private static string StopTime(int? seconds) => seconds is null ? "Not provided" : $"{seconds.Value / 60d:0.##} min";
+    private static string Metric(double? value) => value?.ToString("N0") ?? "Not provided";
+    private static string Address(string address1, string city, string state, string postalCode)
+    {
+        var locality = string.Join(", ", new[] { city, state }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        var parts = new[] { address1, locality, postalCode }
+            .Where(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "Not provided", StringComparison.OrdinalIgnoreCase));
+        var address = string.Join(" ", parts);
+        return string.IsNullOrWhiteSpace(address) ? "Address not provided" : address;
+    }
+    private static string FormatBytes(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:N1} MB" : $"{bytes / 1024d:N0} KB";
+    private static string Coordinate(DroppedOrderDto order) => order.Latitude is { } lat && order.Longitude is { } lon ? $"{lat:F4}, {lon:F4}" : "No coordinates";
+    public void Dispose() { _dragReference?.Dispose(); _disposed = true; _cts?.Cancel(); _cts?.Dispose(); _roadCts?.Cancel(); }
+
+    private sealed record ComparisonSnapshot(string FileName, RunSummaryDto Summary, IReadOnlyList<RouteSummaryDto> Routes);
+}

@@ -1,0 +1,14 @@
+.account-lookup { position:relative; min-width:0; width:100%; }
+.account-lookup > label { display:block; margin-bottom:3px; }
+.lookup-control { display:flex; width:100%; align-items:stretch; }
+.lookup-control input { flex:1; width:100%; min-width:0; height:32px; box-sizing:border-box; border-radius:5px 0 0 5px; }
+.lookup-control > button { display:grid; place-items:center; width:32px; flex:0 0 32px; padding:0; color:#475569; border:1px solid #cbd5e1; border-left:0; border-radius:0 5px 5px 0; background:#fff; cursor:pointer; }
+.lookup-control > button:hover { background:#eef4ff; color:#2459db; }
+.lookup-control > button:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
+.lookup-options { position:absolute; top:calc(100% + 4px); left:0; width:100%; min-width:min(320px,80vw); max-width:80vw; max-height:300px; overflow-y:auto; overscroll-behavior:contain; z-index:100; box-sizing:border-box; padding:4px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 8px 24px #0f172a26; }
+.lookup-options button { display:flex; flex-direction:column; gap:3px; width:100%; box-sizing:border-box; text-align:left; padding:9px 10px; white-space:normal; line-height:1.35; color:#172b4d; background:#fff; border:0; border-radius:4px; cursor:pointer; }
+.lookup-options button + button { margin-top:2px; }
+.lookup-options button:hover,.lookup-options button[aria-selected=true] { background:#edf3ff; }
+.lookup-options strong { display:block; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+.lookup-options small { display:block; font-size:11px; font-weight:400; color:#64748b; }
+.lookup-options p { margin:0; padding:10px; font-size:12px; line-height:1.5; color:#64748b; }

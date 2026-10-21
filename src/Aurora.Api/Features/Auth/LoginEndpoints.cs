@@ -15,13 +15,16 @@ public static class LoginEndpoints
         app.MapPost("/api/auth/login", async (
             LoginRequest request,
             SignInManager<ApplicationUser> signInManager,
-            UserManager<ApplicationUser> userManager) =>
+            UserManager<ApplicationUser> userManager,
+            HttpContext context) =>
         {
             var user = await userManager.FindByNameAsync(request.UserName);
             if (user is null)
             {
                 return Results.Unauthorized();
             }
+
+            context.Items[AppLog.ActorKey] = new AppLog.Actor(user.Id, user.UserName ?? "Unknown user");
 
             var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
             if (!result.Succeeded)
@@ -33,8 +36,11 @@ public static class LoginEndpoints
             return Results.Ok();
         }).AllowAnonymous();
 
-        app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signInManager) =>
+        app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signInManager, HttpContext context) =>
         {
+            var session = await context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+            if (Guid.TryParse(session.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id))
+                context.Items[AppLog.ActorKey] = new AppLog.Actor(id, session.Principal?.Identity?.Name ?? "Unknown user");
             await signInManager.SignOutAsync();
             return Results.Ok();
         });

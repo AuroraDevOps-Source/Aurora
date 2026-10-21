@@ -1,0 +1,209 @@
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+@if(_message is not null){<p role="status">@_message</p>}
+@if(_record is null)
+{
+    <section class="planning-card @(Kind=="orders"?"nova-orders-list":null)">
+        <div class="tms-filters"><label class="field">@(Kind=="fleet"?"Find vehicle":"Find order")<input @bind="_search" @bind:event="oninput" placeholder="@(Kind=="fleet"?"Unit, terminal, make":"PRO, order ID, BOL, customer, city")" @onkeydown="SearchKey" /></label>
+        <label class="field">Terminal<select @bind="_terminal"><option value="">All terminals</option>@foreach(var t in _options.Terminals){<option value="@t">@TerminalLabel(t)</option>}</select></label>
+        @if(Kind=="orders"){<label class="field">Status<select @bind="_status"><option value="ready">Ready to route</option><option value="">All statuses</option>@foreach(var s in _options.Statuses){<option value="@s.Id">@s.Name</option>}</select></label>}
+        <button class="outline-button" disabled="@_busy" @onclick="Search">Search / Refresh</button><button class="primary-button" disabled="@_busy" @onclick="New">@(Kind=="fleet"?"Add truck":"Add order")</button></div>
+        @if(Kind=="fleet"){<p class="record-hint">Create and maintain driver profiles in Nova. Assign an existing driver when dispatching a manifest in Manifests.</p>}
+        @if(Kind=="orders")
+        {
+            <div class="tms-selection">
+                <button class="primary-button" disabled="@(_busy || _selectedOrders.Count==0 || _planningError is not null)" @onclick="StartPlan">Plan routes (@_selectedOrders.Count)</button>
+                <button class="outline-button" disabled="@(_busy || _selectedOrders.Count==0)" @onclick="OpenBulkConsignee">Update consignee</button>
+                @if(_selectedOrders.Count>0){<button class="text-button" disabled="@_busy" @onclick="ClearOrderSelection">Clear selection</button>}
+                <span>@PageAvailable.Count() of @_rows.Length orders on this page available for planning</span>
+            </div>
+            @if(_planningError is not null){<p class="alert" role="alert">@_planningError</p>}
+            @foreach(var draft in _openPlans)
+            {
+                <div class="route-open-plan"><span>@draft.Name · @draft.OrderCount orders</span><a class="outline-button" href="@($"/aurora/planning?draft={draft.Id}")">Resume plan</a><button class="text-button" disabled="@_busy" @onclick="()=>CancelPlan(draft.Id)">Cancel plan &amp; release orders</button></div>
+            }
+        }
+        @if(_busy){<p role="status">Loading records…</p>}
+        <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr>@if(Kind=="orders"){<th><input type="checkbox" aria-label="Select available orders on this page" checked="@AllPageSelected" disabled="@(_busy || !PageAvailable.Any())" @onchange="SelectPage" /></th>}<th class="data-issue-column" aria-label="Data requirements"></th><th>@(Kind=="fleet"?"Unit":"PRO / Order")</th><th>@(Kind=="fleet"?"Equipment type":"Consignee")</th><th>Terminal</th><th>Status</th>@if(Kind=="orders"){<th>Routing</th>}</tr></thead>
+        <tbody>@foreach(var row in _rows){<EditGridRow Disabled="@(_busy)" OnEdit="()=>Open(row.Id)">@if(Kind=="orders"){<td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input @key="(row.Id, _selectionVersion)" type="checkbox" aria-label="@($"Select order {row.Number}")" title="@SelectionHint(row)" checked="@_selectedOrders.Contains(row.Id)" disabled="@(_busy || !CanSelect(row))" @onclick="e=>SelectOrder(row,e)" /></td>}<td class="data-issue-column"><DataIssueIndicator @key="row.Id" RecordName="@row.Number" Issues="@row.Issues" /></td><td><strong>@row.Number</strong></td><td>@row.Description</td><td>@row.Terminal</td><td>@row.Status</td>@if(Kind=="orders"){<td>@(row.ReceivingTerminal is {} receiving ? $"Line haul → {receiving}" : "Consignee")</td>}</EditGridRow>}</tbody></table></div>
+        @if(!_busy && _rows.Length==0 && _error is null){<p>No records match your search.</p>}
+        <div class="tms-selection"><span>Page @(_page+1) · @_rows.Length records</span><button class="outline-button" disabled="@(_busy || _page==0)" @onclick="Previous">Previous</button><button class="outline-button" disabled="@(_busy || !_hasMore)" @onclick="Next">Next</button></div>
+    </section>
+}
+else
+{
+    <section class="planning-card nova-record">
+        <div class="tms-selection"><h2>@_record.Title</h2>
+            @if (!_new && Kind=="fleet") { <DeleteRecordButton @key="_record.Id" RecordType="truck" Name="@_record.Parts[0].Fields[0].Value" Disabled="@_busy" OnDelete="Delete" /> }
+            <button class="outline-button" disabled="@_busy" @onclick="Cancel">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Save">@(_busy?"Saving…":"Save")</button>
+        </div>
+        <div class="record-groups @(Kind=="fleet"?"fleet-groups":null)">
+        @foreach(var part in _record.Parts)
+        {
+          @foreach(var group in FieldGroups(part))
+          {
+            <fieldset disabled="@_busy" class="record-section @group.Css"><legend>@group.Title</legend><div class="record-fields">
+            @foreach(var field in group.Fields)
+            {
+                @if(Kind=="orders" && field.Key is "PBBNAME" or "OPS_NAME")
+                {
+                    <NovaAccountLookup Label="@field.Label" Value="@_values[part.Key][field.Key]" MaxLength="@field.MaxLength" Disabled="@_busy"
+                        ValueChanged="value=>ChangeAccountName(part.Key,field.Key,value)" OnSelected="id=>SelectAccount(part.Key,id)" />
+                }
+                else
+                {
+                <label class="field">@field.Label
+                    @if(_new && field.Key=="EH_UNIT_TYPE")
+                    { <select value="@_values[part.Key][field.Key]" @onchange="e=>Change(part.Key,field.Key,e.Value?.ToString())"><option value="">Select equipment type</option>@foreach(var type in _options.EquipmentTypes){<option value="@type.Id">@type.Name</option>}</select> }
+                    else if(field.Key=="EH_DOMICILE" || (_new && field.Key=="PB_LOCATION"))
+                    { <select value="@_values[part.Key][field.Key]" @onchange="e=>Change(part.Key,field.Key,e.Value?.ToString())"><option value="">Select terminal</option>@foreach(var terminal in _options.Terminals){<option>@terminal</option>}</select> }
+                    else if(field.Key=="PB_STATUS")
+                    {
+                        <select value="@_values[part.Key][field.Key]" @onchange="e=>Change(part.Key,field.Key,e.Value?.ToString())">
+                            @if(!_options.Statuses.Any(s=>s.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)==_values[part.Key][field.Key]))
+                            { <option value="@_values[part.Key][field.Key]" disabled>Current status (@_values[part.Key][field.Key])</option> }
+                            @foreach(var status in _options.Statuses){<option value="@status.Id">@status.Name (@status.Id)</option>}
+                        </select>
+                    }
+                    else
+                    {
+                    <input type="@InputType(field)" value="@_values[part.Key][field.Key]" @onchange="e=>Change(part.Key,field.Key,e.Value?.ToString())" readonly="@field.ReadOnly" maxlength="@field.MaxLength" step="@(field.Kind=="integer"?"1":"any")" />
+                    }
+                </label>
+                }
+            }
+            @if(Kind=="orders" && part.Title.StartsWith("Consignee") && group.Title.EndsWith(" · Address"))
+            {
+                <div class="order-routing-fields">
+                <label class="line-haul-toggle"><input type="checkbox" @bind="_lineHaul" /><span>Line Haul</span></label>
+                @if(_lineHaul)
+                {
+                    <label class="field receiving-terminal">Receiving terminal
+                        <select @bind="_receivingTerminal">
+                            <option value="">Select receiving terminal</option>
+                            @foreach(var node in _routingTerminals.Where(n=>n.Code!=_values["header"].GetValueOrDefault("PB_LOCATION")))
+                            { <option value="@node.Code">@node.Code — @node.Name — @node.Address, @node.City, @node.State @node.PostalCode</option> }
+                        </select>
+                    </label>
+                }
+                </div>
+            }
+            </div></fieldset>
+          }
+        }
+        </div>
+        @if(Kind=="orders"){<p class="record-hint">Appointment times are local Nova times. Address lines 2 and 3 are optional, for suites, buildings or additional delivery details.</p>}
+    </section>
+}
+@if (_showPlanSchedule && Kind=="orders")
+{
+    <EditPopup Title="Route schedule" Busy="_busy" OnClose="ClosePlanSchedule" Class="route-schedule-dialog">
+        @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+        <fieldset class="route-schedule-fields" disabled="@_busy">
+            <label class="field">Route date<input type="date" @bind="_planDate" /></label>
+            <label class="field">Depart<input type="time" @bind="_planDepart" /></label>
+            <label class="field">Return by<input type="time" @bind="_planReturn" /></label>
+        </fieldset>
+        <div class="popup-actions">
+            <button class="primary-button" disabled="@_busy" @onclick="CreatePlan">@(_busy ? "Opening plan…" : "Continue")</button>
+            <button class="outline-button" disabled="@_busy" @onclick="ClosePlanSchedule">Cancel</button>
+        </div>
+    </EditPopup>
+}
+@if (_createdPlans.Length > 0)
+{
+    <EditPopup Title="Plans ready" Class="route-schedule-dialog" OnClose="()=>_createdPlans=[]">
+        <p>Local deliveries and terminal transfers have separate plans. Choose one to assign trucks.</p>
+        @foreach (var plan in _createdPlans)
+        {
+            <div class="plan-group-row"><span>@plan.FileName</span><a class="outline-button" href="@($"/aurora/planning?draft={plan.Id}")">Open plan</a></div>
+        }
+        <p class="preview-footnote">The other plans stay available on Orders.</p>
+        <div class="popup-actions"><button class="outline-button" @onclick="()=>_createdPlans=[]">Close</button></div>
+    </EditPopup>
+}
+@if(_bulkOrderIds.Length>0){<BulkConsigneePopup OrderIds="_bulkOrderIds" OnClose="CloseBulkConsignee" />}
+@code {
+    [Parameter] public string Kind {get;set;}="orders";
+    string? _loadedKind,_error,_message;
+    string _search="";
+    string _terminal="",_status="";
+    NovaRecordOptions _options=new([],[]);
+    string TerminalLabel(string code) => Kind=="orders" && _options.TerminalNames.TryGetValue(code,out var name) && !string.IsNullOrWhiteSpace(name) ? $"{code} — {name}" : code;
+    int _page;
+    bool _busy,_hasMore,_new;
+    NovaRecordSummary[] _rows=[];
+    NovaRecordDocument? _record;
+    Dictionary<string,Dictionary<string,string?>> _values=[];
+    string BaseUrl=>$"api/v1/aurora/firebird/records/{Kind}";
+    protected override async Task OnParametersSetAsync(){if(_loadedKind==Kind)return;_loadedKind=Kind;_record=null;_search=_terminal="";_status=Kind=="orders"?"ready":"";ClearOrderSelection();_page=0;await Run(async()=>{using var r=await Http.GetAsync("api/v1/aurora/firebird/record-options");await Check(r);_options=(await r.Content.ReadFromJsonAsync<NovaRecordOptions>())!;});await Load();}
+    static string InputType(NovaField f)=>f.Kind switch {"datetime-local"=>"datetime-local","number" or "integer" or "dimension" or "latitude" or "longitude"=>"number",_=>"text"};
+    private sealed record FieldGroup(string Title,string Css,NovaField[] Fields);
+    private IEnumerable<FieldGroup> FieldGroups(NovaRecordPart part)
+    {
+        if(Kind!="fleet")
+        {
+            string OrderGroup(NovaField f)=>f.Key switch
+            {
+                "PBTPIECE" or "PBTWEIGH" or "PB_TTL_CUBE"=>"Freight totals",
+                _ when f.Key.StartsWith("PBB") && f.Key!="PBBOL"=>"Bill-to details",
+                "OPS_APPT_LOW" or "OPS_APPT_HIGH"=>"Appointment",
+                "OPS_CONTACT" or "OPS_PHONE" or "OPS_CONTACT_EMAIL"=>"Contact details",
+                "OPS_BOL" or "OPS_PO"=>"References",
+                _=>part.Key=="header"?"Order & references":"Address"
+            };
+            foreach(var group in part.Fields.Where(f => f.Kind is not ("latitude" or "longitude" or "account-id")).GroupBy(OrderGroup))
+                yield return new(part.Key=="header"?group.Key:$"{part.Title} · {group.Key}","",group.ToArray());
+            yield break;
+        }
+        string Group(NovaField field)=>field.Key switch
+        {
+            "EH_TOT_FIXED_COST_HR" or "EH_TOT_VAR_COST_MI"=>"Operating costs",
+            "EH_EMPTY_WEIGHT" or "EH_MAX_WEIGHT" or "EH_MAX_CUBE" or "EH_AXLES"=>"Capacity",
+            "EH_LENGTH" or "EH_WIDTH" or "EH_HEIGHT" or "EH_INT_LENGTH" or "EH_INT_WIDTH" or "EH_INT_HEIGHT"=>"Dimensions",
+            "EH_STD_START_TM" or "EH_STD_END_TM" or "EH_MAX_OPS_MINS_PER_DAY" or "EH_MAX_ROUTE_DURATION" or "EH_BREAK_DURATION" or "EH_START_BREAK_AFTER_MINS"=>"Schedule & breaks",
+            _=>"Vehicle identification"
+        };
+        foreach(var title in new[]{"Vehicle identification","Capacity","Operating costs","Dimensions","Schedule & breaks"})
+        {
+            var fields=part.Fields.Where(f=>Group(f)==title).ToArray();
+            if(fields.Length>0)yield return new(title,title is "Capacity" or "Dimensions"?"record-section-half":"record-section-wide",fields);
+        }
+    }
+    void SetValues()=>_values=_record!.Parts.ToDictionary(p=>p.Key,p=>p.Fields.ToDictionary(f=>f.Key,f=>f.Value));
+    void Change(string part,string key,string? value)=>_values[part][key]=value;
+    async Task SearchKey(KeyboardEventArgs e){if(e.Key=="Enter")await Search();}
+    async Task Search(){ClearOrderSelection();_page=0;await Load();}
+    async Task Previous(){_page--;await Run(()=>LoadRows(false));}
+    async Task Next(){_page++;await Run(()=>LoadRows(false));}
+    Task Load()=>Run(()=>LoadRows());
+    async Task LoadRows(bool refreshPlanning=true){if(Kind=="orders" && refreshPlanning)await LoadPlanningOrders();using var r=await Http.GetAsync($"{BaseUrl}?page={_page}&search={Uri.EscapeDataString(_search)}&terminal={Uri.EscapeDataString(_terminal)}"+(_status=="ready"?"&readyOnly=true":_status.Length>0?$"&status={_status}":""));await Check(r);var page=(await r.Content.ReadFromJsonAsync<NovaRecordPage>())!;_rows=page.Records;_hasMore=page.HasMore;_selectionAnchor=null;}
+    async Task Open(long id)=>await Run(async()=>{using var r=await Http.GetAsync($"{BaseUrl}/{id}");await Check(r);_record=(await r.Content.ReadFromJsonAsync<NovaRecordDocument>())!;_new=false;SetValues();await LoadOrderRouting();});
+    async Task New()=>await Run(async()=>{using var r=await Http.GetAsync($"{BaseUrl}/new");await Check(r);_record=(await r.Content.ReadFromJsonAsync<NovaRecordDocument>())!;_new=true;SetValues();await LoadOrderRouting();});
+    void Cancel(){_record=null;_new=false;_values=[];_error=_message=null;}
+    async Task Delete()=>await Run(async()=>{using var r=await Http.DeleteAsync($"{BaseUrl}/{_record!.Id}?revision={Uri.EscapeDataString(_record.Revision)}");await Check(r);Cancel();await LoadRows();if(_rows.Length==0 && _page>0){_page--;await LoadRows();}_message="Truck deleted.";});
+    async Task Save()=>await Run(async()=>{
+        if(Kind=="orders" && !_routingLoaded)throw new FormatException("Reload this order before saving; routing settings could not be loaded.");
+        if(Kind=="orders" && _lineHaul && (string.IsNullOrWhiteSpace(_receivingTerminal) || _receivingTerminal==_values["header"].GetValueOrDefault("PB_LOCATION")))
+            throw new FormatException("Choose a receiving terminal different from the starting terminal.");
+        var input=new NovaRecordEdit(_record!.Revision,_values);
+        using var r=_new?await Http.PostAsJsonAsync(BaseUrl,input):await Http.PutAsJsonAsync($"{BaseUrl}/{_record.Id}",input);
+        await Check(r);var saved=(await r.Content.ReadFromJsonAsync<NovaRecordDocument>())!;
+        if(_new){_search=_terminal=_status="";_page=0;}
+        _record=saved;_new=false;SetValues();
+        var receiving=_lineHaul?_receivingTerminal:null;
+        if(Kind=="orders" && receiving!=_orderRouting.ReceivingTerminal)
+        {
+            using var routing=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/orders/{saved.Id}/routing",new NovaOrderRoutingEdit(receiving,_orderRouting.Revision,saved.Revision));
+            if(!routing.IsSuccessStatusCode)
+            {
+                try{await Check(routing);}catch(Exception ex){throw new FormatException("Order details were saved, but Line Haul settings were not: "+ex.Message);}
+            }
+            _orderRouting=(await routing.Content.ReadFromJsonAsync<NovaOrderRouting>())!;
+        }
+        Cancel();_message=saved.LocationWarnings.Length>0?string.Join(" ",saved.LocationWarnings):"Saved.";await LoadRows();
+    });
+    async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=_message=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;}}
+    static async Task Check(HttpResponseMessage r){if(!r.IsSuccessStatusCode)throw new FormatException((await r.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Nova request failed.");}
+}

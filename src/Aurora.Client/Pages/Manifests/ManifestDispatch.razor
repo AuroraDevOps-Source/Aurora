@@ -1,0 +1,131 @@
+﻿@inject HttpClient Http
+
+<fieldset class="manifest-details-fields" disabled="@_busy">
+    @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+    @if (_document is {} d)
+    {
+        @if(!ShowHistory)
+        {
+        <div class="manifest-detail-heading"><span class="status-badge">@Label(d.StatusCode,d.Status)</span><button type="button" class="text-button" @onclick="Load">Refresh</button></div>
+        <dl class="manifest-detail-summary">
+            <div><dt>Date</dt><dd>@(d.Date?.ToString("MMM d, yyyy") ?? "—")</dd></div>
+            <div><dt>@d.ManifestType</dt><dd>@(d.Origin!=d.Destination ? $"{d.Origin} → {d.Destination}" : d.Terminal)</dd></div>
+            <div><dt>Planned departure</dt><dd>@PlannedTime(d.PlannedRoute?.Departure)</dd></div>
+            <div><dt>@(d.Origin!=d.Destination ? "Planned arrival" : "Planned return")</dt><dd>@PlannedTime(d.PlannedRoute?.Return)</dd></div>
+            <div><dt>Orders</dt><dd>@d.OrderCount</dd></div>
+            <div><dt>Planned stops</dt><dd>@(d.PlannedRoute?.ManifestStops.ToString() ?? "—")</dd></div>
+            <div><dt>Planned miles</dt><dd>@(d.PlannedRoute is {} route ? (route.Kilometers / 1.609344).ToString("N0") : "—")</dd></div>
+            <div><dt>Estimated duration</dt><dd>@(d.PlannedRoute is {} timed ? $"{timed.EstimatedSeconds / 3600}h {timed.EstimatedSeconds % 3600 / 60:D2}m" : "—")</dd></div>
+            <div><dt>Planned capacity</dt><dd>@(d.PlannedRoute?.LoadUtilization.ToString("P0") ?? "—")</dd></div>
+        </dl>
+        <div class="manifest-assignment-fields">
+            <label class="field">Driver<select @bind="_driver" disabled="@(!d.CanEdit)"><option value="0">Select driver</option>
+                @foreach(var item in d.Drivers){<option value="@item.Id" disabled="@(d.CanEdit && item.Unavailable is not null)">@OptionLabel(item,d.CanEdit)</option>}
+            </select></label>
+            <label class="field">Truck<select @bind="_truck" disabled="@(!d.CanEdit || d.PlannedTruckId is not null)"><option value="0">Select truck</option>
+                @foreach(var item in d.Trucks){<option value="@item.Id" disabled="@(d.CanEdit && item.Unavailable is not null)">@OptionLabel(item,d.CanEdit)</option>}
+            </select></label>
+            <label class="field">Status<select @bind="_status" disabled="@(d.AllowedStatuses.Length==0)">
+                @foreach(var statusCode in new[]{d.StatusCode}.Concat(d.AllowedStatuses).Distinct()) { <option value="@statusCode">@Label(statusCode,d.Status)</option> }
+            </select></label>
+            @if((_status is "ENR" or "CPLT") && _status!=d.StatusCode)
+            {
+                <label class="field">@(_status=="ENR"?"Actual departure":"Actual return / close")<input type="datetime-local" @bind="_occurredAt" /><small>@d.TimeZone</small></label>
+            }
+        </div>
+        @if(d.AllowedStatuses.Length>0)
+        {
+            <div class="popup-actions">
+                <button type="button" class="primary-button" disabled="@(!Ready)" @onclick="Save">Save manifest</button>
+                <button type="button" class="outline-button" @onclick="Reset">Cancel changes</button>
+            </div>
+        }
+        <div class="manifest-dispatch-notes">
+            <label class="field">Dispatcher notes<textarea rows="3" maxlength="4000" @bind="_notes" @bind:event="oninput" disabled="@(!d.CanEditNotes)" placeholder="Instructions for this manifest"></textarea></label>
+            @if(_notes!=d.Notes && d.CanEditNotes)
+            {
+                <div class="popup-actions"><button type="button" class="primary-button" @onclick="SaveNotes">Save notes</button><button type="button" class="outline-button" @onclick="()=>_notes=d.Notes">Cancel</button></div>
+            }
+            @if(_notesSaved){<small role="status">Notes saved.</small>}
+        </div>
+        @if(d.DispatchedAt is {} dispatched){<p>Dispatched @dispatched.ToString("MMM d, yyyy h:mm tt")</p>}
+        @if(d.DepartedAt is {} departed){<p>Departed @departed.ToString("MMM d, yyyy h:mm tt")</p>}
+        @if(d.ClosedAt is {} closed){<p>Closed @closed.ToString("MMM d, yyyy h:mm tt")</p>}
+        @if(d.CanEdit && _status!=d.StatusCode)
+        {
+            @if(_driver<=0){<p class="alert" role="alert">Select a driver before changing the manifest status.</p>}
+            @if(_truck<=0){<p class="alert" role="alert">Select a truck before changing the manifest status.</p>}
+            @foreach(var issue in SelectionIssues.Concat(d.Issues)){<p class="alert" role="alert">@issue</p>}
+        }
+        @if(_status=="CPLT" && d.StatusCode!="CPLT" && d.CloseIssue is {} closeIssue){<p class="alert" role="alert">@closeIssue</p>}
+        }
+        else
+        {
+        <div class="manifest-history">
+            <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Recorded</th><th>Event time</th><th>Operator (Nova initials)</th><th>From</th><th>To</th></tr></thead><tbody>
+                @foreach(var entry in d.History)
+                {
+                    <tr><td>@entry.RecordedAt?.ToString("MMM d, yyyy h:mm:ss tt")</td><td>@entry.OccurredAt?.ToString("MMM d, yyyy h:mm tt")</td><td>@entry.Operator</td><td>@entry.PreviousStatus</td><td>@entry.Status</td></tr>
+                }
+            </tbody></table></div>
+            @if(d.History.Length==0){<p>No status history recorded.</p>}
+        </div>
+        }
+    }
+    else if(_busy){<p role="status">Loading manifest…</p>}
+    else{<button class="outline-button" @onclick="Load">Retry</button>}
+</fieldset>
+
+@code {
+    [Parameter] public bool ShowHistory {get;set;}
+    [Parameter] public long ManifestId {get;set;}
+    [Parameter] public EventCallback<NovaDispatchDocument> OnSaved {get;set;}
+    NovaDispatchDocument? _document;
+    long _driver,_truck;
+    string _status="", _notes="";
+    bool _notesSaved;
+    string PlannedTime(DateTimeOffset? time)=>time is {} value ? TimeZoneInfo.ConvertTime(value,TimeZoneInfo.FindSystemTimeZoneById(_document!.TimeZone)).ToString("MMM d, h:mm tt") : "—";
+    DateTime? _occurredAt;
+    bool _busy;
+    string? _error;
+    string Url=>$"api/v1/aurora/firebird/manifests/{ManifestId}";
+    IEnumerable<string> SelectionIssues=>(_document?.Drivers.Concat(_document.Trucks)??[]).Where(x=>(x.Id==_driver || x.Id==_truck)&&x.Unavailable is not null).Select(x=>$"{x.Name}: {x.Unavailable}");
+    bool Ready=>_document is {} d && d.AllowedStatuses.Contains(_status) && _driver>0 && _truck>0
+        && (d.CanEdit ? d.Issues.Length==0 && !SelectionIssues.Any() : _occurredAt is not null)
+        && (_status!="CPLT" || d.CloseIssue is null);
+    static string Label(string code,string fallback)=>code switch{"UNAS"=>"Unassigned","ASG"=>"Assigned","DPCH"=>"Dispatched","ENR"=>"In transit","CPLT"=>"Closed",_=>fallback};
+    static string OptionLabel(NovaDispatchOption item,bool editing)=>!editing || item.Unavailable is null?item.Name:$"{item.Name} — {item.Unavailable}";
+    protected override Task OnInitializedAsync()=>Load();
+    void Reset(){_driver=_document?.DriverId??0;_truck=_document?.TruckId??_document?.PlannedTruckId??0;_status=_document?.StatusCode??"";_occurredAt=null;_error=null;_notes=_document?.Notes??"";_notesSaved=false;}
+    async Task Load()
+    {
+        if(_busy)return;_busy=true;_error=null;
+        try{using var r=await Http.GetAsync(Url+"/dispatch");await ApiResponse.Check(r);_document=await r.Content.ReadFromJsonAsync<NovaDispatchDocument>();Reset();}
+        catch(Exception e){_error=e.Message;}finally{_busy=false;}
+    }
+    async Task SaveNotes()
+    {
+        if(_busy || _document is not { CanEditNotes:true } d)return;
+        _busy=true;_error=null;_notesSaved=false;
+        try
+        {
+            using var response=await Http.PutAsJsonAsync(Url+"/notes",new NovaManifestNotesEdit(d.Revision,_notes));
+            await ApiResponse.Check(response);
+            _document=(await response.Content.ReadFromJsonAsync<NovaDispatchDocument>())! with { PlannedRoute=d.PlannedRoute };
+            _notes=_document.Notes;_notesSaved=true;
+        }
+        catch(Exception e){_error=e.Message;}
+        finally{_busy=false;}
+    }
+    async Task Save()
+    {
+        if(_busy || !Ready)return;_busy=true;_error=null;
+        try
+        {
+            using var r=await Http.PutAsJsonAsync(Url+"/status",new NovaManifestStatusEdit(_document!.Revision,_status,_driver,_truck,_occurredAt));
+            await ApiResponse.Check(r);_document=(await r.Content.ReadFromJsonAsync<NovaDispatchDocument>())! with { PlannedRoute=_document?.PlannedRoute };
+            var pendingNotes=_notes;Reset();_notes=pendingNotes;await OnSaved.InvokeAsync(_document);
+        }
+        catch(Exception e){_error=e.Message;}finally{_busy=false;}
+    }
+}

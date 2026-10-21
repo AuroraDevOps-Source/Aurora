@@ -1,0 +1,87 @@
+@inject HttpClient Http
+@implements IDisposable
+<div class="account-lookup">
+    <label class="field" for="@_id">@Label</label>
+    <div class="lookup-control">
+        <input id="@_id" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="@_open"
+               aria-controls="@(_id+"-options")" aria-activedescendant="@(_open && _active>=0?$"{_id}-{_active}":null)"
+               value="@_text" maxlength="@MaxLength" disabled="@Disabled" placeholder="Type a name or search Nova…"
+               @oninput="Input" @onfocus="()=>Search(_text)" @onblur="Close" @onkeydown="KeyDown" />
+        <button type="button" disabled="@Disabled" aria-label="@($"Look up {Label}")" @onmousedown:preventDefault @onclick="()=>Search(string.Empty)">▾</button>
+    </div>
+    @if(_open)
+    {
+        <div class="lookup-options" id="@(_id+"-options")" role="listbox" aria-label="@($"{Label} matches")">
+            @if(_loading){<p role="status">Searching Nova…</p>}
+            else if(_error is not null){<p role="status">@_error You can still type a name.</p>}
+            else
+            {
+                @for(var index=0;index<_matches.Length;index++)
+                {
+                    var item=_matches[index];
+                    <button type="button" role="option" tabindex="-1" id="@($"{_id}-{index}")" aria-selected="@(index==_active)"
+                            @onmousedown:preventDefault @onclick="()=>Choose(item)">
+                        <strong>@item.Name</strong><small>@item.Id@if(!string.IsNullOrWhiteSpace(item.City)){<span> · @item.City</span>}</small>
+                    </button>
+                }
+                @if(_matches.Length==0){<p>No matches. Keep typing to enter a name manually.</p>}
+                @if(_hasMore){<p>Showing 50 matches. Type a name, account code, or city to narrow the list.</p>}
+            }
+        </div>
+    }
+</div>
+@code {
+    [Parameter] public string Label {get;set;}="Name";
+    [Parameter] public string? Value {get;set;}
+    [Parameter] public EventCallback<string?> ValueChanged {get;set;}
+    [Parameter] public EventCallback<string> OnSelected {get;set;}
+    [Parameter] public bool Disabled {get;set;}
+    [Parameter] public int MaxLength {get;set;}=40;
+    readonly string _id="nova-account-"+Guid.NewGuid().ToString("N");
+    string _text="";
+    string? _error;
+    bool _open,_loading,_hasMore;
+    int _active=-1,_version;
+    NovaMasterSummary[] _matches=[];
+    CancellationTokenSource? _search;
+    protected override void OnParametersSet(){if(Value!=_text)_text=Value??"";if(Disabled)Close();}
+    async Task Input(ChangeEventArgs e)
+    {
+        _text=e.Value?.ToString()??"";
+        await ValueChanged.InvokeAsync(_text);
+        await Search(_text,true);
+    }
+    async Task Search(string text,bool debounce=false)
+    {
+        if(Disabled)return;
+        _search?.Cancel();_search?.Dispose();_search=new();
+        var token=_search.Token;var version=++_version;
+        _open=true;_loading=true;_error=null;_active=-1;_matches=[];
+        try
+        {
+            if(debounce)await Task.Delay(200,token);
+            using var response=await Http.GetAsync("api/v1/aurora/firebird/masters/customers?page=0&search="+Uri.EscapeDataString(text),token);
+            if(!response.IsSuccessStatusCode)throw new FormatException("The Nova account list could not be loaded.");
+            var page=(await response.Content.ReadFromJsonAsync<NovaMasterPage>(cancellationToken:token))!;
+            if(version!=_version)return;
+            _matches=page.Records;_hasMore=page.HasMore;
+        }
+        catch(OperationCanceledException){}
+        catch(Exception ex){if(version==_version)_error=ex.Message;}
+        finally{if(version==_version)_loading=false;}
+    }
+    void Close(){_open=false;_active=-1;_version++;_search?.Cancel();}
+    async Task Choose(NovaMasterSummary item){Close();await OnSelected.InvokeAsync(item.Id);}
+    async Task KeyDown(KeyboardEventArgs e)
+    {
+        if(e.Key=="Escape"){Close();return;}
+        if(e.Key=="Enter" && _open && _active>=0 && _active<_matches.Length){await Choose(_matches[_active]);return;}
+        if(e.Key is "ArrowDown" or "ArrowUp")
+        {
+            if(!_open)await Search(_text);
+            _active=_matches.Length==0?-1:Math.Clamp(_active+(e.Key=="ArrowDown"?1:-1),0,_matches.Length-1);
+        }
+    }
+    public void Dispose(){_version++;_search?.Cancel();_search?.Dispose();}
+}
+

@@ -8,7 +8,10 @@ public sealed record CreateOrderDraftDto(Guid SourceId, string[] OrderIds, DateO
 public sealed record OrderDraftDto(Guid Id, Guid SourceId, string FileName, string RequestJson, bool Finished, string Batch = PlanningBatch.General, bool Cancelled = false);
 // Vehicles limits which optimized routes become manifests; the rest return to Ready to Route.
 public sealed record FinishOrderDraftDto(Guid SessionId, string[]? Vehicles = null);
-public sealed record SavedManifestDto(Guid Id, Guid DraftId, string Vehicle, DateTimeOffset CreatedAt, RouteSummaryDto Route, ManifestDetailsDto? Details = null, int Revision = 0);
+public sealed record SavedManifestDto(Guid Id, Guid DraftId, string Vehicle, DateTimeOffset CreatedAt, RouteSummaryDto Route, ManifestDetailsDto? Details = null, int Revision = 0)
+{
+    public string? Number { get; init; }
+}
 public sealed record SeedOrdersDto(string Name, string RequestJson);
 
 public sealed record WorkspaceTenantDto(Guid Id, string Name);

@@ -1,0 +1,39 @@
+@page "/nova-launch"
+@layout SignInLayout
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Opening Aurora</PageTitle>
+<p role="status">Signing in from Nova…</p>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var launch = await JS.InvokeAsync<NovaLaunchInput?>("auroraLogin.takeNovaLaunch");
+            if (launch is null) { Failed(); return; }
+            var client = HttpClientFactory.CreateClient(ApiClients.Anonymous);
+            using var request = new HttpRequestMessage(HttpMethod.Post, launch.Code is null ? "/api/auth/nova-launch" : "/api/auth/nova/redeem")
+            {
+                Content = JsonContent.Create(launch)
+            };
+            request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode) { Failed(); return; }
+            Navigation.NavigateToLogin("authentication/login", new InteractiveRequestOptions
+            {
+                Interaction = InteractionType.SignIn,
+                ReturnUrl = Navigation.ToAbsoluteUri(ProductWorkspace.RouteFor(ProductWorkspace.Aurora)).AbsoluteUri
+            });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JSException)
+        {
+            Failed();
+        }
+    }
+    void Failed() => Navigation.NavigateTo("/login?novaLaunchFailed=true", replace: true);
+    public sealed record NovaLaunchInput(Guid? DatabaseId, string? Ticket, string? Code);
+}

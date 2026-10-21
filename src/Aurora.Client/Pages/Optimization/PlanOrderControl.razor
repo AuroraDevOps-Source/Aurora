@@ -1,0 +1,68 @@
+@if (Decision == PlanOrderDecisions.Excluded)
+{
+    <button type="button" class="text-button" disabled="@Disabled" @onclick='() => Apply("")'>Include again</button>
+}
+else
+{
+    @if (!Routed && Decision.StartsWith("truck:"))
+    {
+        <small>Assigned to @Decision[6..]</small>
+        <button type="button" class="text-button" title="Undo truck assignment" aria-label="Undo truck assignment for @OrderId" disabled="@Disabled" @onclick='() => Apply("")'>Undo</button>
+    }
+    @if (Routed)
+    {
+        <select aria-label="Move @OrderId to truck" disabled="@Disabled" value="@CurrentTruck" @onchange="MoveTruck">
+            <option value="@CurrentTruck">Move to truck…</option>
+            @foreach (var truck in Trucks.Where(t => t != CurrentTruck)) { <option value="@truck">@truck</option> }
+        </select>
+        <button type="button" class="remove-order" title="Remove from plan" aria-label="Remove @OrderId from plan" disabled="@Disabled" @onclick='() => Apply(PlanOrderDecisions.Excluded)'>&times;</button>
+    }
+    else if (_choosing)
+    {
+        <select aria-label="Truck for @OrderId" disabled="@Disabled" value="" @onchange="ChooseTruck">
+            <option value="">Choose truck...</option>
+            @foreach (var truck in Trucks) { <option value="@truck">@truck</option> }
+        </select>
+        <button type="button" class="text-button" disabled="@Disabled" @onclick="() => _choosing = false">Cancel</button>
+    }
+    else
+    {
+        <button type="button" class="assign-order" title="@(Decision.StartsWith("truck:") ? "Change truck" : Trucks.Count == 1 ? $"Add to {Trucks[0]}" : "Add to truck")" aria-label="@(Decision.StartsWith("truck:") ? $"Change truck for {OrderId}" : $"Add {OrderId} to truck")" disabled="@(Disabled || Trucks.Count == 0 || (Trucks.Count == 1 && Decision == "truck:" + Trucks[0]))" @onclick="AssignTruck">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h11v12H3z M14 9h4l3 4v4h-7 M18 9v4h3" /><circle cx="7" cy="18" r="2" fill="white" /><circle cx="18" cy="18" r="2" fill="white" /></svg>
+        </button>
+    }
+}
+
+@code {
+    [Parameter] public string SourceJson { get; set; } = "{}";
+    [Parameter] public string OrderId { get; set; } = "";
+    [Parameter] public bool Routed { get; set; }
+    [Parameter] public string? CurrentTruck { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<string> OnApply { get; set; }
+    [Parameter] public EventCallback<(string Order, string Truck)> OnMove { get; set; }
+    private string Decision = "";
+    private List<string> Trucks = [];
+    private bool _choosing;
+    protected override void OnParametersSet()
+    {
+        var root = RoutingInput.Parse(SourceJson);
+        Decision = PlanOrderDecisions.Get(root, OrderId);
+        Trucks = RoutingInput.Items(root["vehicles"]).Select(v => RoutingInput.Text(v["id"])!).ToList();
+    }
+    private Task ChooseTruck(ChangeEventArgs args) => string.IsNullOrEmpty(args.Value?.ToString()) ? Task.CompletedTask : Apply("truck:" + args.Value);
+    private Task MoveTruck(ChangeEventArgs args) => Disabled || args.Value?.ToString() is not { Length: > 0 } truck || truck == CurrentTruck
+        ? Task.CompletedTask : OnMove.InvokeAsync((OrderId, truck));
+    private Task AssignTruck()
+    {
+        if (Disabled || Trucks.Count == 0) return Task.CompletedTask;
+        if (Trucks.Count == 1) return Apply("truck:" + Trucks[0]);
+        _choosing = true;
+        return Task.CompletedTask;
+    }
+    private Task Apply(string decision)
+    {
+        _choosing = false;
+        return OnApply.InvokeAsync(PlanOrderDecisions.Set(SourceJson, OrderId, decision));
+    }
+}

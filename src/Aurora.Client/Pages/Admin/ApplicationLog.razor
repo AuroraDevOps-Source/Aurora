@@ -1,0 +1,59 @@
+@inject HttpClient Http
+
+@if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+<section class="planning-card">
+    <div class="tms-filters log-filters">
+        <label class="field">Search<input @bind="_search" @bind:event="oninput" @onkeydown="SearchKey" placeholder="Order / manifest number, user or activity" maxlength="200" /></label>
+
+        <button class="outline-button" disabled="@_busy" @onclick="Search">Search / Refresh</button>
+        <button class="outline-button" disabled="@_busy" @onclick="()=>_confirmClear=true">Clear log</button>
+    </div>
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Time (local)</th><th>User</th><th>Activity</th><th>References</th></tr></thead>
+        <tbody>@foreach (var entry in _rows)
+        {
+            <tr><td class="log-time">@entry.OccurredUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@entry.UserName</td><td>@entry.Action</td><td>@(string.IsNullOrEmpty(entry.References) ? "—" : entry.References)</td></tr>
+        }</tbody>
+    </table></div>
+    @if (_busy) { <p role="status">Loading log…</p> }
+    else if (_rows.Length == 0 && _error is null) { <p>No log entries match your filters.</p> }
+    <div class="tms-selection"><span>Page @(_page+1)</span><button class="outline-button" disabled="@(_busy || _page==0)" @onclick="Previous">Previous</button><button class="outline-button" disabled="@(_busy || !_more)" @onclick="Next">Next</button></div>
+</section>
+@if (_confirmClear)
+{
+    <EditPopup Title="Clear activity log?" Busy="@_busy" OnClose="()=>_confirmClear=false">
+        <p>Clear the displayed history for your account? New activity will appear here afterward.</p>
+        <button class="outline-button" disabled="@_busy" @onclick="()=>_confirmClear=false">Cancel</button>
+        <button class="primary-button" disabled="@_busy" @onclick="Clear">Clear log</button>
+    </EditPopup>
+}
+@code {
+    private bool _confirmClear;
+    private async Task Clear()
+    {
+        if (_busy) return;
+        _busy=true; _error=null;
+        try { using var r=await Http.PostAsync("api/v1/admin/applog/clear",null); await ApiResponse.Check(r); _page=0; _rows=[]; _more=false; _confirmClear=false; }
+        catch(Exception ex) { _error=ex.Message; _confirmClear=false; }
+        finally { _busy=false; }
+        if(_error is null)await Load();
+    }
+
+    private string _search="", _level="";
+    private string? _error;
+    private bool _busy, _more;
+    private int _page;
+    private AppLogEntry[] _rows=[];
+    protected override Task OnInitializedAsync()=>Load();
+    private async Task SearchKey(KeyboardEventArgs e) { if(e.Key=="Enter") await Search(); }
+    private Task Search(){_page=0;return Load();}
+    private Task Previous(){_page--;return Load();}
+    private Task Next(){_page++;return Load();}
+    private async Task Load()
+    {
+        if(_busy)return;
+        _busy=true;_error=null;
+        try { using var r=await Http.GetAsync($"api/v1/admin/applog?page={_page}&level={Uri.EscapeDataString(_level)}&search={Uri.EscapeDataString(_search)}");await ApiResponse.Check(r);var result=(await r.Content.ReadFromJsonAsync<AppLogPage>())!;_rows=result.Records;_more=result.HasMore; }
+        catch(Exception ex){_error=ex.Message;_rows=[];_more=false;}
+        finally{_busy=false;}
+    }
+}

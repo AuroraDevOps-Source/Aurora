@@ -20,8 +20,10 @@ public sealed class TerminalDto
     public string Owner { get; set; } = "";
     public string Region { get; set; } = "";
     public string RoutingRole { get; set; } = "";
+    public bool IsConsolidation { get; set; }
     public string ServiceArea { get; set; } = "";
     public Guid? RouteViaNodeId { get; set; }
+    public List<TerminalRoutingRule> OutboundRoutes { get; set; } = [];
     public int Revision { get; set; }
     public void Validate()
     {
@@ -43,6 +45,6 @@ public sealed class TerminalDto
         var area = global::Aurora.Contracts.ServiceArea.Parse(ServiceArea);
         if (RoutingRole is NodeVocabulary.Hub or NodeVocabulary.Spoke && area.IsEmpty)
             throw new FormatException("A Hub or Spoke node needs a direct service area.");
-        if (RouteViaNodeId == Id && Id != Guid.Empty) throw new FormatException("A node cannot route via itself.");
+        OutboundRoutes ??= [];
     }
 }

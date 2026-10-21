@@ -1,12 +1,17 @@
 <CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.Navigation.NotFound)">
         <Found Context="routeData">
+            <ApplicationErrorBoundary @key="routeData">
+            <ChildContent>
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
                     <RedirectToLogin />
                 </NotAuthorized>
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </ChildContent>
+            <ErrorContent><p class="alert" role="alert">Something went wrong. Refresh the page to try again.</p></ErrorContent>
+            </ApplicationErrorBoundary>
         </Found>
     </Router>
 </CascadingAuthenticationState>

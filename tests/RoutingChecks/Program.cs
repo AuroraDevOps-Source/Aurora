@@ -1,3 +1,4 @@
+using Aurora.Modules.Routing;
 using Aurora.Contracts;
 using Aurora.Modules.Routing.Optimization;
 using System.Text.Json.Nodes;
@@ -5,6 +6,9 @@ using System.Text.Json.Nodes;
 var count = 0;
 void Check(bool value, string name) { if (!value) throw new Exception("FAIL: " + name); Console.WriteLine("PASS: " + name); count++; }
 void Reject(Action action, string name) { try { action(); } catch (FormatException) { Check(true, name); return; } throw new Exception("FAIL: " + name); }
+Check(NovaOrderSearch.NativeId("FB-11404") == 11404, "displayed fallback order ID is searchable");
+Check(NovaOrderSearch.NativeId(" fb11404 ") == 11404, "fallback order search accepts case, spaces and omitted hyphen");
+Check(new string?[] { null, "", "FB-", "FB--1", "FB-0", "FB-999999999999999999999", "FB trucking", "11404" }.All(s => NovaOrderSearch.NativeId(s) is null), "ordinary text and invalid aliases do not become native IDs");
 var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "sample.json"));
 var original = RoutingInput.Parse(json);
 var preparedText = RoutingInput.Prepare(json);
@@ -111,12 +115,24 @@ try { _ = Aurora.Client.RoutingDraft.Read("{}"); throw new Exception("Expected m
 Check(draft.Orders == 3, "invalid replacement cannot mutate the existing immutable draft");
 Console.WriteLine($"{count} total routing and workspace checks passed.");
 
-var equipment = new EquipmentTypeDto { Code = "BOX26", Description = "26 foot box truck", Weight = 12000, Cubes = 1683, Categories = "LIFTGATE", MaximumStops = 12, PerHour = 65 };
+var equipment = new EquipmentTypeDto { Code = "BOX26", Description = "26 foot box truck", Weight = 12000, Cubes = 1683, Categories = "LIFTGATE", MaximumStops = 12, PerHour = 65, PerKilometer = 0 };
 var equipped = EquipmentPlanning.Vehicle(equipment, "UNIT1", "DEPOT", "2030-01-01T22:00:00-06:00", "2030-01-02T08:00:00-06:00");
 Check(equipped["end"]!["latestEndTime"]!.GetValue<string>().Contains("2030-01-02"), "equipment supports overnight shifts without changing the date or offset");
 Check(equipped["constraints"]!["maximumLoads"]![0]!["value"]!.GetValue<double>() == 12000 && equipped["constraints"]!["maximumLoads"]![1]!["value"]!.GetValue<double>() == 1683, "equipment capacities reach PTV load dimensions");
 Check(equipped["categories"]![0]!.GetValue<string>() == "LIFTGATE" && equipped["costs"]!["perHour"]!.GetValue<double>() == 65, "equipment categories and operating rates reach the request");
 Check(equipped["costs"]!["fixed"] is null, "missing catalog rates are not invented");
+Check(equipped["costs"]!["perKilometer"]!.GetValue<double>() == 0, "explicit zero distance rate accepted");
+Check(DataRequirements.VehicleCosts(null,null).Length==2, "blank rates produce two warnings");
+Check(DataRequirements.VehicleCosts(0,0).Length==0, "zero rates produce no warning");
+var noRates = new EquipmentTypeDto { Code="NOVA", Description="Nova truck" };
+Reject(()=>EquipmentPlanning.Vehicle(noRates,"NOVA-1","DEPOT","2030-01-01T08:00:00-06:00","2030-01-01T18:00:00-06:00"),"blank rates cannot be submitted");
+var rateFleet=FirebirdRoutingSource.MapFleet([
+    new(){NativeId=1,Unit="ZERO",Terminal="MHT",Description="Truck",Weight=100,Cubes=100,PerHour=0,PerMile=0},
+    new(){NativeId=2,Unit="BLANK",Terminal="MHT",Description="Truck",Weight=100,Cubes=100},
+    new(){NativeId=3,Unit="PAID",Terminal="MHT",Description="Truck",Weight=100,Cubes=100,PerHour=42,PerMile=1.609344}
+],"-04:00");
+Check(FleetPlanning.Eligible(rateFleet,"MHT").Select(u=>u.Id).SequenceEqual(new[]{"PAID","ZERO"}),"blank rates excluded and zero rates eligible");
+Check(rateFleet.Types.Single(t=>t.Code=="NOVA-3").PerKilometer==1,"miles converted to kilometers without changing hourly costs");
 Reject(() => EquipmentPlanning.Vehicle(equipment, "UNIT1", "DEPOT", "2030-01-01T10:00:00-06:00", "2030-01-01T08:00:00-06:00"), "reversed fleet schedule is rejected");
 equipment.PowerOnly = true;
 Reject(() => EquipmentPlanning.Vehicle(equipment, "UNIT1", "DEPOT", "2030-01-01T08:00:00-06:00", "2030-01-01T18:00:00-06:00"), "power-only tractors cannot become unlimited cargo vehicles");
@@ -149,7 +165,7 @@ var reusable = RoutingInput.Parse("""
 """);
 var quick = RoutingInput.Parse(QuickUpdate.Prepare(RoutingInput.Prepare(edited.ToJsonString()), reusable.ToJsonString()));
 var seed = quick["routes"]![0]!;
-Check(quick["settings"]!["duration"]!.GetValue<int>() == 5 && edited["settings"]!["duration"]!.GetValue<int>() == 1, "quick budget does not overwrite saved full budget");
+Check(quick["settings"]!["duration"]!.GetValue<int>() == 10 && edited["settings"]!["duration"]!.GetValue<int>() == 1, "quick budget does not overwrite saved full budget");
 Check(seed["tasks"]!.AsArray().Count == 2 && seed["tasks"]![0]!["type"]!.GetValue<string>() == "PICKUP", "pickup and delivery order is retained in a flat input route");
 Check(seed["tasks"]![1]!["timeSlotId"]!.GetValue<string>() == "APPT_0", "quick update maps old appointment slots onto newly prepared constraints");
 Check(seed["tasks"]![1]!["start"] is null && seed["tasks"]![1]!["duration"] is null && seed["stops"] is null, "old timings and result-only fields do not leak into input routes");
@@ -214,7 +230,7 @@ var quickResult = await service.OptimizeAsync("test.json", edited.ToJsonString()
 await stub;
 Check(submitted.Count == 2 && submitted.All(x => x["reporting"] is null), "full and quick requests remove reporting metadata before HTTP submission");
 Check(submitted[0]["routes"] is null && submitted[0]["settings"]!["duration"]!.GetValue<int>() == 1, "full optimization retains configured budget and fresh input");
-Check(submitted[1]["routes"]!.AsArray().Count == 1 && submitted[1]["settings"]!["duration"]!.GetValue<int>() == 5, "quick service submits reusable routes with the short budget");
+Check(submitted[1]["routes"]!.AsArray().Count == 1 && submitted[1]["settings"]!["duration"]!.GetValue<int>() == 10, "quick service submits reusable routes with the short budget");
 Check(quickResult.Status == "SUCCEEDED" && quickResult.Log.Any(x => x.StartsWith("Quick update:")), "quick results retain status and identify the seeded run");
 Check(Aurora.Client.ProductWorkspace.RouteFor("auroratms") == "/workspace/auroratms" &&
     Aurora.Client.ProductWorkspace.CodeFor("/workspace/auroratms") == "auroratms" &&
@@ -281,15 +297,102 @@ var fat = Node("FAT", "93706", "NORCAL", "Spoke", "932, 936-937", 36.7);
 var agent = Node("AGT", "92410", "", "", "", 34.1);
 agent.NodeType = "Agent Facility";
 var network = new[] { ont, lax, sac, fat, agent };
+var consigneeTerminal = new TerminalDto { Id=Guid.NewGuid(), Code="100", Address="601 Armory Rd", City="Clarksburg", State="WV", PostalCode="26301", Latitude=39, Longitude=-80 };
+var novaOrder = new TmsOrder { Id="FB-1371359", UseConsigneeAddress=true, Address="1637 Greystone Rd", City="Charleston", State="WV", PostalCode="25314", DeliverToNodeId=consigneeTerminal.Id };
+Check(PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]) is { Batch:PlanningBatch.General, DestinationNodeId:null },
+    "Nova consignee delivery ignores hidden delivery-terminal metadata");
+novaOrder.DeliverToNodeId=Guid.NewGuid();
+Check(PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]).Batch==PlanningBatch.General,
+    "stale hidden Nova destination does not block customer delivery");
+novaOrder.Address=" 601 ARMORY ROAD. "; novaOrder.City="CLARKSBURG"; novaOrder.PostalCode="26301-7425";
+Check(PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]) is { Batch:PlanningBatch.General, DestinationNodeId:null },
+    "matching terminal address does not automatically enable line haul");
+novaOrder.ReceivingTerminal="100";
+Check(PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]) is { Batch:PlanningBatch.LineHaul, DestinationNodeId:var matched } && matched==consigneeTerminal.Id,
+    "explicit receiving terminal enables line haul");
+Reject(()=>PlanningBatches.Classify(novaOrder,consigneeTerminal,[ont,consigneeTerminal]),"line haul cannot target starting terminal");
+novaOrder.ReceivingTerminal="MISSING";
+Reject(()=>PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]),"missing explicit receiving terminal blocks planning");
+novaOrder.ReceivingTerminal=null;
+Check(PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]).DestinationNodeId is null,"unchecking line haul restores consignee delivery");
+var novaSelectionSource=Guid.NewGuid();
+var novaSelections=new[] {
+    new TmsOrder { SourceId=novaSelectionSource,Id="NOVA-LOCAL",UseConsigneeAddress=true,DeliverToNodeId=consigneeTerminal.Id },
+    new TmsOrder { SourceId=novaSelectionSource,Id="NOVA-TRANSFER",UseConsigneeAddress=true,ReceivingTerminal=consigneeTerminal.Code }
+};
+var novaGroups=PlanningBatches.GroupPlans(new CreateOrderDraftDto(novaSelectionSource,novaSelections.Select(o=>o.Id).ToArray()),novaSelections,ont,[ont,consigneeTerminal]);
+Check(novaGroups.Single(g=>g.ToTerminalId is null).OrderIds.SequenceEqual(["NOVA-LOCAL"]),"hidden destination remains in local plan");
+Check(novaGroups.Single(g=>g.ToTerminalId==consigneeTerminal.Id).OrderIds.SequenceEqual(["NOVA-TRANSFER"]),"only explicitly checked line haul enters receiving-terminal plan");
+Check(novaGroups.All(g=>g.SourceId==novaSelectionSource),"line haul grouping preserves selected starting source");
+novaOrder.Address="603 Armory Rd";
+Check(PlanningBatches.Classify(novaOrder,ont,[ont,consigneeTerminal]).DestinationNodeId is null,
+    "same ZIP and street with different house number remains consignee delivery");
+novaOrder.PostalCode="90044";
+Check(PlanningBatches.Classify(novaOrder,ont,network).DestinationNodeId is null,
+    "Nova customer address is not redirected by another terminal service area");
 BatchAssignment Batch(string zip, string service = "", Guid? deliverTo = null) => PlanningBatches.Classify(new TmsOrder { Id = "P-" + zip, PostalCode = zip, ServiceType = service, DeliverToNodeId = deliverTo }, ont, network);
 Check(Batch("91761") is { Batch: PlanningBatch.General, DestinationNodeId: null }, "local consignee is general routing");
 Check(Batch("92410", OrderServiceTypes.Consolidation) is { Batch: PlanningBatch.Consolidation }, "local consolidation job is its own batch");
 Check(Batch("90044") is { Batch: PlanningBatch.LineHaul } b1 && b1.DestinationNodeId == lax.Id, "other service area in the region is line haul to that node");
-Check(Batch("93650") is { Batch: PlanningBatch.LineHaul } b2 && b2.DestinationNodeId == sac.Id, "out-of-region freight routes via that region's hub");
+Check(Batch("93650") is { Batch: PlanningBatch.LineHaul } b2 && b2.DestinationNodeId == fat.Id, "without a lane rule out-of-region freight goes directly to its destination");
 Check(Batch("59101") is { Batch: PlanningBatch.General, Reason: "Outside every service area" }, "freight outside every service area stays in general routing");
 Check(Batch("91761", deliverTo: agent.Id) is { Batch: PlanningBatch.General } b3 && b3.DestinationNodeId == agent.Id, "deliver-to node inside the service area routes to the node");
-Check(Batch("91761", deliverTo: fat.Id) is { Batch: PlanningBatch.LineHaul } b4 && b4.DestinationNodeId == sac.Id, "deliver-to node in another region is line haul via its hub");
+Check(Batch("91761", deliverTo: fat.Id) is { Batch: PlanningBatch.LineHaul } b4 && b4.DestinationNodeId == fat.Id, "explicit destination goes direct without a lane rule");
 var redirected = RoutingInput.Parse(PlanningBatches.ApplyDestinations(json, new Dictionary<string, TerminalDto> { ["TEST_NORTH"] = lax }));
+var nearbyTerminal = Node("NEAR", "91762", "SOCAL", "Spoke", "", 34.01);
+Check(PlanningBatches.Classify(new TmsOrder { Id="NEAR-ORDER", PostalCode="91761", DeliverToNodeId=nearbyTerminal.Id }, ont, [..network, nearbyTerminal]) is { Batch: PlanningBatch.LineHaul, DestinationNodeId: var nearId } && nearId == nearbyTerminal.Id,
+    "explicit terminal transfer is line haul even inside origin service area");
+var groupSource = Guid.NewGuid();
+var groupedOrders = new[] { ("LOCAL", "91761"), ("LAX1", "90044"), ("LAX2", "90045"), ("FAT1", "93650") }
+    .Select(x => new TmsOrder { SourceId=groupSource, Id=x.Item1, PostalCode=x.Item2 }).ToArray();
+var groupInput = new CreateOrderDraftDto(groupSource, groupedOrders.Select(o=>o.Id).ToArray(), new DateOnly(2026,10,15), "07:00", "19:00");
+var groups = PlanningBatches.GroupPlans(groupInput, groupedOrders, ont, network);
+Check(groups.Length == 3 && groups.Single(g=>g.ToTerminalId==lax.Id).OrderIds.SequenceEqual(new[]{"LAX1","LAX2"})
+    && groups.Single(g=>g.ToTerminalId==fat.Id).OrderIds.SequenceEqual(new[]{"FAT1"})
+    && groups.Single(g=>g.ToTerminalId is null).OrderIds.SequenceEqual(new[]{"LOCAL"}), "automatic plans separate local freight and each receiving terminal");
+Check(groups.All(g=>g.ShipDate==groupInput.ShipDate && g.DepartAt=="07:00" && g.ReturnBy=="19:00") && groups.Where(g=>g.ToTerminalId is not null).All(g=>g.Batch==PlanningBatch.LineHaul), "automatic transfer groups preserve schedule and line-haul type");
+Reject(()=>PlanningBatches.GroupPlans(groupInput with {OrderIds=["LOCAL","LOCAL"]}, groupedOrders, ont, network), "automatic plans reject duplicate orders");
+Reject(()=>PlanningBatches.GroupPlans(groupInput with {OrderIds=["MISSING"]}, groupedOrders, ont, network), "automatic plans reject missing orders");
+var duplicateArea = Node("ALT", "90044", "SOCAL", "Hub", "900-908", 33.8);
+Reject(()=>PlanningBatches.GroupPlans(groupInput, groupedOrders, ont, [..network,duplicateArea]), "ambiguous receiving terminal is not silently chosen");
+Reject(()=>PlanningBatches.Classify(new TmsOrder {Id="REMOVED",DeliverToNodeId=Guid.NewGuid()}, ont, network), "missing explicit destination is not silently treated as local");
+var consolidation = Node("CON", "91760", "SOCAL", "", "", 34.1);
+consolidation.IsConsolidation=true;
+var finalTerminal = Node("FINAL", "90044", "SOCAL", "Spoke", "900-908", 33.8);
+ont.OutboundRoutes=[new(){DestinationTerminalId=finalTerminal.Id,ViaTerminalId=consolidation.Id}];
+var consolidationNetwork = new[] {ont,consolidation,finalTerminal};
+var outboundOrder = new TmsOrder {SourceId=groupSource,Id="CONSOL-1",PostalCode="90044",DeliverToNodeId=finalTerminal.Id};
+var inboundGroup=PlanningBatches.GroupPlans(new(groupSource,[outboundOrder.Id]),[outboundOrder],ont,consolidationNetwork).Single();
+Check(inboundGroup.Batch==PlanningBatch.Consolidation && inboundGroup.ToTerminalId==consolidation.Id,"freight routes via consolidation terminal even inside the same region");
+var onwardGroup=PlanningBatches.GroupPlans(new(groupSource,[outboundOrder.Id]),[outboundOrder],consolidation,consolidationNetwork).Single();
+Check(onwardGroup.Batch==PlanningBatch.LineHaul && onwardGroup.ToTerminalId==finalTerminal.Id,"received freight leaves consolidation for its next terminal without looping");
+Check(PlanningBatches.Classify(new TmsOrder{Id="LOCAL-FINAL",PostalCode="90044",DeliverToNodeId=finalTerminal.Id},finalTerminal,consolidationNetwork).Batch==PlanningBatch.General,"at final terminal freight becomes local delivery");
+Check(PlanningBatches.Classify(new TmsOrder{Id="DIRECT-CON",PostalCode="91761",DeliverToNodeId=consolidation.Id},ont,consolidationNetwork).Batch==PlanningBatch.Consolidation,"direct transfer into marked terminal is consolidation");
+var otherOrigin=Node("OTHER","10001","EAST","","100",40);
+var laneNetwork=new[]{ont,otherOrigin,consolidation,finalTerminal,lax};
+Check(PlanningBatches.Classify(outboundOrder,otherOrigin,laneNetwork).DestinationNodeId==finalTerminal.Id,"same destination can go direct from a different origin");
+Check(PlanningBatches.Classify(new TmsOrder{Id="OTHER-DEST",DeliverToNodeId=lax.Id},ont,laneNetwork).DestinationNodeId==lax.Id,"same origin uses different paths for different destinations");
+Check(PlanningBatches.Classify(new TmsOrder{Id="ZIP-LANE",PostalCode="90044"},ont,consolidationNetwork).DestinationNodeId==consolidation.Id,"ZIP-derived destination uses the origin-specific lane");
+finalTerminal.RouteViaNodeId=consolidation.Id;
+Check(PlanningBatches.Classify(outboundOrder,otherOrigin,laneNetwork).DestinationNodeId==finalTerminal.Id,"retired global via setting no longer overrides origin rules");
+otherOrigin.OutboundRoutes=[new(){DestinationTerminalId=finalTerminal.Id,ViaTerminalId=lax.Id}];
+Check(PlanningBatches.Classify(outboundOrder,otherOrigin,laneNetwork).DestinationNodeId==lax.Id,"two origins can use different intermediate terminals for one destination");
+consolidation.OutboundRoutes=[new(){DestinationTerminalId=finalTerminal.Id,ViaTerminalId=ont.Id}];
+Reject(()=>TerminalRoutingRules.Validate(ont,laneNetwork),"multi-terminal cycle for a destination is rejected");
+consolidation.OutboundRoutes=[];
+ont.OutboundRoutes.Add(new(){DestinationTerminalId=finalTerminal.Id});
+Reject(()=>TerminalRoutingRules.Validate(ont,laneNetwork),"duplicate origin-destination rules are rejected");
+ont.OutboundRoutes.RemoveAt(1);
+ont.OutboundRoutes[0].ViaTerminalId=ont.Id;
+Reject(()=>TerminalRoutingRules.Validate(ont,laneNetwork),"rule cannot transfer freight back to its current terminal");
+ont.OutboundRoutes[0].ViaTerminalId=Guid.NewGuid();
+Reject(()=>TerminalRoutingRules.Validate(ont,laneNetwork),"missing intermediate terminal is rejected");
+ont.OutboundRoutes[0].ViaTerminalId=consolidation.Id;
+otherOrigin.OutboundRoutes=[];
+ont.OutboundRoutes=[];
+var consolidationJson=LineHaulPlanning.Prepare(json,ont,consolidation);
+Check(RoutingInput.Text(RoutingInput.Parse(consolidationJson)["reporting"]?["transferKind"])==PlanningBatch.Consolidation,"consolidation type is stored in the saved transfer request");
+Check(RoutingInput.Text(RoutingInput.Parse(LineHaulPlanning.RestoreDestination(consolidationJson,json))["reporting"]?["transferKind"])==PlanningBatch.Consolidation,"reoptimization restores saved consolidation type");
 Check(RoutingInput.Text(RoutingInput.Items(redirected["orders"]!["deliveries"]).Single(d => RoutingInput.Text(d["id"]) == "TEST_NORTH")["delivery"]!["locationId"]) == "NODE-LAX"
     && RoutingInput.Items(redirected["locations"]).Any(l => RoutingInput.Text(l["id"]) == "NODE-LAX")
     && RoutingInput.Text(redirected["reporting"]!["orders"]!["TEST_NORTH"]!["deliverToNode"]) == "LAX", "redirected order is delivered to the node location");
@@ -302,3 +405,125 @@ Check(RoutingInput.Items(RoutingInput.Parse(PlannerEdits.FitTrafficMode(json))["
 var longHaul = PlanningBatches.ApplyDestinations(json, new Dictionary<string, TerminalDto> { ["TEST_NORTH"] = new() { Code = "LAX", Name = "Los Angeles", Latitude = 33.79, Longitude = -118.24 } });
 Check(RoutingInput.Items(RoutingInput.Parse(PlannerEdits.FitTrafficMode(longHaul))["vehicles"]).All(v => RoutingInput.Text(v["routing"]!["trafficMode"]) == "CONSTANT"), "plan spanning more than 650 km uses constant traffic");
 Console.WriteLine($"{count} checks including transportation network batches passed.");
+
+// Explicit exclusions and pins must survive both full and seeded re-optimization.
+var excludedPlan = PlanOrderDecisions.Set(json, "TEST_NORTH", PlanOrderDecisions.Excluded);
+var exclusionRequest = new StartPlanningDto(Guid.NewGuid(), "test.json", excludedPlan, reusable.ToJsonString(), 75);
+var exclusionPrepared = RoutingInput.Parse(PlanningRequest.Prepare(exclusionRequest));
+Check(!RoutingInput.Items(exclusionPrepared["orders"]?["deliveries"]).Any(o => RoutingInput.Text(o["id"]) == "TEST_NORTH")
+    && !RoutingInput.Items(exclusionPrepared["routes"]).Any(), "excluded order cannot return through previous route seeds");
+Check(RoutingInput.Items(RoutingInput.Parse(excludedPlan)["orders"]?["deliveries"]).Count() == 3, "exclusion keeps original orders available for undo and session restore");
+Check(exclusionPrepared["settings"]!["duration"]!.GetValue<int>() == 75, "re-optimization retains the selected calculation budget");
+var restoredPlan = PlanOrderDecisions.Set(excludedPlan, "TEST_NORTH", "");
+Check(RoutingInput.Items(RoutingInput.Parse(PlanningRequest.Prepare(exclusionRequest with { RequestJson = restoredPlan }))["orders"]?["deliveries"]).Count() == 3, "automatic assignment restores excluded order");
+var pinInput = RoutingInput.Parse(json);
+var secondTruck = pinInput["vehicles"]![0]!.DeepClone();
+secondTruck["id"] = "SECOND_TRUCK";
+pinInput["vehicles"]!.AsArray().Add(secondTruck);
+var pinnedPlan = PlanOrderDecisions.Set(pinInput.ToJsonString(), "TEST_NORTH", "truck:SECOND_TRUCK");
+foreach (var prior in new string?[] { null, reusable.ToJsonString() })
+{
+    var pinnedPrepared = RoutingInput.Parse(PlanningRequest.Prepare(exclusionRequest with { RequestJson = pinnedPlan, PreviousResult = prior }));
+    var constraint = RoutingInput.Items(pinnedPrepared["constraints"]?["combinations"]?["orderVehicle"]).Single();
+    var category = RoutingInput.Text(constraint["vehicleCategory"]);
+    Check(RoutingInput.Text(constraint["type"]) == "ORDER_REQUIRES_VEHICLE" && constraint["violationCost"] is null
+        && pinnedPrepared["vehicles"]![2]!["categories"]!.AsArray().Any(c => RoutingInput.Text(c) == category)
+        && pinnedPrepared["orders"]!["deliveries"]![0]!["properties"]!["categories"]!.AsArray().Any(c => RoutingInput.Text(c) == category), "pin produces a hard truck constraint in full and seeded runs");
+    Check(!RoutingInput.Items(pinnedPrepared["routes"]).Any(), "old truck assignment is not seeded after moving an order");
+    Check(pinnedPrepared["vehicles"]!.AsArray().Count == 3, "new truck is offered during re-optimization");
+    Check(RoutingInput.Describe(pinnedPrepared, "TEST_NORTH") is { Enforced: true }, "pinned order retains its appointment constraint");
+}
+var unavailablePin = RoutingInput.Parse(pinnedPlan);
+unavailablePin["vehicles"]!.AsArray().RemoveAt(2);
+Reject(() => PlanningRequest.Prepare(exclusionRequest with { RequestJson = unavailablePin.ToJsonString() }), "disabled pinned truck is rejected instead of silently ignoring the pin");
+var allExcluded = excludedPlan;
+foreach (var order in RoutingInput.Items(original["orders"]?["deliveries"]))
+    allExcluded = PlanOrderDecisions.Set(allExcluded, RoutingInput.Text(order["id"])!, PlanOrderDecisions.Excluded);
+Reject(() => PlanningRequest.Prepare(exclusionRequest with { RequestJson = allExcluded }), "all-excluded plan has an actionable validation error");
+Reject(() => PlanOrderDecisions.Set(json, "UNKNOWN", "exclude"), "unknown order decision rejected");
+Reject(() => PlanOrderDecisions.Set(json, "TEST_NORTH", "truck:UNKNOWN"), "unknown pinned truck rejected");
+Console.WriteLine($"{count} final checks passed including explicit re-optimization decisions.");
+
+PlanningCandidateDto Candidate(string id, double km, double cost = 1) => new(id, DateTimeOffset.UtcNow,
+    new RunSummaryDto("SUCCEEDED", 1, 2, 3, 0, km, 100, cost, 0, 3, 4, cost / 3, km / 3, 3, ""));
+var mileCandidates = new[] { Candidate("cheap", 30, 1), Candidate("shortest", 10.001, 100), Candidate("latest", 10.002, 50) };
+Check(PlanningCandidateSelection.LeastMiles(mileCandidates)?.Id == "shortest", "automatic selection uses exact least miles, not lowest cost or latest result");
+Check(PlanningCandidateSelection.LeastMiles(mileCandidates.Reverse())?.Id == "shortest", "candidate order does not change automatic selection");
+Check(PlanningCandidateSelection.LeastMiles([Candidate("b", 10), Candidate("a", 10)])?.Id == "a", "equal-distance selection is deterministic for reconnects");
+Check(PlanningCandidateSelection.LeastMiles([Candidate("bad", double.NaN), Candidate("negative", -1), Candidate("infinite", double.PositiveInfinity), Candidate("valid", 15)])?.Id == "valid", "invalid distances cannot win automatic selection");
+Check(PlanningCandidateSelection.LeastMiles([]) is null, "no candidates returns no selection");
+Console.WriteLine($"{count} checks passed including automatic least-mile selection.");
+
+var routedLeftOffFixture = fullResult with { Routes = [new RouteSummaryDto("TEST_TRUCK_1", 1, 1, 15, 1800, 110, 50, 20, "DEMO", 32400, 2700, 1, 1, 100, 10,
+    [new ManifestProDto("TEST_NORTH", 1, "Synthetic north appointment", "", "", "", "", 1, 100, 10, "", 900, 39.15, -94.55)], [])] };
+var leftOffRemoved = PlannerLeftOff.Read(excludedPlan, routedLeftOffFixture);
+Check(leftOffRemoved.Single(o => o.OrderId == "TEST_NORTH").Reason == "Removed by planner", "removing a routed order moves it to Left off with a planner label");
+var resultWithoutRemoved = fullResult with { Routes = [], DroppedOrders = [] };
+var restoredLeftOff = PlannerLeftOff.Read(excludedPlan, resultWithoutRemoved);
+var removedRow = restoredLeftOff.Single(o => o.OrderId == "TEST_NORTH");
+Check(removedRow.ShipToName == "Synthetic north appointment" && removedRow.Latitude is not null && removedRow.Appointment is not null, "removed order details survive re-optimization and session restoration");
+Check(PlannerLeftOff.Read(restoredPlan, resultWithoutRemoved).Single(o => o.OrderId == "TEST_NORTH").Reason == "Awaiting re-optimization", "included-again order remains visible while waiting for a new route");
+Check(PlannerLeftOff.Read(restoredPlan, routedLeftOffFixture).All(o => o.OrderId != "TEST_NORTH"), "routed order does not appear twice in Left off after undo");
+Console.WriteLine($"{count} routing checks passed including Left off actions.");
+
+// Manual assignments allow overtime only on their selected trucks.
+var overtimeInput = RoutingInput.Parse(pinnedPlan);
+var overtimeTruck = overtimeInput["vehicles"]![2]!.AsObject();
+overtimeTruck["constraints"] ??= new JsonObject();
+overtimeTruck["constraints"]!["maximumLoads"] = new JsonArray(new JsonObject { ["dimension"] = "weight", ["value"] = 10000 });
+overtimeTruck["constraints"]!["route"] = new JsonObject { ["maximumDuration"] = 32400, ["maximumDrivingDuration"] = 28800 };
+var overtimeOriginal = overtimeInput.ToJsonString();
+foreach (var prior in new string?[] { null, reusable.ToJsonString() })
+{
+    var overtimePrepared = RoutingInput.Parse(PlanningRequest.Prepare(exclusionRequest with { RequestJson = overtimeOriginal, PreviousResult = prior }));
+    var changedTruck = overtimePrepared["vehicles"]![2]!;
+    Check(RoutingInput.Time(changedTruck["end"]?["latestEndTime"]) == RoutingInput.Time(overtimeTruck["end"]?["latestEndTime"])!.Value.AddDays(1), "manual truck receives one day of overtime allowance");
+    Check(changedTruck["constraints"]?["route"]?["maximumDuration"] is null && changedTruck["constraints"]?["route"]?["maximumDrivingDuration"]!.GetValue<int>() == 28800, "overtime relaxes shift duration but preserves driving limit");
+    Check(JsonNode.DeepEquals(changedTruck["constraints"]?["maximumLoads"], overtimeTruck["constraints"]?["maximumLoads"]), "overtime preserves truck capacity");
+    Check(JsonNode.DeepEquals(overtimePrepared["vehicles"]![0], overtimeInput["vehicles"]![0]), "other trucks retain their original shifts");
+    Check(RoutingInput.Describe(overtimePrepared, "TEST_NORTH") is { Enforced: true }, "overtime preserves confirmed appointments");
+    Check(JsonNode.DeepEquals(overtimePrepared["reporting"]?[PlannerOvertime.ShiftKey]?["SECOND_TRUCK"], overtimeTruck), "original truck shift retained for reporting");
+}
+var twicePinned = PlanOrderDecisions.Set(overtimeOriginal, "TEST_SOUTH", "truck:SECOND_TRUCK");
+var twicePrepared = RoutingInput.Parse(PlanOrderDecisions.Prepare(twicePinned));
+Check(RoutingInput.Time(twicePrepared["vehicles"]![2]!["end"]?["latestEndTime"]) == RoutingInput.Time(overtimeTruck["end"]?["latestEndTime"])!.Value.AddDays(1), "multiple pins do not stack overtime allowance");
+var unpinned = PlanOrderDecisions.Set(overtimeOriginal, "TEST_NORTH", "");
+Check(JsonNode.DeepEquals(RoutingInput.Parse(PlanOrderDecisions.Prepare(unpinned))["vehicles"]![2], overtimeTruck), "removing final manual assignment restores normal limits");
+var overtimeRoute = routedLeftOffFixture.Routes[0] with { Vehicle = "SECOND_TRUCK", BudgetedSeconds = 32400, EstimatedSeconds = 32400 + 42 * 60, Return = null };
+Check(PlannerOvertime.OverShiftMinutes(overtimeOriginal, overtimeRoute) == 42, "route reports 42 minutes over original shift");
+Check(PlannerOvertime.OverShiftMinutes(overtimeOriginal, overtimeRoute with { EstimatedSeconds = 32400 }) == 0, "route within shift has no warning");
+Check(PlannerOvertime.OverShiftMinutes(overtimeOriginal, overtimeRoute with { EstimatedSeconds = 32000, Return = RoutingInput.Time(overtimeTruck["end"]?["latestEndTime"])!.Value.AddMinutes(17) }) == 17, "late return reports overtime even when route duration is below budget");
+var overtimeResponse = reusable.DeepClone().AsObject();
+overtimeResponse["routes"]![0]!["vehicleId"] = "SECOND_TRUCK";
+var overtimeReport = ManifestReportExtractor.ExtractPtv(overtimeResponse.ToJsonString(), twicePrepared.ToJsonString());
+Check(overtimeReport.Routes["SECOND_TRUCK"].BudgetedSeconds == 32400, "manifest retains original nine-hour budget after relaxing the solver shift");
+Console.WriteLine($"{count} routing checks passed including manual assignment overtime.");
+
+// Adding one left-off order offers only that order and the existing manifest to the solver.
+var oneAdded = PlanOrderDecisions.PreserveLeftOff(
+    PlanOrderDecisions.Set(json, "TEST_EARLY", "truck:TEST_TRUCK_1"), routedLeftOffFixture);
+Check(PlanOrderDecisions.Get(RoutingInput.Parse(oneAdded), "TEST_SOUTH") == PlanOrderDecisions.LeftOff,
+    "unselected left-off order is held out when another order is manually added");
+Check(PlanOrderDecisions.Get(RoutingInput.Parse(oneAdded), "TEST_NORTH") == "",
+    "existing manifest orders remain eligible without adding new truck pins");
+foreach (var prior in new string?[] { null, reusable.ToJsonString() })
+{
+    var scoped = RoutingInput.Parse(PlanningRequest.Prepare(exclusionRequest with { RequestJson = oneAdded, PreviousResult = prior }));
+    Check(RoutingInput.Items(scoped["orders"]?["deliveries"]).Select(o => RoutingInput.Text(o["id"])!).ToHashSet()
+        .SetEquals(["TEST_NORTH", "TEST_EARLY"]), "full and seeded runs contain existing stops plus only the selected addition");
+}
+Check(RoutingInput.Items(RoutingInput.Parse(oneAdded)["orders"]?["deliveries"]).Count() == 3,
+    "held orders remain in original request for recovery and later additions");
+Check(PlanOrderDecisions.PreserveLeftOff(oneAdded, routedLeftOffFixture) == oneAdded,
+    "repeated manual edits preserve the same held orders");
+Check(PlannerLeftOff.Read(oneAdded, resultWithoutRemoved).Single(o => o.OrderId == "TEST_SOUTH") is { Reason: "Not added to a truck", Latitude: not null },
+    "held orders remain visible with a useful reason and map coordinates after optimization");
+var nextAdded = PlanOrderDecisions.Set(oneAdded, "TEST_SOUTH", "truck:TEST_TRUCK_1");
+Check(RoutingInput.Items(RoutingInput.Parse(PlanOrderDecisions.Prepare(nextAdded))["orders"]?["deliveries"]).Count() == 3,
+    "planner can explicitly add a previously held order on the next run");
+Check(PlanOrderDecisions.PreserveLeftOff(json, routedLeftOffFixture) == json,
+    "ordinary optimization without manual assignments still considers all orders");
+var removedAndAdded = PlanOrderDecisions.PreserveLeftOff(PlanOrderDecisions.Set(oneAdded, "TEST_NORTH", PlanOrderDecisions.Excluded), routedLeftOffFixture);
+Check(RoutingInput.Items(RoutingInput.Parse(PlanOrderDecisions.Prepare(removedAndAdded))["orders"]?["deliveries"]).Select(o => RoutingInput.Text(o["id"])).SequenceEqual(["TEST_EARLY"]),
+    "explicit removals remain excluded alongside unselected left-off orders");
+Console.WriteLine($"{count} routing checks passed including scoped manual additions.");

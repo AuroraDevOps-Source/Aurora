@@ -142,3 +142,363 @@ Release `20260915-2` adds the release version below the login button. Build the 
 Archive SHA256: `a3298485e9e4633cd2b97ef60691be3666769c7dbc29b0c5c08155d112fc1f7e`.
 
 FreightOps build reports a critical advisory for existing Marten 8.34.2 (GHSA-vmw2-qwm8-x84c). Hub reports a moderate MailKit 4.3.0 advisory. These were not introduced or upgraded by this deployment and need separate remediation.
+
+## Aurora update — 2026-10-12, 09:13 ET
+
+Published release `20261012-1` to https://user.aurorasoftware.com (existing `/opt/aurora-auth` installation). Login displays **Version 1.0.0**. Includes the current Nova-backed workspace, user administration, menu icons, and blue swirl favicon.
+
+- Base Git commit: `4b6013ca5b826b27bf3cf995736928c24a7e2849`, plus local working-tree changes at build time. The release archive is the authoritative snapshot; concurrent later workspace edits are not guaranteed included.
+- Archive: `artifacts/aurora-release-20261012-1.tar.gz`; SHA256 `0a2b670bffbd487d3b5d8c9ebbb29f80e9c8a53b75fa4d7a97bbf178288c26a0` (verified after upload).
+- Images: `aurora-auth-api:20261012-1` (`sha256:4dc17583751e9d4b5ff75f1eedd8223a930770a94a5ae30a64d8b4f5369e8efe`) and `aurora-auth-web:20261012-1` (`sha256:90103460b0fc6a5a19c5e7ee2362c1b5f54206287c7d270139b8487c9a6a8ae0`).
+- Previous release: `20260924-12`. Rollback image tags: `aurora-auth-api:rollback-20261012-1`, `aurora-auth-web:rollback-20261012-1`. Restore the backed-up `.env` and recreate only API/web to roll back binaries.
+- Protected backup: `/opt/aurora-auth/backups/20261012-1` (database dump, configuration, previous image IDs). Dump catalog validated. Migrations 0014–0020 rehearsed on a restored disposable database, then applied with `Seed__DevData=false`. Rehearsal database removed afterward.
+- Used release-local `deploy/deploy.py`; did not run the older reset-staging-orders deployment helper. Existing data, credentials, keys, and other applications preserved.
+- Verification passed: readiness, existing administrator login, PKCE exchange, administrator authorization, Users listing/editability, Nova configuration status, favicon, and browser-rendered Version 1.0.0 with no console errors. Routing (120), client authentication/session, API error handling, and fleet mapping checks passed locally. Live Nova record checks were not run because the required test configuration was absent.
+- The staging administrator has no Nova connection configured. Configure it through Users; local database connection settings were not copied. Nova-backed screens require that setup.
+- Migration runner emitted a missing optional Kerberos library message; both rehearsed and live migrations nevertheless completed successfully with PostgreSQL password authentication.
+
+## Database catalog and password policy — 2026-10-12, 09:37 ET
+
+Published release `20261012-2` to the existing Aurora test installation, retaining display version 1.0.0.
+
+- Added Admin > Databases with encrypted credentials, connection testing, revision checks, and deletion protection while assigned. Users now select a database; old per-user connection request fields were removed.
+- Applied migration 0021 after backup and rehearsal on a disposable restored database. Existing saved connections were copied into the catalog and linked to users, then the old JSON column was removed. The test administrator's Nova connection remained configured.
+- Login passwords remain nonempty but no longer require 12 characters, digits, symbols, or mixed case. Existing passwords were unchanged.
+- Optimization now always displays all batches and sends no batch filter or manual line-haul destination. The Batch dropdown was removed. Server error bodies are displayed instead of raw HTTP exception messages.
+- API/web images: `aurora-auth-api:20261012-2` (`sha256:0ef5fef4ddd65623633b0c1752a630757edf1b2c81ae0806cfc678195623ba90`), `aurora-auth-web:20261012-2` (`sha256:92761e7432b6c8bc0dd3738ff55d4de14d3f3a6de9b465ec6a370aa7daa8545a`).
+- Archive SHA256: `7f3d1f3629c96a431053dc4b882bb3ad52317d57d87e0d884e8ba8f33e6a07d1`. Full build-time working-tree snapshot; other concurrent workspace changes may also be included.
+- Backup and rollback image metadata: `/opt/aurora-auth/backups/20261012-2`; previous release `20261012-1`. Rolling back to that release requires reconstructing `user_tenant.nova_connection` from the assigned catalog connection before restoring the old binaries; see release-local `deploy/deploy.py` rollback handler. Do not simply switch old binaries after this schema change.
+- Validation: 29 local administration integration checks passed (short password creation/reset, assignment/reassignment, encrypted credentials, stale edits, assigned database deletion protection, tenant isolation, non-admin read/write restrictions, revoked/deleted user handling). Temporary fixtures were deleted; no Firebird writes. Local browser verified Databases, Users dropdown, and absent Batch selector. Public readiness, login, PKCE, admin permission, Users and Databases APIs passed after deployment.
+
+## Aurora update � 2026-10-12, 09:56 ET
+
+Published release `20261012-3` at Bryan's explicit request, retaining Version 1.0.0. Includes the grouped database editor, removal of help text and coordinate inputs, automatic address lookup, and address-based master-list warnings. Published the current working-tree build.
+
+- Archive SHA256: `9e75b60151be60d571ac51b4b0e1cb2f62c9d354a5e0616fb48c12eff54934b0`, verified after upload.
+- API image: `sha256:063d9e84bd4e30c9096208a6275285db8c847937757c2c972364deeb093d9820`; web: `sha256:409a6152d7a179ec6544c7983823c11a295ccbeae633adde5a073868c286e4be`.
+- Backup: `/opt/aurora-auth/backups/20261012-3`; rollback release `20261012-2`. Database dump catalog validated. No schema changes, migration, seeding or data reset.
+- Release publish and address regression checks passed. Public readiness, administrator login, PKCE, Users/Databases APIs, favicon, and Nova transportation nodes passed. MHT returned no address warning.
+
+## Delete controls and fleet warnings � 2026-10-12
+
+Published release `20261012-4` at Bryan's explicit request. Includes Pages section-folder organization, truck/node deletion restricted to aurora:Admin and aurora:PowerUser, confirmation controls, revision checks and dependency checks, address-based fleet-list warnings, and 16px spacing below fleet filters. Trucks use Nova EH_DELETE_DATE; unreferenced nodes are removed. No schema changes or data reset.
+
+- Archive SHA256: `ce3f7146fb596803299dca86fddd40254964635b657cb45dfe13a0f957a7388d`.
+- API image: `sha256:5cfc34accb4124a6bb9363b6c61c471eeda7033ac533692f153d32c215a3df65`; web image: `sha256:e638e4884ab38f081748d749b9ee150fd6331b603144d0c095fc873061d2a625`.
+- Backup: `/opt/aurora-auth/backups/20261012-4`; rollback release `20261012-3`. Database backup validated before updating only API/web.
+- Passed 18 deletion checks (role authorization, stale revisions, referenced node, rollback-only truck deletion, disposable node deletion and cleanup), 16 routing checks, and 16 login checks. Published login, PKCE, administration APIs, Nova node/fleet reads, and stale-revision delete rejection passed. All ten vehicles remain; all nine TEST trucks return no warnings. Local API/client also rebuilt and restarted.
+
+## Truck editor and stylesheet refresh � 2026-10-12
+
+Final release `20261012-5` includes an existing-truck terminal dropdown, removal of `(Nova units)` labels, and a versioned isolated stylesheet URL to refresh cached pre-folder-move styles. Builds and published verification passed; existing ten vehicles preserved.
+
+- Archive SHA256: `55aeae61f916c1152b0631080d18327306514fcd25b70311cc323da4a1521584`.
+- API: `sha256:0d9986ddc081cfb6bb2021eae78cddc282e57f76e67b23412563ab3629301e0b`; web: `sha256:9986a0d72df4838628c82b190094a16012b6204f87a4122e058e602ade2dbc8f`.
+- Backup: `/opt/aurora-auth/backups/20261012-5`; previous release `20261012-4`. No migrations or seeding.
+
+## Optimization node selector � 2026-10-12
+
+Published release `20261012-6` at Bryan's explicit request. Optimization now lists eligible node types regardless of saved coordinates, so nodes remain selectable for viewing their orders. API reused from release 5; no database schema changes or seeding.
+
+- Archive SHA256: `a115ae2cb9b882164e65639011628d704d006383ea5cddcce9251d61e523caad`, verified on server.
+- API image: `sha256:b5e72451f1e956b3712e5a91d0089afbe1b940559e5e2454f342285884e84ca0`; web: `sha256:1341272bd6c8d194bfb3fe015eb161f43afb9ed3f9f8e3ae04e7a98e933b7d7e`.
+- Backup and rollback metadata: `/opt/aurora-auth/backups/20261012-6`; previous release `20261012-5`.
+- Build, public readiness, login/PKCE, administrator APIs, Nova nodes/fleet, and stale-delete protection checks passed.
+
+## Vehicle operating rates — 2026-10-12
+
+Published release `20261012-7` at Bryan's request. Vehicle editors now expose Nova's existing `EH_TOT_FIXED_COST_HR` (cost per hour) and `EH_TOT_VAR_COST_MI` (cost per mile). Blank rates produce grid alerts and exclude trucks from planning; explicit zero is valid. Requests convert per-mile rates to per-kilometer rates by dividing by 1.609344. Removed automatic zero defaults from request generation.
+
+- 126 routing checks passed, including blank/zero validation, eligibility, manual rates and distance conversion. API/client Release publish passed.
+- Published login/PKCE and live fleet checks passed. Verified 10 records; filled blank rates with zero on 9, preserving existing rates. A live blank/save/restore check confirmed the warning, then restored original explicit rates. Nine cargo trucks are planning eligible; PW remains a tractor.
+- Archive SHA256: `f21e91be29deeb3451474646ecf8312bc0d3174ca2126ad2d5304595919b8519` (clean archive excludes local saved plans).
+- API image: `sha256:9ff6407a6ef7d6083173ade03985a8d1a4f298b2752b528b9c273f828dc175ef`; web: `sha256:d02c276b60af637d9098cb7b95efc3926401739cf14e984da962bd26807a31cf`.
+- Backup/rollback: `/opt/aurora-auth/backups/20261012-7`; prior release `20261012-6`. Original truck records saved as `truck-rates-before.json` in the backup. No schema changes or order resets.
+
+## Live result selection and simple activity log — 2026-10-12
+
+Published `20261012-8` at Bryan's request. Optimization opens a modal listing retained result snapshots. Accept stops the search and selects the exact server-stored snapshot, including earlier results; completed searches wait for acceptance. Selection survives reconnects and is used for manifest creation. Activity log displays time, user, and plain actions, omits routine reads/refreshes, and offers a confirmed Clear log action. Clear uses a per-user, tenant-isolated cutoff; audit rows are retained and new activity remains visible.
+
+- 43 planning-session checks and 14 activity-log checks passed. Release builds passed.
+- Applied additive migrations 0022 and 0023 with seeding disabled. Backup/rollback: `/opt/aurora-auth/backups/20261012-8`; prior release 20261012-7.
+- Verified live synthetic optimization, candidate acceptance, unchanged accepted snapshot on subsequent polls, plain log descriptions, and published log/confirmation UI. No business orders or manifests were created by the synthetic test.
+- Transactional database checks verified clear cutoff, visibility of subsequent activity, and isolation from other users, then rolled back without clearing Bryan's log.
+- Archive SHA256: `701b4b1d8d2e27c589f416f06a7929e9ff711b167f056448954f6c1d55f862e4`.
+- API image: `sha256:59075521e4b6392eb481ac1ce9fa37e039f98f755364673e0d9fad33e95142b8`; web: `sha256:7d591eba251cb34f3d1bda3629bc8faeedbc93f7103bf60457aa6c0bce543b0a`.
+
+## Unified manifests and status history — 2026-10-12
+
+Published release `20261012-11` to https://user.aurorasoftware.com at Bryan's request (release 10 was an intermediate deployment).
+
+- Removed Dispatch navigation and redirected its old URL to Manifests. All statuses and manifest-date filters are available in the unified list. Click a manifest number to open assignment, status, route orders, map, and native status history.
+- Added Assigned / Dispatched / In transit / Closed transitions with actual departure/close times, revision checks, idempotent retries, native order/equipment updates, and reconciliation checks before close. No real manifest was advanced during testing.
+- History shows old/new status, event/recorded times, and Nova operator initials. Application log retains full username and searchable business references: manifest numbers, order/PRO numbers, and truck unit numbers. Fixed legacy encoding when displaying existing dispatch references.
+- Includes the empty optimization-results grid, removal of Stop searching, and removal of the requested explanatory text.
+- API/client Release builds passed. 53 transactional dispatch/status checks and 38 application-log checks passed. Live readiness, existing login/PKCE, eight native manifest/history reads, lifecycle filters, and historical manifest-number lookup passed. Browser verification confirmed removed Dispatch navigation, history on manifest 11455, and required actual departure input; unsaved verification edits were canceled.
+- No migrations, seeding, business-order resets, or credential changes. Backup/rollback: `/opt/aurora-auth/backups/20261012-11`; earlier release 9 is also retained.
+- Archive: `artifacts/aurora-release-20261012-11.tar.gz`; SHA256 `40bc93e087990b77ecba60ff24755ad87c92f11390192e3b6df2435d1d9103bc` (verified after upload).
+- API image: `sha256:a7c11cdb974bbc780944c907dbf1b3485e8aabae343b20dfb18f9c66902b9ed2`; web: `sha256:4f7b70d66191feba3f5d7af08db6d11ccbfd57ea8cc4646b320fe1bbb8ae8a2b`.
+- Individual delivery/exception capture and print/driver-device handoff remain separate features. Closing currently requires delivery or terminal-receipt records in Nova.
+
+
+## Planner usability updates � 2026-10-12
+
+Published release `20261012-13` (following intermediate release 12) to https://user.aurorasoftware.com.
+
+- Removed route Include controls; Create Manifest uses all nonempty routes. Results stays hidden until optimization is started or an existing session is resumed.
+- Removed visible UTC offset fields/text in planner inputs, fleet management, grids, map times, and formatted CSV exports. Existing offsets remain in internal scheduling values.
+- Added collapsible sidebar with labeled icon links and navigation-session preference. Enlarged optimization overview/results maps and added map resize observation.
+- Order numbers in Overview and stop/PRO numbers in Results center the map and open the corresponding marker, scoped to the selected truck.
+- Release client publish and JavaScript syntax checks passed. Map-focus checks passed for shared coordinates, truck-specific selection, unknown orders, and disposal. Live readiness, login/PKCE, eight manifest/history reads, lifecycle filters and app-log references passed.
+- Backup: `/opt/aurora-auth/backups/20261012-13`. No migrations or business-data resets.
+- Archive SHA256: `a9e970442c5ccc9aae91892a921acc7b49c8e91227a41594b0e924e56c956ef1` (verified remotely).
+- API image: `sha256:04578e6f87170c9484fa4774f29a72cbc5dbfdff0b3ed53d5fa1bad5100afd2d`; web image: `sha256:f066c5e38da27f53ceb0674d167058e3b8e67e0c42ec2feab7bd4b7ac71591e6`.
+- Investigated separate stops for same-address Nova orders: BuildRequest currently assigns each order its own delivery location ID. Shared-address grouping remains unimplemented; no grouping behavior was changed in this release.
+- Live browser verification confirmed the sidebar collapses to 58 pixels, preserves collapse across navigation, and expands again.
+
+Republished the verified release 13 build as release 20261012-14 at Bryan's request. Backup: /opt/aurora-auth/backups/20261012-14. Readiness, existing login/PKCE, ten manifest/history reads, lifecycle filters and searchable app-log references passed. No source or business-data changes.
+
+
+## Explicit order decisions and re-optimization — 2026-10-13
+
+Published release `20261013-1` to https://user.aurorasoftware.com at Bryan's request.
+
+- Added per-order Automatic assignment, Leave out of this plan, and Pin to truck controls in route results and Left off, plus an Order decisions panel for restoring exclusions.
+- Decisions persist in saved session inputs. Request preparation omits excluded deliveries and applies hard order/vehicle constraints for pins; previous route seeds cannot reintroduce exclusions or old truck assignments. Original orders remain available for undo.
+- Pending edits disable manifest creation until a new plan is accepted. Unsatisfied pins are surfaced and block manifest creation in both client and API. Unavailable pinned trucks and all-excluded plans receive validation errors.
+- Fixed numeric calculation-budget parsing so re-optimization uses the selected budget.
+- Validation: 142 routing checks and 48 planning-session checks passed; API/client Release publishes succeeded. Live synthetic PTV runs verified moving an order to another truck, excluding another order, session restoration, then restoring the exclusion while retaining the pin. Existing login/PKCE, ten manifest/history reads, lifecycle filters, and log references passed.
+- No schema migration, reset, or business manifest creation. Backup/rollback: `/opt/aurora-auth/backups/20261013-1`.
+- Archive SHA256: `4c3234be6ea6f7f417a41bb1821c4dbd9a142d60cc82ead204f18389c828a9ff` (verified remotely).
+- API image: `sha256:828e3e31667bd1897067e72a1393857fb1daeb34dd0e3dbaf1481bf4daa1e0da`; web image: `sha256:af2b4fab168d11c79d4d481060ae00e060eb8534c14a1a818c7b8db9100296d6`.
+
+
+## Automatic least-mile plan selection — 2026-10-13
+
+Published client release `20261013-2` to https://user.aurorasoftware.com.
+
+- Normal optimization waits for SUCCEEDED, selects the stored candidate with the lowest unrounded distance, accepts it through the existing API, and opens the routes. No comparison dialog or manual acceptance is shown.
+- Original results dialog and manual selection remain behind the planning URL query parameter `debugOptimization=true`. Failed acceptance stays recoverable via Reconnect; previously accepted sessions keep their accepted result.
+- Added deterministic distance selection and tests for cost independence, ordering, ties, invalid distances, and empty candidates. All 147 routing checks passed and the Release client publish succeeded.
+- Client-only deployment retained the running API. A concurrent authentication change made the attempted API build fail on MapAccountPasswordEndpoints. Isolated client build sources under artifacts/least-miles-source omit the unfinished password/invitation UI; shared working files are untouched by that isolation. The packaged client comes from release-20261013-2/client-isolated.
+- Live readiness, administrator login/PKCE, ten manifest/history reads, lifecycle filters, and log references passed. No migrations or business-data changes.
+- Backup: `/opt/aurora-auth/backups/20261013-2`. Archive SHA256: `ceeda6ecda3ec4d7e12d95640ad1986e3dd7efe1888bdd11e8dbfcf4843b2b57`. Web image: `sha256:d6b93c8137a78d429526337d13349274f0cbda2033d36d8f44ae2ca6bd6202be`.
+
+
+## Inline order actions and operational summary — 2026-10-13
+
+Published client release `20261013-3`.
+
+- Removed Order decisions panel. Routed orders have Remove from plan beside the PRO. Left off has Add to truck with an on-demand picker; removed orders are labeled Removed by planner and offer Include again. Existing explicit assignment constraints are retained.
+- Left off is reconstructed from original plan inputs and result assignments so removed orders retain their details after re-optimization and can be restored. Left off counts include these orders. Pending changes require re-optimization.
+- Summary now contains operational totals and a per-truck table; narrative notes, request diagnostics, stop audit, and HTTP status text are omitted. Distances display in miles. Provider names are removed from displayed labels and sanitized in routing errors, reasons, and map popups.
+- 151 routing checks passed. Isolated Release client build passed. Browser testing with synthetic data verified automatic acceptance without a dialog, removal, Left off labeling, Include again, truck-picker selection, and summary layout. No business orders were modified.
+- Client-only deployment retained the API and excluded concurrent authentication work, using the previous isolated client snapshot plus this task's files. Live login/PKCE, ten manifest/history reads, lifecycle filters, and log checks passed.
+- Backup: `/opt/aurora-auth/backups/20261013-3`. Archive SHA256: `a339784b7097ddcd3d412d97fdf18a7539da909ababa8f6dd9697ea9439bcf8a`. Web image: `sha256:26f8547c30b0c08b2fd69ceccea79a5b650b50966db9b19f4b8d49ec9c910591`.
+
+## Compact order controls and adjustable map — 2026-10-13
+
+Published client release `20261013-4`.
+
+- Routed orders now have a small red remove button at the far right; Left off uses a truck-icon button to open the existing assignment picker. Action cells remain visible while the table scrolls.
+- Added a draggable divider between results and map, keyboard resizing, session persistence, and double-click reset. Narrow screens retain stacked panels; map resize observer adjusts tiles.
+- Left-off rows and red map markers share sequential numbers. Numbering is assigned before missing-coordinate filtering. Shared locations display the corresponding row numbers together; clicking a row number opens its marker popup.
+- Isolated Release client build and splitter checks passed. Synthetic browser verification covered left-off numbering/focus, truck picker, divider width changes (377 to 743 pixels), reset, and compact buttons.
+- Client-only deployment retained the running API and excluded concurrent authentication work. Live readiness, login/PKCE, ten manifest/history reads, lifecycle filters, and log checks passed. No migrations or business-order edits.
+- Backup: `/opt/aurora-auth/backups/20261013-4`. Archive SHA256: `51a54f385c1ed0780a48ac2cfb9a7ef0dde5be69e6c9c1ca48ca32b449bc2441`. Web image: `sha256:166a1d8018e816e0277e9b0e53e46f15dec32043442013af454526a513e8d9f1`.
+
+## Leaner Results and manifest capacity — 2026-10-13
+
+Published client release `20261013-5`.
+
+- Added the existing optimizer-reported load utilization to each manifest header, formatted as a whole percentage (for example, 50% capacity).
+- Removed the top status/totals cards and previous-run comparison strip from Results. Overall totals remain in Summary; scheduling-conflict and summary-error alerts remain visible.
+- Isolated Release client build passed. Browser preview confirmed 0.5 renders as 50% and Results begins directly with the manifest/map panels after the heading.
+- Client-only publish retained API and excluded concurrent authentication work. Readiness, login/PKCE, manifest dispatch/status/history reads (10), and lifecycle filters passed. The legacy log fixture assertion did not pass: search for manifest 11455 returned zero records, so its exact reference label could not be checked. No API or log behavior was changed by this release.
+- Backup: `/opt/aurora-auth/backups/20261013-5`. Archive SHA256: `b732af8636c56bc4cdaa3859ddb83a08af79eac8a53666099fece86e9e935833`. Web image: `sha256:abb4f1d50f3c961c222e0f194fd95002536085d930f118c897bcc3e08c00b332`.
+
+## Manual-assignment overtime and manifest tabs — 2026-10-13
+
+Published release `20261013-6`.
+
+- Manual order assignments extend the selected truck's planned return by 24 hours in the prepared solver request and remove that truck's maximum route-duration constraint. The API requires a latest return time; this is a bounded overtime allowance. Other trucks, capacity, appointments, driving-duration limits, and breaks are unchanged. Multiple manual orders do not accumulate additional days. Removing the last pin restores ordinary limits on the next preparation.
+- Original truck settings stay in reporting metadata (stripped before provider submission), preserving the original manifest hours budget. The manifest header shows whole minutes over shift, including late returns and route-duration overruns. Removed the redundant Show on map header button.
+- Native manifest editing now has Details, Orders, and History tabs. Details contains assignment/status and map; Orders contains the existing order list/detail links; History contains status history. Unsaved assignment fields survive tab switches; maps are disposed and redrawn when returning to Details.
+- 169 routing checks passed against both working and isolated release sources. Checks cover full/seeded overtime preparation, positive capacity constraints, appointment preservation, unaffected trucks, undo, multiple pins, original budget, and overtime calculations. Release builds passed. Synthetic browser checks verified all tabs, preserved unsaved driver selection, map return, the 42-minute overtime warning, and absence of Show on map.
+- API package retains the published release-20261013-1 application and dependencies, replacing only Aurora.Contracts and Aurora.Modules.Routing assemblies built against isolated contracts. Routing module source had no post-release changes before this task. Isolated client excludes concurrent authentication changes. No schema migrations or business manifest/order edits.
+- Live readiness, login/PKCE, dispatch/status/history reads (10), log-search endpoint, and lifecycle filters passed. Legacy manifest 11455 log-reference fixture skipped because search returns no records.
+- Backup: `/opt/aurora-auth/backups/20261013-6`. Archive SHA256: `36dbee6b29f86c32977e44de50836eb6eef5cec2c4745b77cbed0f0be6c653bc`. API image: `sha256:9f5a112689b706c4d24fe98d20e57da5d9d31bcc99b3004a35c76bcec61c2e9f`. Web image: `sha256:7b81d2eb4c2f45339d37bbcd9ec938b1cc98ec6c76508aa1f072bda6b4e2c777`.
+
+## Latest full workspace release — 2026-10-14
+
+Published `20261014-1` to https://user.aurorasoftware.com at the user's request.
+
+- Built the latest full workspace API and client, including account-password and invitation-email work previously excluded from isolated releases. All prior routing, overtime, compact controls, and manifest tabs are included.
+- Release API build passed with no warnings/errors; both publishes succeeded. Routing (169), planning-session (48), invitation/password (31), client-authentication, login (16), and divider checks passed. Invitation tests use mocks; no emails were sent. AdminUserChecks could not run without FIREBIRD_CHECK_CONFIG; live administrator login and user listing passed instead (not a replacement for DB mutation coverage).
+- Created and validated the database backup and retained rollback images. Preserved existing data/configuration, performed no migrations or resets. Excluded local App_Data and Development appsettings from the package.
+- Live readiness, administrator login/PKCE, admin user listing, manifest dispatch/status/history reads (10), log search, and lifecycle filters passed. Historical manifest 11455 reference fixture skipped because it has no matching records.
+- Existing server has no RESEND_API_KEY; public origin is configured. Invitation email remains unavailable until the key is configured. No credentials or authentication policies were changed during deployment.
+- Backup: `/opt/aurora-auth/backups/20261014-1`; previous release `20261013-6`. SHA256: `31f74ab3d088270bdc3dfa530f921ad38f2cab18c3ed55c55e411bd583413f24`. API image: `sha256:5388700ac1b41d817f25246946c148bb8fa5e5c8c51a5a9ca0c6b78e4f020142`. Web image: `sha256:5fff28427951c32b30c63fc60dc2862f9362e492fe581ef900391a0667b7d99a`.
+
+## Scoped manual additions — 2026-10-14
+
+Published `20261014-2` at the user's request.
+
+- Single-truck assignment is one click; misleading Allow reassignment label replaced with Undo.
+- Manual additions retain other unscheduled orders as left-off decisions in the original request. Prepared runs contain existing manifest orders plus explicit additions; held orders remain visible and can be added later.
+- API/client Release publishes passed. 179 routing checks and 48 planning-session checks passed, including full/seeded scoped additions, repeated edits, later additions, exclusions, and preserved original input.
+- Live readiness, administrator login/PKCE, manifest dispatch/status/history reads (10), log search, and lifecycle filters passed. Historical manifest reference fixture skipped because it has no matching records. No migrations, resets, or business-data edits.
+- Backup: `/opt/aurora-auth/backups/20261014-2`; previous release `20261014-1`. Archive SHA256: `b6eac6626d163fa6e81c71e3badfcbaa6a68d8c4cf4e577e646f3498a3c0c113`. API image: `sha256:fe6212677cbbd8102651c43e226716328fdae25326c6300fa9f28243125043dd`. Web image: `sha256:90692e1a5e9c624c447f5a8ea546344125fb61a9bc24eeed3c6822b32b0c8781`.
+
+## Admin testing reset — 2026-10-14
+
+Published `20261014-3` at the user's request.
+
+- Removed Admin Import, its page/contracts/store/sample, replacement endpoints, and legacy order-import API entry point. Added admin-only Reset preview and confirmed execution endpoints plus Admin Reset screen.
+- Reset preserves setup/source orders/pre-existing Nova manifests. Company-tagged Aurora manifests are deleted through native triggers, order assignment/execution state is reset, local drafts/manifests/route plans are cleared, test workflow state is cleared with revision increments, and associated encrypted planning sessions are removed. Audit history remains. New manually created manifests now carry company provenance; older unmarked manifests are conservatively preserved.
+- Checks: 25 native/authorization reset checks (all native synthetic writes rolled back); 26 local PostgreSQL/authorization checks using isolated fixture database; 50 session checks; 36 freight unit checks; 17 workspace unit checks. Corrected an older workspace fleet fixture to specify zero mileage cost. Simulated browser checks verified disabled confirmation, enabling after RESET, and success feedback. API/client Release publishes passed. No production/test-server reset was executed.
+- Read-only live Reset preview passed: 21 manifests and 24 drafts. Retired import endpoints return 404/405. Readiness, login/PKCE, dispatch/history/status reads and lifecycle filters passed. Historical log fixture had no records and was skipped.
+- No migration required. Existing data/configuration backed up and preserved. Backup `/opt/aurora-auth/backups/20261014-3`, prior release `20261014-2`. Archive SHA256 `a7d0c4bb330a222480f022274a9ab517419b698c1c831db5d9cec76339544ce9`. API image `sha256:6b72d342c420a974fbfdc3df38963ef0079cc8a5c7d969e3d2d7cf7a9fce231f`; web image `sha256:eb8374266e142a80ff9ccebc049e937930aa5930a1e50b4c0ca5f6c8b904d293`.
+
+## Orders-based route planning — 2026-10-14
+
+Published `20261014-4` at the user's request.
+
+- Orders now starts planning with checkbox and Shift-click selection, Ready to route filtering, and resumable open plans. Removed the Optimization sidebar entry and replaced planning tabs with a setup screen followed by map/manifest review. Truck/hour and appointment editors open over results; advanced settings are collapsed.
+- Manifest assignment warnings appear on the edit screen when changing status. Includes removal of redundant optimization-grid labels.
+- Full API/client Release publishes passed. Prior local validation passed 179 routing checks and synthetic browser checks covering range selection, paging, draft resume, schedule edits, optimization, and truck-setting save/cancel.
+- Live readiness, login/PKCE, manifest dispatch/status/history reads, lifecycle filters, Ready-to-route Orders (50 rows), and open-draft reads passed. Admin Reset preview was read-only; retired import endpoints remain removed. Historical log fixture skipped because no matching records exist.
+- Database backup validated and rollback images retained. No migrations or resets. Local App_Data and Development settings (including compressed variants) excluded from the uploaded archive.
+- Backup `/opt/aurora-auth/backups/20261014-4`; prior release `20261014-3`. Archive SHA256 `a180cbe717b0712d9440f87087cdeeea3c312c9616bd900fc31308134582d049`. API image `sha256:4a9eb91c63cd782ef276c696f71380019a624ecfa72299a618819140f8908213`; web image `sha256:60d37d1a8c3664c1c7e4d19b6c653d85606040381306e49e125484547dc0e0f7`.
+
+## Manifest details and interface cleanup — 2026-10-14
+
+Published `20261014-5` at the user's request.
+
+- Manifest Details now shows date/terminal and saved route estimates, compact assignment/status fields, dispatcher notes, and the map underneath at every screen size. Missing saved estimates display a dash. Estimates use the manifest timezone and retained optimized route.
+- Native notes save independently of assignment and status, enforce 4,000 characters and optimistic concurrency, reject closed/canceled manifests, and retain the existing export receipt for retry recovery. No schema migration required.
+- Includes pending UI work: removed top password shortcut; 10-second planning/replanning budget; removed Advanced settings; compact right-aligned buttons; Appointments caption; Escape for older overlays; Terminals labels; Orders terminal dropdown code and name. Fleet Management naming was discussed but not changed.
+- API/client Release publishes succeeded. 66 dispatch checks passed, including native note persistence, stale revisions, limits, canceled-manifest rejection, and receipt retention. All synthetic native records and trigger effects rolled back. Browser preview verified notes save/reload, map underneath, and no horizontal overflow at 1280 pixels. Earlier routing checks passed 179 cases.
+- Live readiness, login/PKCE, dispatch/history reads, lifecycle filters, terminal code/name options, new manifest detail/notes fields, Orders and open drafts passed. One of the checked manifests had a saved optimization summary. Historical log fixture absent and skipped. Reset was read-only; no server reset or business edits performed.
+- Backup `/opt/aurora-auth/backups/20261014-5`; prior release `20261014-4`. Archive SHA256 `c45f17de946cffc1d59004d71914640e01157e6989a4f0a63afb1ded0b6d91b7`. API image `sha256:bbe6b59fbabfd12ad9a8d4787fca874ee0e3237b0e24b4d807043c97e7ac6e3a`; web image `sha256:b3a09a94672606229df0dc896383084f02d5fe8b0db1a6fb98edb982844aa9ce`. Local App_Data and Development settings excluded.
+
+## Requested republish — 2026-10-14
+
+Republished the latest full workspace as `20261014-6` at the user's request. API/client Release publishes succeeded. Live readiness, administrator login/PKCE, Orders, open plans, terminal labels, manifest details/notes, dispatch/history and lifecycle checks passed. Historical log fixture absent and skipped. Database backup validated; no migrations, resets or business-data edits. Local data and Development settings excluded.
+
+Backup `/opt/aurora-auth/backups/20261014-6`; prior release `20261014-5`. Archive SHA256 `d89111b7f34a0412e433b5054d0a8dd02426f2506ed89a9225717ef4c6c5064d`. API image `sha256:10ce44b768a6001bc274f092aec37b31282907f7535fb76d8fce9fbaeab1bfc4`; web image `sha256:9c2d145e3d32f00dee45d8df82f172816d3c7e7ee08a7d4eaac656d5c4f39cd3`.
+
+## Initial route schedule and Trucks popup — 2026-10-14
+
+Published `20261014-7` at the user's request.
+
+- Plan routes on Orders now opens a compact Route schedule dialog for date, departure, and return. Continue validates the schedule, rechecks availability, and creates the selected-order draft with those values. Cancel/Escape leaves selection intact without creating a draft. Resuming an existing plan skips this dialog.
+- Removed shared schedule controls from setup and the Results truck popup. Results button and popup title now say Trucks; individual truck controls remain. Includes pending Equipment sidebar label, adjacent Appointments/Optimize buttons, and Save caption.
+- API/client Release publishes succeeded. Synthetic browser validation covered range selection, Escape/Cancel, equal-time rejection, Oct 16 / 07:00–19:00 propagation, resume without schedule dialog, successful optimization, and absence of schedule fields from Trucks. Screenshots saved in artifacts.
+- Live readiness, administrator login/PKCE, Orders/open plans, terminal labels, manifest details/notes, dispatch/history and lifecycle checks passed. Historical log fixture absent and skipped. Backup validated; no migrations, resets, or business-data edits. Local data and Development settings excluded.
+- Backup `/opt/aurora-auth/backups/20261014-7`; prior release `20261014-6`. Archive SHA256 `462af1c57f96d957e9c9e062a92f40f4796f36819579e0a90acf4ff252c28fa7`. API image `sha256:9041d74aef3f6d365ce95ecbdb0250753644a8a372c68672fe8bc8e47c525a07`; web image `sha256:c2918bf20f398da74d38cad1c17182eb949cb1fb38b422a46e51c75693a8f70f`.
+
+## Optimization progress and results cleanup — 2026-10-14
+
+Published `20261014-8` at the user's request.
+
+- Optimize and Re-optimize show an Optimizing dialog with the existing animated Aurora arrows. Results manifests start collapsed; expanding one selects its route on the map, and collapsing it restores all routes. Removed the redundant Truck routes heading and repeated plan caption.
+- API/client Release publishes passed. Local synthetic browser checks verified both progress flows, completion, collapsed defaults, and expansion/map selection. Live readiness, administrator login/PKCE, Orders/open plans, terminal labels, manifest details/notes, dispatch/history and lifecycle checks passed. Historical log fixture absent and skipped.
+- Database backup validated and rollback images retained. No migrations, resets, or business-data edits. Local App_Data and Development settings excluded.
+- Backup `/opt/aurora-auth/backups/20261014-8`; prior release `20261014-7`. Archive SHA256 `bee2c6f2a926466ade00720580f1e50475a4d2d908492142e48ce4b1c2f1dfc5`. API image `sha256:1018e23c182d95ea408e24de3625e8ad8284406b5f3dd57c79a891da0a918ee7`; web image `sha256:955125f6d6a67747dd708e7acb8fae2b8e27d1d7c663e995653572106cbfb2fc`.
+
+## 2026-10-15 — 20261015-1: automatic transfer and consolidation plans
+
+Published API and web to https://user.aurorasoftware.com on explicit user request after review.
+
+- Orders > Plan routes groups local deliveries and terminal transfers atomically. Receiving terminals marked Consolidation generate consolidation plans; other terminal transfers generate line-haul plans. Saved transfer destinations and kinds survive re-optimization.
+- Terminals > edit > Routing stores source-scoped consolidation designation, service area, routing role and Route Via. Revision conflicts and routing cycles are rejected. Native delivery-terminal data supplies explicit order destinations.
+- Transfer manifests retain their kind in the hidden export receipt, show origin/destination and use terminal endpoints on the map. Customer destinations remain intact. Receipt handling remains the existing Nova workflow.
+- Additive migration 0024_terminal_routing rehearsed against a restored backup, then applied successfully with seeding disabled. Existing data preserved.
+- Validation: 192 RoutingChecks, 23 OrderWorkspaceChecks, 34 native FirebirdRoutingChecks passed. Native export checks rolled back. Browser preview confirmed separate General, Consolidation and Line haul plans. Release publishes succeeded.
+- Server smoke checks passed: login/PKCE, Orders/open plans, native manifests/history/details, terminal routing read, reset read-only preview, retired import endpoints. Legacy manifest-reference fixture absent and skipped.
+- Backup/rollback records: /opt/aurora-auth/backups/20261015-1; migration rehearsal database aurora_deploy_20261015_1 retained.
+- Archive SHA256: a16e12bff29c1bfd7f0c6abd4e3c8b3a742affa6b53f7303288e08a386a8d787
+- API image: aurora-auth-api:20261015-1 sha256:b1aa8e0e9ae58d5a5eacbc0b4f38e65431de42687aa0bfb9737b5cb166a2b129
+- Web image: aurora-auth-web:20261015-1 sha256:ac5fe81fcfb14f3f872a9aeafa54f6242fc05fd1bdf9c747d30a17c294e10116
+- Evidence: artifacts/publish-20261015-1.log and artifacts/consolidation-plans-20261015.png.
+
+## 2026-10-15 — 20261015-2: terminal routing on the main edit form
+
+Published on explicit user request to https://user.aurorasoftware.com. Removed separate Routing popup. Consolidation checkbox, routing role, Route Via and service area now appear on the main add/edit terminal form and use its Save/Cancel controls. Native save revision is retained if the subsequent routing save fails, with a clear partial-save error for retry. Routing validation runs before saving native details.
+
+Validation: Client build and Release publish succeeded. Browser preview verified the inline layout, checking consolidation, Save/reopen persistence, and invalid service-area keyboard entry blocking Save while retaining the form. Server login/PKCE, Orders/open plans, manifest details/history and terminal-routing read smoke checks passed. No schema migration. API reused release 20261015-1 published binaries.
+
+Backup: /opt/aurora-auth/backups/20261015-2. Archive SHA256 bf2de0f89ff5b90dfd11da28f485308ba740d5f45bf8946a8dbbaaebf22115a7.
+API image sha256:36c489b45b33234b846e73f07d8b875d1682f858e05bfdbf8191b08fe91f64a6.
+Web image sha256:d451b4be5a4817e09335f4ef950c696077512b8047cfff54e275e26c5672482e.
+Evidence: artifacts/publish-20261015-2.log; artifacts/terminal-inline-20261015.png.
+
+## 2026-10-15 — 20261015-3: Nova desktop launch sign-in
+
+Published to https://user.aurorasoftware.com on explicit user request.
+
+- Added opt-in Nova user ID mapping in Admin > Users and display of the assigned Aurora database UUID. Blank mappings preserve existing behavior. Mappings are unique per tenant/database and restricted to the user's default tenant.
+- Added /nova-launch fragment landing page and POST /api/auth/nova-launch. The client erases the fragment before loading third-party scripts, removes stale Aurora OIDC user state, and starts the normal PKCE sign-in after ticket verification. Invalid/unavailable launches go to login with a retry message.
+- Firebird tickets use 256-bit random lowercase hex secrets and SHA-256 hashes, a maximum 60-second lifetime, and atomic DELETE RETURNING consumption. Aurora checks mapping, product access, lockout and two-factor requirements; no persistent cookie is created. Requests are rate-limited and responses use no-store. Database credentials and tickets are not logged.
+- Migration 0025_nova_launch rehearsed on a restored backup and applied with seeding disabled. Scoped SECURITY DEFINER lookups allow only configured pre-auth database/membership lookup without relaxing table RLS. No Nova database schema or business records were changed.
+- Validation: 10 disposable embedded Firebird checks (including replay, expiry, future issuance, excessive lifetime and concurrent redemption); 9 restored PostgreSQL mapping/listing checks with fixtures rolled back; JavaScript fragment/account cleanup checks; 16 existing login checks; client auth/session checks; API/client/migration Release publishes. Local PostgreSQL used port 15432 because Windows refused binding 55432. Its migration journal was updated after applying the migration as aurora_owner.
+- Live checks passed: readiness, administrator login/PKCE, Orders/open plans, manifests/history/details, terminal routing, mapping administration, invalid/unknown launch rejection without cookies, origin rejection, launch page/helper deployment. No full successful Nova launch is claimed: Steve must implement trusted ticket issuance and the Nova button, then enable mappings for joint testing.
+- Handoff: docs/email-steve-nova-launch.txt (draft only; not sent), docs/nova-launch-firebird.sql (Nova-side schema; not applied). Requires restricted ticket issuance that verifies Nova identity; shared unrestricted DB writes must not be treated as authenticated users. Closing Nova does not revoke an existing Aurora session.
+- Backup: /opt/aurora-auth/backups/20261015-3; previous release 20261015-2; rehearsal database aurora_deploy_20261015_3 retained. Existing data/configuration preserved; local App_Data and Development settings excluded.
+- Archive SHA256: e31f9b6746d88c74bbb07c7dc8a0100330a0dfac4af3981c5ebe0e13fd8b0337.
+- API image: sha256:eb17ad94677ad6030113e65b95ed56562b178ff8e3ba94c7763f850f715213d3.
+- Web image: sha256:6390685612e9351a2d99f80e185b6be1551e2e8e2e4925ab1ff9f28bb57b92ae.
+- Evidence: artifacts/publish-20261015-3.log. Existing transitive Pkcs/Xml advisory warnings appeared in the new test project restore; dependency versions were not changed. The migrator's existing optional Kerberos library warning did not prevent rehearsal or live migration success.
+
+## 2026-10-15 — TEST Firebird SRP connection
+
+At the user's request, repaired Aurora's connection to 172.23.0.3:D:\DB\TEST\OPERATIONS.FDB. Server is Firebird 5.0.3. AuthServer already allows Srp256, Srp, Legacy_Auth; the existing SYSDBA credential connected through Legacy_Auth, unsupported by Aurora's managed driver. UserManager lists Srp256 first (not a user-manager plugin), so provisioning explicitly selected USING PLUGIN Srp.
+
+Created dedicated AURORA_TEST_APP SRP account with a random password. Granted TEST database table DML, view SELECT, sequence/exception USAGE and standalone procedure EXECUTE, without grant option, server admin or schema-management privileges. Ticket table is excluded from general DML and gets SELECT/DELETE only if present. No existing accounts, Firebird configuration, business records, or services changed. No server restart required. Recovery credential is DPAPI protected in ignored deploy/private/nova-test-app-password.xml; deployed credentials use Aurora Data Protection.
+
+Updated existing Nova TEST catalog record 9d2af9bf-121e-4b0a-924a-58abf170292e through the administrator API. Managed-driver read, deployed pre-save connection test, and post-save test using the encrypted stored credential all passed. User assignments remain unchanged. No republish required. Updated Steve's draft and the ticket-schema handoff grant to name AURORA_TEST_APP; no email sent. Nova ticket issuance/table installation and user mapping remain outstanding.
+
+## 2026-10-15 — Nova TEST launch ticket table
+
+On explicit user request, created AURORA_LAUNCH_TICKET and its expiry index in 172.23.0.3:D:\DB\TEST\OPERATIONS.FDB. Table existence was checked first. Applied schema and grants transactionally with AUTODDL OFF. AURORA_TEST_APP has SELECT/DELETE; no INSERT/UPDATE was granted.
+
+Verified with one synthetic unlinked ticket: Aurora credentials can read and consume a valid ticket using the launch expiry predicates, the consumed row is absent, and INSERT is denied. The synthetic row was removed by redemption; the denied-insert test rolled back. No Nova business records changed. Steve's email now states the TEST database setup is complete and gives only the Nova integration contract. Account mappings and a full Nova-issued browser launch remain to be tested. No email sent or application republish needed.
+
+## 2026-10-15 — 20261015-4: Admin menu request-failure fallback
+
+Investigated missing Admin menu reported by Bryan. Live bbatts account remains Administrator with WayTest assignment; both administrator/log-access endpoints return true. MainLayout previously hid all administration navigation on any permission-request exception. Updated it to initialize navigation from authenticated role claims and retain that fallback on transport/time-out failures; successful permission responses still override claims and all destination APIs retain authorization. The exact browser failure was not reproduced.
+
+Client Release publish and ClientAuthChecks passed. Reused 20261015-3 API/migration binaries. Published and verified live login/PKCE, admin/log permission endpoints, Users mapping, Orders/open plans, manifests, terminal routing, and Nova launch rejection checks. No schema or account changes. Backup /opt/aurora-auth/backups/20261015-4; previous release 20261015-3.
+
+Archive SHA256: 0abdd5e708a28cfb7df288e2961640b0f8d95cdbfd984445d85e202dd797b6e9.
+API image: sha256:ccd3131c447dd47cf6e2ac77c3e57161e9b7bb85dc4d4942ed7e506ea785863d.
+Web image: sha256:22a819f588587c6e1742bebf4ceb5d5f86bf73dbce7eb34bacbf5e9a0a08aa34.
+Evidence: artifacts/publish-20261015-4.log.
+
+## 2026-10-15 — 20261015-5: Nova credential-to-browser handoff
+
+Published to https://user.aurorasoftware.com on user authorization. This supersedes the Firebird-ticket handoff for Steve: Nova POSTs userName/password to /api/auth/nova/token and opens the returned launchUrl verbatim. No database UUID, Firebird ticket write, or hashing is required in Nova. Codes expire after 60 seconds, are stored only as SHA-256 hashes in Aurora PostgreSQL, and are consumed atomically once by /api/auth/nova/redeem. The fragment is removed before application startup. Credentials are checked through Identity with lockout; MFA, disabled opt-in, elevated roles, removed access and changed security stamps prevent the handoff. Pending codes do not bypass these checks. Session cookies are nonpersistent; endpoints are rate-limited and no-store.
+
+Created nova-test (1874862d-e4fc-4966-9104-a6a0272e1fc8), User only, Nova API sign-in enabled, attached to Nova TEST database 9d2af9bf-121e-4b0a-924a-58abf170292e (172.23.0.3:D:\DB\TEST\OPERATIONS.FDB). Invitation email explicitly suppressed. Random account credential is DPAPI protected in ignored deploy/private/nova-api-test-credential.xml; distinct from the Firebird credential. Shared account activity identifies nova-test, not individual Nova operators. Existing Firebird ticket table remains unused by this flow. Nova source was not changed. Per latest user instruction, email text is provided in chat only; no email sent or draft file created.
+
+Migration 0026 rehearsed against a restored backup and then applied live with seeding disabled. Backup /opt/aurora-auth/backups/20261015-5; previous release 20261015-4. Validation: 30 credential/code API checks, 10 embedded Firebird ticket checks, 9 PostgreSQL mapping/list checks, fragment tests, 16 login checks and 26 AppLog checks passed; API/client/migration Release publishes succeeded. Live smoke tests passed, including existing administrator permissions and business reads. Live nova-test credential issuance, secure browser-cookie redemption, replay rejection, PKCE exchange, userinfo identity, administrator denial and native TEST terminals read all passed. No Nova business writes were performed by verification.
+
+Archive SHA256: 4fdeddf803bda2702604f1f8999f5340af586ee81631d3e55cc3f5723c5cef3d.
+API image: sha256:5ad5cd6afd479626e983d9ee984a14f2154a5aab822fd411f944cf8188bee01b.
+Web image: sha256:906b6b76240aecf3d0c62ed765fb7fcc216e87b0eda244c8b918078a1d382541.
+Evidence: artifacts/publish-20261015-5.log; artifacts/create-verify-nova-api-account.py; artifacts/nova-api-account.json. Existing optional Kerberos library warning did not prevent migration success.
+
+## 2026-10-16 — 20261016-1: Chris's optimization feedback
+
+Published to https://user.aurorasoftware.com on explicit user request. Added native order alias searches with or without a hyphen, visible planning-availability explanations and counts, native manifested/delivered diagnostics, drag handles and dropdown delivery reassignment with automatic reoptimization, load utilization clarification, optional address-line guidance, consolidation terminal explanation, and guidance to maintain driver profiles in Nova. Versioned isolated CSS and map JavaScript as 20261016-feedback.
+
+API and client Release publishes passed. All 204 routing checks and focused delivery-drag/splitter JavaScript checks passed. Prior browser preview verified dropdown and pointer-drag reassignment with simulated route/KPI recalculation. The older map-checks fixture remains incompatible with existing ResizeObserver/marker behavior; it was not changed for this release.
+
+Live verification passed: readiness, existing administrator login and PKCE, permissions, Orders/open plans, manifest dispatch/status/history/details, terminal routing, Nova launch contracts, order searches with both FB- and fb aliases, and versioned drag assets. No migrations, seeding or data reset. Previous release 20261015-5; backup /opt/aurora-auth/backups/20261016-1. Local App_Data and Development configuration (including compressed variants) were excluded from the archive.
+
+API image sha256:12e3885ff042552bfe20cfbd92b6790554c190d0ab711eb3f612d573160f0608.
+Web image sha256:ba0c2362c6ed467d0c425a757d3c64c5ff7a8822f506823f254a084e781c0ec4.
+Evidence: artifacts/publish-20261016-1.log.
+Archive SHA256: 4a10e092263f16ec3803f837b5d777f1b60f9684f10f1f3a3d39f865b44efcce.
+

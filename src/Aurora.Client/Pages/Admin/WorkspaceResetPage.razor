@@ -1,0 +1,68 @@
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<section class="planning-card" style="max-width:680px">
+    <h2>Reset testing</h2>
+    <p>Delete this company’s Aurora-created manifests and planning drafts, clear saved route results and test workflows, and return manifest orders to Ready to Route.</p>
+    <p>Customers, trucks, terminals, users, settings, source orders, and pre-existing Nova manifests are kept. Activity history is kept.</p>
+    @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+    @if (_completed is { } result)
+    {
+        <p role="status">Reset complete. Deleted @result.Manifests manifests and @result.Drafts drafts. Orders are ready for another test.</p>
+        <button class="primary-button" @onclick="OpenOrders">Open orders</button>
+    }
+    else if (_preview is { } preview)
+    {
+        <p><strong>@preview.Manifests manifests</strong> and <strong>@preview.Drafts planning drafts</strong> will be deleted.</p>
+        <p>Older manifests without an Aurora creation reference are preserved.</p>
+        <p>This cannot be undone here. Type <strong>RESET</strong> to continue.</p>
+        <label class="field">Confirmation<input aria-label="Reset confirmation" autocomplete="off" @bind="_confirmation" @bind:event="oninput" disabled="@_busy" /></label>
+        <div class="compact-form-actions">
+            <button class="primary-button" disabled="@(_busy || _confirmation != "RESET")" @onclick="Reset">@(_busy ? "Resetting…" : "Reset testing data")</button>
+            <button class="outline-button" disabled="@_busy" @onclick="OpenOrders">Cancel</button>
+        </div>
+    }
+    else { <p role="status">Loading reset details…</p> }
+</section>
+
+@code {
+    private WorkspaceResetPreview? _preview;
+    private WorkspaceResetResult? _completed;
+    private string _confirmation = "";
+    private string? _error;
+    private bool _busy;
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load()
+    {
+        try
+        {
+            using var response = await Http.GetAsync("api/v1/admin/reset/");
+            await Check(response);
+            _preview = await response.Content.ReadFromJsonAsync<WorkspaceResetPreview>();
+        }
+        catch (Exception) { _error = "Could not load reset details. Refresh this page to try again."; }
+    }
+    private async Task Reset()
+    {
+        if (_busy || _preview is null || _confirmation != "RESET") return;
+        _busy = true; _error = null;
+        try
+        {
+            using var response = await Http.PostAsJsonAsync("api/v1/admin/reset/", new WorkspaceResetCommand(_preview.Revision, _confirmation));
+            await Check(response);
+            _completed = await response.Content.ReadFromJsonAsync<WorkspaceResetResult>();
+            try { await JS.InvokeVoidAsync("auroraWorkspace.reset"); } catch (JSException) { }
+        }
+        catch (HttpRequestException) { _error = "The connection was interrupted. Refresh to check what remains before retrying."; }
+        catch (TaskCanceledException) { _error = "The reset is taking longer than expected. Refresh to check what remains before retrying."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; _confirmation = ""; if (_completed is null) await Load(); }
+    }
+    private static async Task Check(HttpResponseMessage response)
+    {
+        if (!response.IsSuccessStatusCode)
+            throw new FormatException((await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error ?? "Reset could not be completed.");
+    }
+    private void OpenOrders() => Navigation.NavigateTo("/aurora/orders", forceLoad: true);
+}

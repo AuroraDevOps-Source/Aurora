@@ -1,0 +1,25 @@
+<div class="manifest-edit-grid">
+    <label class="field">Terminal
+        <select value="@Location.NodeId" @onchange="ChooseNode"><option value="">Custom location</option>
+            @foreach (var n in Nodes) { <option value="@n.Id">@n.Code · @n.Name</option> }
+        </select>
+    </label>
+    <label class="field">Name<input @bind="Location.Name" maxlength="200" /></label>
+    <label class="field">Street address<input @bind="Location.Address" maxlength="200" /></label>
+    <label class="field">City<input @bind="Location.City" maxlength="200" /></label>
+    <label class="field">State / province<input @bind="Location.State" maxlength="200" /></label>
+    <label class="field">Postal code<input @bind="Location.PostalCode" maxlength="200" /></label>
+    <label class="field">Country<input @bind="Location.Country" maxlength="200" /></label>
+</div>
+@code {
+    [Parameter, EditorRequired] public FreightLocation Location { get; set; } = new();
+    [Parameter] public IReadOnlyList<TerminalDto> Nodes { get; set; } = [];
+    void ChooseNode(ChangeEventArgs e)
+    {
+        Location.NodeId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        var node = Nodes.FirstOrDefault(n => n.Id == Location.NodeId);
+        if (node is null) return;
+        Location.Name = node.Name; Location.Address = node.Address; Location.City = node.City;
+        Location.State = node.State; Location.PostalCode = node.PostalCode; Location.Country = node.Country;
+    }
+}

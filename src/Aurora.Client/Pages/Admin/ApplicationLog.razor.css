@@ -1,0 +1,4 @@
+.log-filters { margin-bottom:16px; }
+.log-time { white-space:nowrap; }
+.log-resource { overflow-wrap:anywhere; max-width:320px; }
+details { min-width:180px; overflow-wrap:anywhere; }
