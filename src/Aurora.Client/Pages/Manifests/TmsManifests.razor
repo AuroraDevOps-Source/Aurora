@@ -36,15 +36,29 @@
 </div>
 <div id="manifest-tab-panel" role="tabpanel" aria-labelledby="@(_tab==ManifestTab.Details ? "manifest-tab-details" : "manifest-tab-orders")">
 @if(_tab==ManifestTab.Details){
-@if(_editing && _edit is {} e){<div class="manifest-screen-editor"><fieldset disabled="@_busy" class="tms-edit-fields"><div class="manifest-edit-grid">
+@if(_editing && _edit is {} e){<div class="manifest-screen-editor"><fieldset disabled="@_busy" class="tms-edit-fields"><div class="edit-groups">
 
-<label class="field">Manifest number<input @bind="e.Number" maxlength="100" /></label><label class="field">Manifest date<InputDate @bind-Value="e.ManifestDate" /></label><label class="field">Status<select @bind="e.Status" disabled="@_new">@foreach(var s in new[]{"Planning","Dispatched","En Route","Complete"}){<option>@s</option>}</select></label>
+<fieldset class="edit-group"><legend>Manifest</legend><div class="manifest-edit-grid">
+<label class="field">Manifest number<input @bind="e.Number" maxlength="100" /></label><label class="field">Manifest date<InputDate @bind-Value="e.ManifestDate" /></label><label class="field">Status<select @bind="e.Status" disabled="@_new">@foreach(var s in new[]{"Planning","Dispatched","En Route","Complete"}){<option>@s</option>}</select></label><label class="field">Actual event time (Nova local time)<input type="datetime-local" @bind="e.Details.StatusOccurredAt" /></label>
+</div></fieldset>
 
-<label class="field">Truck<select @bind="e.Vehicle"><option value="">Unassigned</option>@if(!string.IsNullOrWhiteSpace(e.Vehicle) && !_trucks.Contains(e.Vehicle)){<option value="@e.Vehicle">@e.Vehicle (current)</option>}@foreach(var v in _trucks){<option value="@v">@v</option>}</select></label>
+<fieldset class="edit-group"><legend>Equipment & driver</legend><div class="manifest-edit-grid">
+<label class="field">Truck<select @bind="e.Vehicle"><option value="">Unassigned</option>@if(!string.IsNullOrWhiteSpace(e.Vehicle) && !_trucks.Contains(e.Vehicle)){<option value="@e.Vehicle">@e.Vehicle (current)</option>}@foreach(var v in _trucks){<option value="@v">@v</option>}</select></label><label class="field">Trailer<input @bind="e.Details.Trailer" maxlength="200" /></label><label class="field">Driver<select @bind="e.Details.DriverId"><option value="">Unassigned</option>@foreach(var driver in _drivers){<option value="@driver.Id">@driver.Number · @driver.Name</option>}</select></label><label class="field">Carrier<input @bind="e.Details.Carrier" maxlength="200" /></label>
+</div></fieldset>
 
-<label class="field">Trailer<input @bind="e.Details.Trailer" maxlength="200" /></label><label class="field">Driver<select @bind="e.Details.DriverId"><option value="">Unassigned</option>@foreach(var driver in _drivers){<option value="@driver.Id">@driver.Number · @driver.Name</option>}</select></label><label class="field">Actual event time (Nova local time)<input type="datetime-local" @bind="e.Details.StatusOccurredAt" /></label><label class="field">Carrier<input @bind="e.Details.Carrier" maxlength="200" /></label><label class="field">Bill-to code<input @bind="e.Details.BillToCode" maxlength="200" /></label><label class="field">Bill-to name<input @bind="e.Details.BillToName" maxlength="200" /></label><label class="field">Origin terminal<input @bind="e.Details.OriginTerminal" maxlength="200" /></label><label class="field">Destination terminal<input @bind="e.Details.DestinationTerminal" maxlength="200" /></label><label class="field">Direction<select @bind="e.Details.Direction"><option>Outbound</option><option>Inbound</option></select></label><label class="field manifest-notes">Notes<textarea @bind="e.Details.Notes" maxlength="4000" rows="2"></textarea></label>
+<fieldset class="edit-group"><legend>Bill to</legend><div class="manifest-edit-grid">
+<label class="field">Bill-to code<input @bind="e.Details.BillToCode" maxlength="200" /></label><label class="field">Bill-to name<input @bind="e.Details.BillToName" maxlength="200" /></label>
+</div></fieldset>
 
-</div><div class="manifest-edit-actions"><button class="primary-button" @onclick="Save">Save manifest</button><button class="outline-button" @onclick="Cancel">Cancel</button></div></fieldset></div>}
+<fieldset class="edit-group"><legend>Route</legend><div class="manifest-edit-grid">
+<label class="field">Origin terminal<input @bind="e.Details.OriginTerminal" maxlength="200" /></label><label class="field">Destination terminal<input @bind="e.Details.DestinationTerminal" maxlength="200" /></label><label class="field">Direction<select @bind="e.Details.Direction"><option>Outbound</option><option>Inbound</option></select></label>
+</div></fieldset>
+
+<fieldset class="edit-group"><legend>Notes</legend><div class="manifest-edit-grid">
+<label class="field manifest-notes"><textarea @bind="e.Details.Notes" maxlength="4000" rows="2" aria-label="Notes"></textarea></label>
+</div></fieldset>
+
+</div><div class="manifest-edit-actions"><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div></fieldset></div>}
 else {<dl class="manifest-facts">
 <div><dt>Date</dt><dd>@m.ManifestDate.ToString("MMM d, yyyy")</dd></div><div><dt>Truck</dt><dd>@Show(m.Vehicle)</dd></div><div><dt>Trailer</dt><dd>@Show(m.Details.Trailer)</dd></div><div><dt>Driver</dt><dd>@Show(m.Details.Driver)</dd></div>
 <div><dt>Carrier</dt><dd>@Show(m.Details.Carrier)</dd></div><div><dt>Bill to</dt><dd>@Show($"{m.Details.BillToCode} {m.Details.BillToName}")</dd></div><div><dt>Direction</dt><dd>@Show(m.Details.Direction)</dd></div><div><dt>Terminals</dt><dd>@Show(m.Details.OriginTerminal) → @Show(m.Details.DestinationTerminal)</dd></div>

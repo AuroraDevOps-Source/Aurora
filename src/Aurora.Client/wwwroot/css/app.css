@@ -270,7 +270,7 @@ code { color: var(--ink); }
 .manifest-screen .manifest-edit-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px 12px; margin:0; }
 .manifest-screen .manifest-edit-grid :is(input,select,textarea) { width:100%; }
 .manifest-screen .manifest-notes { grid-column:1/-1; }
-.manifest-screen .manifest-edit-actions { margin-top:10px; display:flex; gap:8px; }
+.manifest-screen .manifest-edit-actions { margin-top:10px; display:flex; justify-content:flex-end; gap:8px; }
 /* Read-only details: label over value, four across like the edit form. */
 .manifest-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px 16px; margin:0; }
 .manifest-facts dt { color:var(--muted); font-size:var(--fs-xs); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
