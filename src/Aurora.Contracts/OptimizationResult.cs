@@ -55,7 +55,7 @@ public sealed record ManifestProDto(
     double? Longitude,
     AppointmentInfoDto? Appointment = null,
     DateTimeOffset? Arrival = null,
-    DateTimeOffset? Departure = null);
+    DateTimeOffset? Departure = null) { [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] public string? WorkType {get;init;} };
 
 public sealed record RouteStopDto(
     string LocationId,
@@ -81,7 +81,7 @@ public sealed record DroppedOrderDto(
     double? Cubes,
     string BillType,
     int? AllottedStopSeconds,
-    AppointmentInfoDto? Appointment = null);
+    AppointmentInfoDto? Appointment = null) { [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] public string? WorkType {get;init;} };
 
 public sealed record OptimizationResultDto(
     string FileName,
@@ -104,4 +104,7 @@ public sealed record OptimizationResultDto(
     string? SummaryError,
     string? RouteDetailWarning);
 
-public sealed record ApiErrorDto(string Error, IReadOnlyList<string>? Details = null);
+public sealed record ApiErrorDto(string Error, IReadOnlyList<string>? Details = null)
+{
+    public RecordErrorLink? RecordLink { get; init; }
+}

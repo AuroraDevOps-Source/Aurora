@@ -4,14 +4,14 @@
 }
 @if (_open)
 {
-    <EditPopup Title="@($"Data requirements · {RecordName}")" OnClose="()=>_open=false">
+    <EditPopup Title="@($"Data requirements · {RecordName}")" Class="data-issue-dialog" OnClose="()=>_open=false">
         <ul class="data-issue-list">
         @foreach (var issue in Issues)
         {
             <li><p>@issue.Message</p>@if(issue.ActionUrl is not null){<a href="@issue.ActionUrl">@issue.ActionLabel</a>}</li>
         }
         </ul>
-        <button type="button" class="outline-button" @onclick="()=>_open=false">Close</button>
+        <div class="data-issue-actions"><button type="button" class="outline-button" @onclick="()=>_open=false">Close</button></div>
     </EditPopup>
 }
 @code {

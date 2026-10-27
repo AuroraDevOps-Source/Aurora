@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Text.Json;
 using Aurora.Contracts;
 using Aurora.Modules.Routing;

@@ -13,45 +13,72 @@
 }
 else
 {
-    <div class="tms-selection"><h2>@(_new?(Kind=="terminals"?"Add terminal":"Add customer"):_record.Id)</h2>
-    @if (!_new && Kind=="terminals") { <DeleteRecordButton @key="_record.Id" RecordType="terminal" Name="@_record.Id" Disabled="@_busy" OnDelete="Delete" /> }
+    <div class="tms-selection"><h2>@(_new?(Kind=="terminals"?"Add terminal":"Add customer"):Kind=="terminals"?TerminalHeading:_record.Id)</h2>
+    @if (!_new && Kind=="terminals") { <DeleteRecordButton @key="_record.Id" RecordType="terminal" Name="@TerminalHeading" ButtonText="Delete" Disabled="@_busy" OnDelete="Delete" /> }
     <button class="outline-button" disabled="@_busy" @onclick="Cancel">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Save">@(_busy?"Saving…":"Save")</button></div>
+    @if(Kind=="customers" && !_new){<CustomerPlanningEditor @key="_record.Id" Code="@_record.Id" />}
     <div class="edit-groups">
-    @foreach(var group in _record.Fields.Where(field => field.Kind is not ("latitude" or "longitude")).GroupBy(FieldGroup))
+    @foreach(var group in _record.Fields.Where(field => Kind=="terminals" || field.Kind is not ("latitude" or "longitude")).GroupBy(FieldGroup))
     {
-        <fieldset class="edit-group" disabled="@_busy"><legend>@group.Key</legend><div class="master-fields">
-        @foreach(var field in group){<label class="field">@field.Label<input type="@(field.Kind is "latitude" or "longitude"?"number":"text")" step="any" maxlength="@field.MaxLength" readonly="@field.ReadOnly" @bind="_values[field.Key]" /></label>}
+        <fieldset class="edit-group" disabled="@_busy">@if(Kind!="terminals" || group.Key!="Identification & assignment"){<legend>@(Kind=="terminals" && group.Key=="Contact details"?"Contact":group.Key)</legend>}<div class="master-fields">
+        @foreach(var field in group)
+        {
+            <label class="field">@field.Label
+            @if(Kind=="terminals" && field.Key.EndsWith("STATE"))
+            {
+                <select @bind="_values[field.Key]" @bind:after="()=>FieldChanged(field)" disabled="@field.ReadOnly">
+                    <option value="">Choose state / province</option>
+                    @if(!string.IsNullOrEmpty(_values[field.Key]) && !StateCodes.Contains(_values[field.Key])){<option value="@_values[field.Key]">@_values[field.Key]</option>}
+                    @foreach(var state in StateCodes){<option value="@state">@state</option>}
+                </select>
+            }
+            else
+            {
+                <input type="@(field.Kind is "latitude" or "longitude"?"number":"text")" step="any" maxlength="@field.MaxLength" readonly="@field.ReadOnly" @bind="_values[field.Key]" @bind:after="()=>FieldChanged(field)" />
+            }
+            </label>
+        }
+        @if(Kind=="terminals" && group.Key=="Address")
+        {
+            <div class="address-lookup"><button type="button" class="outline-button" title="Look up coordinates" aria-label="Look up coordinates" disabled="@_busy" @onclick="LookUp"><span class="mdi mdi-map-search-outline" aria-hidden="true"></span></button></div>
+        }
         </div></fieldset>
-    }
-    @if (_node is { } node)
-    {
-        <fieldset class="edit-group" disabled="@_busy"><legend>Routing</legend>
-            <label><input type="checkbox" @bind="node.IsConsolidation" /> Consolidation terminal</label>
-            <p class="preview-footnote">A consolidation terminal combines freight for onward transport. Transfers arriving here are grouped into consolidation manifests, separate from local delivery routes.</p>
-            <div class="master-fields">
-                <label class="field">Routing role<select @bind="node.RoutingRole"><option value="">None</option>@foreach(var role in NodeVocabulary.Roles){<option>@role</option>}</select></label>
-                <label class="field">Direct service area<textarea @bind="node.ServiceArea" rows="2" maxlength="4000" placeholder="ZIP codes or prefixes, e.g. 030-038" /></label>
-            </div>
-            <TerminalRouteRules Origin="node" Nodes="_nodes" />
-        </fieldset>
     }
     </div>
 }
 @if(_busy){<p role="status">Loading Nova records…</p>}
 </section>
 @code {
+    [Parameter] public string? EditId {get;set;}
     [Parameter] public string Kind {get;set;}="terminals";
     string? _loaded,_error,_notice;string _search="";int _page;bool _busy,_more,_new;
+    bool _coordinatesProvided;
     TerminalDto[] _nodes=[];TerminalDto? _node;
     NovaMasterSummary[] _rows=[];NovaMasterDocument? _record;Dictionary<string,string?> _values=[];
     string Url=>$"api/v1/aurora/firebird/masters/{Kind}";
+    string TerminalHeading => string.Join(" — ", new[] { _record?.Id, _values.GetValueOrDefault("LM_NAME") }.Where(v=>!string.IsNullOrWhiteSpace(v)));
+    static readonly string[] StateCodes = "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY AS GU MP PR VI AA AE AP AB BC MB NB NL NS NT NU ON PE QC SK YT".Split(' ');
     static string FieldGroup(NovaField field)=>field.Key switch
     {
+        _ when field.Kind is "latitude" or "longitude"=>"Address",
         "LM_PHONE" or "LM_MANAGER" or "AC_PHONE"=>"Contact details",
         _ when field.Key.Contains("ADDR") || field.Key.EndsWith("CITY") || field.Key.EndsWith("STATE") || field.Key.EndsWith("ZIP") || field.Key.Contains("COUNTRY")=>"Address",
         _=>"Identification & assignment"
     };
-    protected override async Task OnParametersSetAsync(){if(_loaded==Kind)return;_loaded=Kind;_record=null;_page=0;await Load();}
+    void FieldChanged(NovaField field)
+    {
+        if(field.Kind is "latitude" or "longitude") _coordinatesProvided=true;
+        else if(FieldGroup(field)=="Address") _coordinatesProvided=false;
+    }
+    async Task LookUp()=>await Run(async()=>{
+        using var response=await Http.PostAsJsonAsync($"{Url}/lookup-address",new NovaMasterEdit(_record!.Revision,_values));
+        await ApiResponse.Check(response);
+        var result=(await response.Content.ReadFromJsonAsync<TerminalAddressLookupResult>())!;
+        if(result.Error is not null){_error=result.Error;return;}
+        _values["LM_LATITUDE"]=result.Latitude;_values["LM_LONGITUDE"]=result.Longitude;
+        _coordinatesProvided=true;
+    });
+    protected override async Task OnParametersSetAsync(){if(_loaded==Kind)return;_loaded=Kind;_record=null;_page=0;await Load();if(Kind=="terminals" && !string.IsNullOrWhiteSpace(EditId))await Open(EditId);}
     async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=null;_notice=null;try{await action();}catch(Exception e){_error=e.Message;}finally{_busy=false;}}
     Task Load()=>Run(LoadRows);
     async Task LoadRows(){using var r=await Http.GetAsync($"{Url}?page={_page}&search={Uri.EscapeDataString(_search)}");await ApiResponse.Check(r);var result=(await r.Content.ReadFromJsonAsync<NovaMasterPage>())!;_rows=result.Records;_more=result.HasMore;}
@@ -78,7 +105,7 @@ else
         var record=(await r.Content.ReadFromJsonAsync<NovaMasterDocument>())!;
         await LoadRouting(null);_record=record;_new=true;_values=_record.Fields.ToDictionary(f=>f.Key,f=>f.Value);
     });
-    void Cancel(){_record=null;_node=null;_nodes=[];_new=false;_values=[];_error=null;}
+    void Cancel(){_record=null;_node=null;_nodes=[];_new=false;_values=[];_error=null;_coordinatesProvided=false;}
     async Task Delete()=>await Run(async()=>{using var r=await Http.DeleteAsync($"{Url}/{Uri.EscapeDataString(_record!.Id)}?revision={Uri.EscapeDataString(_record.Revision)}");await ApiResponse.Check(r);Cancel();await LoadRows();if(_rows.Length==0 && _page>0){_page--;await LoadRows();}_notice="Terminal deleted.";});
     async Task Save()=>await Run(async()=>{
         if(_node is not null)
@@ -89,7 +116,7 @@ else
             TerminalRoutingRules.Validate(_node,_nodes);
         }
         var wasNew=_new;
-        var input=new NovaMasterEdit(_record!.Revision,_values);
+        var input=new NovaMasterEdit(_record!.Revision,_values){UseCoordinates=Kind=="terminals" && _coordinatesProvided};
         using var r=_new?await Http.PostAsJsonAsync(Url,input):await Http.PutAsJsonAsync($"{Url}/{Uri.EscapeDataString(_record.Id)}",input);
         await ApiResponse.Check(r);
         var saved=(await r.Content.ReadFromJsonAsync<NovaMasterDocument>())!;

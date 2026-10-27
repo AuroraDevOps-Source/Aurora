@@ -23,7 +23,7 @@ public sealed record ManifestProDetail(
     string? Reason = null,
     AppointmentInfoDto? Appointment = null,
     DateTimeOffset? Arrival = null,
-    DateTimeOffset? Departure = null);
+    DateTimeOffset? Departure = null) { public string WorkType {get;init;}="Delivery"; };
 
 public sealed record RouteManifestDetail(
     string Vehicle,
@@ -70,7 +70,7 @@ public static class ManifestReportExtractor
             .OfType<JsonObject>()
             .Where(location => ReadString([location], "id") is not null)
             .ToDictionary(location => ReadString([location], "id")!, StringComparer.Ordinal);
-        var orders = Items(request["orders"]?["deliveries"])
+        var orders = RoutingInput.Orders(request)
             .OfType<JsonObject>()
             .Where(order => ReadString([order], "id") is not null)
             .ToDictionary(order => ReadString([order], "id")!, StringComparer.Ordinal);
@@ -118,6 +118,7 @@ public static class ManifestReportExtractor
                 stopNumber++;
                 pros.AddRange(orderIds.Select(orderId => BuildPro(orderId, stopNumber, orders, locations, reporting) with
                 {
+                    WorkType=orders.TryGetValue(orderId,out var work) && RoutingInput.IsPickup(work)?"Pickup":"Delivery",
                     Appointment = RoutingInput.Describe(request, orderId),
                     Arrival = RoutingSchedule.InOffset(ParseTime(stop["arrival"]), offset),
                     Departure = RoutingSchedule.InOffset(ParseTime(stop["departure"]), offset)
@@ -148,6 +149,7 @@ public static class ManifestReportExtractor
             dropped[orderId] = BuildPro(orderId, null, orders, locations, reporting) with
             {
                 Reason = PtvUnscheduledReason(unscheduled),
+                WorkType=orders.TryGetValue(orderId,out var work) && RoutingInput.IsPickup(work)?"Pickup":"Delivery",
                 Appointment = RoutingInput.Describe(request, orderId)
             };
         }
@@ -163,7 +165,7 @@ public static class ManifestReportExtractor
         JsonObject? reporting)
     {
         orders.TryGetValue(orderId, out var order);
-        var delivery = order?["delivery"] as JsonObject;
+        var delivery = RoutingInput.CustomerTask(order);
         var properties = order?["properties"] as JsonObject;
         var locationId = ReadString([delivery], "locationId");
         var location = locationId is not null && locations.TryGetValue(locationId, out var foundLocation)

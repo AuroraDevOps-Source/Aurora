@@ -1,0 +1,12 @@
+@if (Link is { Kind: "orders" or "terminals" } && !string.IsNullOrEmpty(Link.Text) && Message.IndexOf(Link.Text, StringComparison.Ordinal) is var index && index >= 0)
+{
+    @Message[..index]<a href="@($"/aurora/{Link.Kind}?edit={Uri.EscapeDataString(Link.Id)}")">@Link.Text</a>@Message[(index+Link.Text.Length)..]
+}
+else
+{
+    @Message
+}
+@code {
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public RecordErrorLink? Link { get; set; }
+}

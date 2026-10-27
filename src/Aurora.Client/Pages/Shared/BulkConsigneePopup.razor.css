@@ -5,3 +5,7 @@ fieldset { border:0; padding:0; margin:0 0 16px; }
 .field input[type=checkbox] { width:auto; margin-right:6px; }
 .manifest-table-wrap { max-height:280px; overflow:auto; margin:12px 0; }
 @media(max-width:700px) { .record-fields { grid-template-columns:1fr; } }
+
+.bulk-routing { display:grid; gap:8px; margin-top:16px; }
+.bulk-toggle { display:flex; align-items:center; gap:7px; }
+.bulk-toggle input[type=checkbox] { width:15px; height:15px; margin:0; flex:none; }

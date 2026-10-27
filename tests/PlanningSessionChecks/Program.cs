@@ -125,6 +125,9 @@ Check(stops == 2, "accepted stop is not sent again");
 response = await store.Poll(dto.Id, owner, false, default);
 Check(Value(response).Status == "SUCCEEDED" && Value(response).Result is not null, "final result retrieved after stop");
 Check((await store.Completed(dto.Id, draftId, owner, default)).Status == "SUCCEEDED", "finish reads the server-stored completed result");
+Check(await store.CompletedRequest(dto.Id,draftId,owner,default)==dto.RequestJson,"manifest inputs come from completed session snapshot");
+try { await store.CompletedRequest(dto.Id,Guid.NewGuid(),owner,default);throw new Exception("wrong request draft accepted"); } catch(FormatException){count++;}
+try { await store.CompletedRequest(dto.Id,draftId,User("tenant-b","user-a"),default);throw new Exception("other tenant request accepted"); } catch(FormatException){count++;}
 try { await store.Completed(dto.Id, Guid.NewGuid(), owner, default); throw new Exception("wrong draft accepted"); } catch (FormatException) { count++; }
 try { await store.Completed(dto.Id, draftId, User("tenant-b", "user-a"), default); throw new Exception("other tenant accepted"); } catch (FormatException) { count++; }
 response=await store.Accept(dto.Id,firstCandidate.Id,owner,default);

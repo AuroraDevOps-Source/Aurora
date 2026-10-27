@@ -108,8 +108,8 @@ else if (IsOpen)
     private async Task CancelEdit() { _id = null; _adding = false; _error = null; await OnEditingChanged.InvokeAsync(false); }
     private string ServiceMinutes(string id)
     {
-        var order = RoutingInput.Items(_sourceRoot["orders"]?["deliveries"]).Single(o => RoutingInput.Text(o["id"]) == id);
-        return ((order["delivery"]?["duration"]?.GetValue<double>() ?? 0) / 60).ToString("0.##");
+        var order = RoutingInput.Orders(_sourceRoot).Single(o => RoutingInput.Text(o["id"]) == id);
+        return ((RoutingInput.CustomerTask(order)?["duration"]?.GetValue<double>() ?? 0) / 60).ToString("0.##");
     }
     private async Task DeleteAppointment(string id)
     {
@@ -143,8 +143,8 @@ else if (IsOpen)
         var appt = RoutingInput.Appointment(RoutingInput.ReportOrder(root, orderId));
         _start = RoutingInput.Text(RoutingInput.Get(appt, "blockBegin") ?? RoutingInput.Get(appt, "start")) ?? "";
         _end = RoutingInput.Text(RoutingInput.Get(appt, "blockEnd") ?? RoutingInput.Get(appt, "end")) ?? "";
-        var order = RoutingInput.Items(root["orders"]?["deliveries"]).Single(x => RoutingInput.Text(x["id"]) == orderId);
-        _service = order["delivery"]?["duration"]?.GetValue<double>() / 60;
+        var order = RoutingInput.Orders(root).Single(x => RoutingInput.Text(x["id"]) == orderId);
+        _service = RoutingInput.CustomerTask(order)?["duration"]?.GetValue<double>() / 60;
         if (Inline && _customers.Single(c => c.Key == id).OrderIds.Select(ServiceMinutes).Distinct().Count() > 1) _service = null;
     }
     private async Task Save(bool clear)

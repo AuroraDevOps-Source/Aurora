@@ -46,7 +46,7 @@ public sealed class FreightWorkflowStore(NpgsqlConnectionFactory factory, ITenan
         var frozenIds = current.Activities.Where(a => current.Events.Any(e => e.ActivityId == a.Id)).Select(a => a.Id).ToHashSet();
         foreach (var nodeId in input.Activities.Where(a => !frozenIds.Contains(a.Id)).SelectMany(a => new[] { a.Origin.NodeId, a.Destination?.NodeId }).OfType<Guid>().Distinct())
             if (!await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_terminal WHERE tenant_id=@TenantId AND id=@nodeId AND deleted_at IS NULL)", new { tenant.TenantId, nodeId }, tx, cancellationToken: ct)))
-                throw new FormatException("Choose a saved transportation node from your company.");
+                throw new FormatException("Choose a saved terminal from your company.");
         await Write(db, tx, source, id, input, ct);
         await tx.CommitAsync(ct);
         return input;

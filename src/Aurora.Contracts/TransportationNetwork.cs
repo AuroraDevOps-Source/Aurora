@@ -70,7 +70,7 @@ public static class PlanningBatch
     // A plan started with the batch filter on "All batches" can contain several batches.
     public const string Mixed = "Mixed";
     public static readonly string[] All = [General, LineHaul, Consolidation];
-    public static string TransferTo(TerminalDto destination) => destination.IsConsolidation ? Consolidation : LineHaul;
+    public static string TransferTo(TerminalDto destination) => LineHaul;
     public static string Label(string batch) => batch switch { LineHaul => "Line haul", Consolidation => "Consolidation", Mixed => "All batches", _ => "General routing" };
     // The batch a plan is named for: the requested one, else the single batch its orders share, else Mixed.
     public static string For(string? requested, IEnumerable<BatchAssignment> assignments)
@@ -89,6 +89,7 @@ public static class PlanningBatches
 {
     public static BatchAssignment Classify(TmsOrder order, TerminalDto active, IReadOnlyList<TerminalDto> nodes)
     {
+        if(order.WorkType=="Pickup") return new(order.Id,PlanningBatch.General,null,"Collect at shipper and return to origin terminal");
         if (order.UseConsigneeAddress)
         {
             if (!string.IsNullOrWhiteSpace(order.ReceivingTerminal))

@@ -16,6 +16,8 @@ public partial class Routing
     private bool _workspaceFinished, _savingManifest, _planCancelled, _cancellingPlan;
     private string? _planName;
     private int AcceptedRoutes => _result?.Routes.Count(r => r.Pros.Count > 0) ?? 0;
+    private ReplanManifest[] IncludedManifests => _sourceJson is null?[]:ManifestReplanning.Included(_sourceJson);
+    private string[] UnscheduledManifestOrders => IncludedManifests.SelectMany(m=>m.OrderIds).Where(id=>_result is not null && !_result.Routes.Any(r=>r.Pros.Any(p=>p.ProNumber==id))).ToArray();
     private async Task CancelPlan()
     {
         if (WorkspaceDraftId is not { } draft || IsWorking || _workspaceFinished || _planCancelled) return;

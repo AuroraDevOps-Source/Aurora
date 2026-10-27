@@ -1,3 +1,4 @@
+using Aurora.Contracts;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
@@ -78,8 +79,8 @@ public sealed class FleetSettings
             s.CalcSeconds = (int)Dbl(dur);
 
         // Service time is per order; show the first one's, since the form sets them all.
-        if ((request["orders"]?["deliveries"] as JsonArray)?.FirstOrDefault() is JsonObject first &&
-            first["delivery"]?["duration"] is JsonNode sd)
+        if (RoutingInput.Orders(request).FirstOrDefault() is JsonObject first &&
+            RoutingInput.CustomerTask(first)?["duration"] is JsonNode sd)
             s.ServiceMinutes = Math.Max(0, (int)Dbl(sd) / 60);
 
         return s;
@@ -94,13 +95,13 @@ public sealed class FleetSettings
         request["settings"]!["duration"] = CalcSeconds;
         changes.Add($"calc budget {CalcSeconds}s");
 
-        var deliveries = request["orders"]?["deliveries"] as JsonArray;
+        var deliveries = RoutingInput.Orders(request).ToArray();
         if (deliveries is not null)
         {
             foreach (var d in deliveries)
-                if (d?["delivery"] is JsonObject task)
+                if (RoutingInput.CustomerTask(d) is JsonObject task)
                     task["duration"] = ServiceMinutes * 60;
-            changes.Add($"service {ServiceMinutes} min x {deliveries.Count} orders");
+            changes.Add($"service {ServiceMinutes} min x {deliveries.Length} orders");
         }
 
         var existing = (request["vehicles"] as JsonArray)?.Where(v => v is not null).Select(v => v!).ToList() ?? [];

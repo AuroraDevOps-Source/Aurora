@@ -11,13 +11,13 @@ public static class PlanningCustomers
     {
         var root = RoutingInput.Parse(json);
         var locations = RoutingInput.Items(root["locations"]).ToDictionary(l => RoutingInput.Text(l["id"])!);
-        return RoutingInput.Items(root["orders"]?["deliveries"]).Select(order =>
+        return RoutingInput.Orders(root).Select(order =>
         {
             var id = RoutingInput.Text(order["id"])!;
             var report = RoutingInput.ReportOrder(root, id);
-            var locationId = RoutingInput.Text(order["delivery"]?["locationId"]) ?? id;
+            var locationId = RoutingInput.Text(RoutingInput.CustomerTask(order)?["locationId"]) ?? id;
             locations.TryGetValue(locationId, out var location);
-            var name = Text(report, "shipToName", "carrierConsigneeName", "consigneeName", "name") ?? Text(location, "name") ?? "Delivery customer";
+            var name = Text(report, "shipToName", "carrierConsigneeName", "consigneeName", "name") ?? Text(location, "name") ?? "Customer";
             var address = Text(report, "carrierConsigneeAddress", "carrierConsigneeAddress1", "shipToAddress", "shipToAddress1", "address1", "streetAddress", "street");
             var city = Text(report, "carrierConsigneeCity", "shipToCity", "city");
             var state = Text(report, "carrierConsigneeState", "shipToState", "state");
@@ -27,6 +27,7 @@ public static class PlanningCustomers
             // Names alone are not enough: separate different delivery destinations.
             var placeKey = address is not null ? destination : coordinates ?? locationId;
             var key = System.Text.Json.JsonSerializer.Serialize(new[] { name.Trim().ToUpperInvariant(), placeKey.Trim().ToUpperInvariant() });
+            if(RoutingInput.IsPickup(order)){key="PICKUP:"+key;name="Pickup · "+name;}
             return new { Key = key, Name = name, Destination = destination.Length > 0 ? destination : coordinates ?? locationId, Id = id };
         }).GroupBy(x => x.Key).Select(g => new PlanningCustomer(g.Key, g.First().Name, g.First().Destination, g.Select(x => x.Id).ToArray())).ToArray();
     }

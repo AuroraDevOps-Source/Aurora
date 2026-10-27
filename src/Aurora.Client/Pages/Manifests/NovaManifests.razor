@@ -29,9 +29,10 @@ else if (_selected is null)
     <div class="tms-selection"><strong>@Visible.Count() manifests</strong></div>
     @if (_busy) { <p role="status">Loading manifests…</p> }
     <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table">
-        <thead><tr><th>Manifest</th><th>Created</th><th>Manifest date</th><th>Status</th><th>Terminal</th><th>Truck</th><th>Driver</th><th>Orders</th></tr></thead>
+        <thead><tr><th>Manifest</th><th>Type</th><th>Created</th><th>Manifest date</th><th>Status</th><th>Terminal</th><th>Truck</th><th>Driver</th><th>Orders</th></tr></thead>
         <tbody>@foreach(var m in Visible){<EditGridRow Disabled="@(_busy)" OnEdit="()=>Open(m)">
             <td><button class="text-button" disabled="@_busy" @onclick="()=>Open(m)" @ondblclick:stopPropagation="true">@m.Id</button></td>
+            <td>@(m.ConsolidationCustomer is not null?$"Consolidation · {m.ConsolidationCustomer}":m.IsTransfer?"Line haul":"Delivery") @if(m.ConsolidationHeld){<span class="status-badge">Held</span>} @if(m.OptimizationLocked){<span class="status-badge">Locked</span>}</td>
             <td>@m.CreatedAt?.ToString("MMM d, yyyy h:mm tt")</td><td>@m.ManifestDate?.ToString("MMM d, yyyy")</td>
             <td><span class="status-badge">@m.Status</span></td><td>@m.Terminal</td><td>@Show(m.Truck)</td><td>@Show(m.Driver)</td><td>@m.OrderCount</td>
         </EditGridRow>}</tbody>
@@ -170,6 +171,7 @@ else if (_selected is null)
     {
         if (_selected is not {} m) return;
         m.Status=d.Status; m.Driver=d.Drivers.FirstOrDefault(x=>x.Id==d.DriverId)?.Name??"";
+        m.OptimizationLocked=d.OptimizationLocked;
         m.Truck=d.Trucks.FirstOrDefault(x=>x.Id==d.TruckId)?.Name??"";
     }
     DateOnly? _from, _to;
@@ -183,7 +185,20 @@ else if (_selected is null)
     NovaManifestOrder[] _orders=[];
     IEnumerable<NovaManifest> Visible=>_manifests.Where(m=>string.Join(" ",m.Id,m.Terminal,m.Truck,m.Driver).Contains(_search,StringComparison.OrdinalIgnoreCase));
     static string Show(string? value)=>string.IsNullOrWhiteSpace(value)?"—":value;
-    protected override Task OnInitializedAsync()=>Load(true);
+    [Parameter] public string? EditId {get;set;}
+    protected override async Task OnInitializedAsync()
+    {
+        await Load(true);
+        if(!long.TryParse(EditId,out var id))return;
+        try
+        {
+            using var response=await Http.GetAsync($"api/v1/aurora/firebird/manifests/{id}");
+            await Check(response);
+            var manifest=(await response.Content.ReadFromJsonAsync<NovaManifest>())!;
+            await Open(manifest);
+        }
+        catch(Exception ex){_error=ex.Message;}
+    }
     Task Refresh()=>Load(false);
     async Task Clear(){_from=_to=null;_status=_search="";await Load(false);}
     async Task Load(bool initial)

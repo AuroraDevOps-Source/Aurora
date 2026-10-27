@@ -22,6 +22,11 @@ public static class RoutingInput
     public static string? Text(JsonNode? value) => value is JsonValue v && v.TryGetValue<string>(out var text) ? text : null;
     public static IEnumerable<JsonObject> Items(JsonNode? node) => (node as JsonArray)?.OfType<JsonObject>() ?? [];
 
+    // Depot-based tasks only: each order visits either a customer pickup or delivery.
+    public static IEnumerable<JsonObject> Orders(JsonObject root) => Items(root["orders"]?["deliveries"]).Concat(Items(root["orders"]?["pickups"]));
+    public static JsonObject? CustomerTask(JsonObject? order) => (order?["pickup"] ?? order?["delivery"]) as JsonObject;
+    public static bool IsPickup(JsonObject order) => order["pickup"] is JsonObject;
+
     public static JsonObject? ReportOrder(JsonObject root, string id)
     {
         var orders = root["reporting"]?["orders"];
@@ -77,8 +82,9 @@ public static class RoutingInput
     {
         var root = Parse(json);
         var locations = root["locations"] as JsonArray ?? throw new FormatException("The request needs a locations array.");
-        var deliveries = root["orders"]?["deliveries"] as JsonArray ?? throw new FormatException("This workspace currently requires delivery orders.");
-        foreach (var order in deliveries.OfType<JsonObject>())
+        var deliveries = Orders(root);
+        if (!deliveries.Any()) throw new FormatException("This workspace requires pickup or delivery orders.");
+        foreach (var order in deliveries)
         {
             var id = Text(order["id"]) ?? throw new FormatException("Every delivery needs an ID.");
             var report = ReportOrder(root, id);
@@ -88,7 +94,7 @@ public static class RoutingInput
             if (Confirmed(appointment) != true) continue;
             if (root["routes"] is JsonArray { Count: > 0 })
                 throw new FormatException("Imported confirmed appointments cannot be applied to preassigned routes. Use a fresh delivery request so route/location restrictions are not silently changed.");
-            var delivery = order["delivery"] as JsonObject ?? throw new FormatException($"Delivery {id} has no task.");
+            var delivery = CustomerTask(order) ?? throw new FormatException($"Delivery {id} has no task.");
             var locationId = Text(delivery["locationId"]);
             var location = locations.OfType<JsonObject>().FirstOrDefault(x => Text(x["id"]) == locationId)
                 ?? throw new FormatException($"Delivery {id} has an unknown location.");
@@ -153,9 +159,9 @@ public static class RoutingInput
 
     public static AppointmentInfoDto? Describe(JsonObject root, string orderId)
     {
-        var order = Items(root["orders"]?["deliveries"]).FirstOrDefault(x => Text(x["id"]) == orderId);
+        var order = Orders(root).FirstOrDefault(x => Text(x["id"]) == orderId);
         var appointment = Appointment(ReportOrder(root, orderId));
-        var delivery = order?["delivery"] as JsonObject;
+        var delivery = CustomerTask(order);
         var location = Items(root["locations"]).FirstOrDefault(x => Text(x["id"]) == Text(delivery?["locationId"]));
         var slots = Items(location?["stopProperties"]?["timeSlots"]);
         if (delivery?["timeSlotIds"] is JsonArray ids && ids.Count > 0)
@@ -176,7 +182,7 @@ public static class RoutingInput
     {
         var root = Parse(json);
         var csv = new StringBuilder("PRO,AppointmentStart,AppointmentEnd,AppointmentConfirmed\r\n");
-        foreach (var order in Items(root["orders"]?["deliveries"]))
+        foreach (var order in Orders(root))
         {
             var id = Text(order["id"]) ?? "";
             var appointment = Appointment(ReportOrder(root, id));
@@ -199,7 +205,7 @@ public static class RoutingInput
         var confirmedCol = Column("appointmentconfirmed", "confirmed", "appointmentdetail.confirmed");
         if (new[] { proCol, startCol, endCol, confirmedCol }.Any(i => i < 0))
             throw new FormatException("CSV columns must include PRO, AppointmentStart, AppointmentEnd and AppointmentConfirmed. Download the template for this file.");
-        var ids = Items(root["orders"]?["deliveries"]).Select(x => Text(x["id"])).ToHashSet(StringComparer.Ordinal);
+        var ids = Orders(root).Select(x => Text(x["id"])).ToHashSet(StringComparer.Ordinal);
         if (root["reporting"] is not JsonObject) root["reporting"] = new JsonObject();
         var reports = root["reporting"]!["orders"];
         if (reports is null) root["reporting"]!["orders"] = reports = new JsonObject();

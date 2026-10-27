@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using Aurora.Contracts;
 using Dapper;
 using Microsoft.AspNetCore.DataProtection;

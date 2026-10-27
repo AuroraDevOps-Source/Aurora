@@ -21,7 +21,7 @@ public static class QuickUpdate
             throw new FormatException("Quick update needs a successfully completed previous plan.");
 
         var vehicles = Items(request["vehicles"]).ToDictionary(x => Text(x["id"])!);
-        var orders = Items(request["orders"]?["deliveries"]).ToDictionary(x => Text(x["id"])!);
+        var orders = RoutingInput.Orders(request).ToDictionary(x => Text(x["id"])!);
         var locations = Items(request["locations"]).ToDictionary(x => Text(x["id"])!);
         var depots = Items(request["depots"]).ToDictionary(x => Text(x["id"])!);
         var routes = new JsonArray();
@@ -49,7 +49,7 @@ public static class QuickUpdate
                 var input = new JsonObject { ["orderId"] = orderId, ["type"] = type };
                 JsonObject? location = null;
                 JsonObject? currentTask = null;
-                if (type == "PICKUP")
+                if ((type == "PICKUP") != RoutingInput.IsPickup(order))
                 {
                     var depotId = Text(task["depotId"]);
                     if (depotId is null || !depots.TryGetValue(depotId, out var depot))
@@ -60,7 +60,7 @@ public static class QuickUpdate
                 }
                 else
                 {
-                    currentTask = order["delivery"] as JsonObject;
+                    currentTask = RoutingInput.CustomerTask(order);
                     locations.TryGetValue(Text(currentTask?["locationId"]) ?? "", out location);
                 }
                 var slots = Items(location?["stopProperties"]?["timeSlots"]).ToList();

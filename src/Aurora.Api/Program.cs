@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Aurora.Api.Auth;
@@ -207,19 +208,31 @@ builder.Services.AddCors(o => o.AddPolicy("wasm-client", policy => policy
 // --- Routing module ---
 builder.Services.AddScoped<ListRoutePlansQuery>();
 builder.Services.AddScoped<Aurora.Modules.Routing.EquipmentStore>();
+builder.Services.AddScoped<Aurora.Modules.Routing.DriverStore>();
+builder.Services.AddScoped<Aurora.Modules.Sync.IIntegrationConnectionCatalog, NovaSyncConnectionCatalog>();
+builder.Services.AddScoped<Aurora.Modules.Sync.SyncConnections>();
 builder.Services.AddScoped<Aurora.Modules.Routing.OrderWorkspace>();
-builder.Services.Configure<Aurora.Modules.Routing.FirebirdRoutingOptions>(builder.Configuration.GetSection("FirebirdRouting"));
-builder.Services.AddScoped<Aurora.Modules.Routing.FirebirdRoutingSource>();
+builder.Services.Configure<Aurora.Integrations.Nova.FirebirdRoutingOptions>(builder.Configuration.GetSection("FirebirdRouting"));
+builder.Services.AddScoped<Aurora.Integrations.Nova.FirebirdRoutingSource>();
+builder.Services.AddScoped<Aurora.Modules.Routing.LocalPlanningDataSource>();
+builder.Services.AddScoped<Aurora.Modules.Routing.IPlanningDataSource>(sp => builder.Configuration.GetValue<bool>("Synchronization:LocalWorkspace")
+    ? sp.GetRequiredService<Aurora.Modules.Routing.LocalPlanningDataSource>() : sp.GetRequiredService<Aurora.Integrations.Nova.FirebirdRoutingSource>());
+builder.Services.AddScoped<Aurora.Modules.Sync.ISyncEntityStore,Aurora.Modules.Routing.OperationalSyncEntities>();
+builder.Services.AddScoped<Aurora.Modules.Sync.SyncReview>();
+builder.Services.AddScoped<ITenantSyncExecutor,TenantSyncExecutor>();
+builder.Services.AddScoped<LocalRoutingConfiguration>();
+builder.Services.AddHostedService<IntegrationSyncWorker>();
+builder.Services.AddScoped<Aurora.Modules.Routing.IExternalWorkspaceReset>(sp => sp.GetRequiredService<Aurora.Integrations.Nova.FirebirdRoutingSource>());
 builder.Services.AddScoped<NovaUserConnections>();
 builder.Services.AddScoped<AdminUsers>();
 builder.Services.AddHttpClient<IInvitationEmail, ResendInvitationEmail>(client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<AdminDatabases>();
 builder.Services.AddScoped<AppLog>();
-builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Modules.Routing.FirebirdRoutingOptions>>(sp =>
+builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Integrations.Nova.FirebirdRoutingOptions>>(sp =>
 {
     var context=sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
-    var options=context?.Items[NovaUserConnections.ItemsKey] as Aurora.Modules.Routing.FirebirdRoutingOptions;
-    return Microsoft.Extensions.Options.Options.Create(options ?? new Aurora.Modules.Routing.FirebirdRoutingOptions());
+    var options=context?.Items[NovaUserConnections.ItemsKey] as Aurora.Integrations.Nova.FirebirdRoutingOptions;
+    return Microsoft.Extensions.Options.Options.Create(options ?? new Aurora.Integrations.Nova.FirebirdRoutingOptions());
 });
 builder.Services.AddScoped<Aurora.Modules.Routing.TmsStore>();
 builder.Services.AddScoped<Aurora.Modules.Routing.FreightWorkflowStore>();
@@ -321,6 +334,7 @@ loggedApi.MapLauncherEndpoints();
 loggedApi.MapRoutingEndpoints();
 loggedApi.MapOrderWorkspaceEndpoints();
 loggedApi.MapTmsEndpoints();
+loggedApi.MapSynchronizationEndpoints();
 loggedApi.MapWorkspaceResetEndpoints();
 
 app.MapGet("/health/live", () => Results.Ok()).AllowAnonymous();

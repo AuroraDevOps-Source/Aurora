@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Text.Json;
 using Aurora.Contracts;
 using Aurora.Modules.Routing.Optimization;
@@ -32,10 +33,10 @@ public static class RoutingEndpoints
         group.MapGet("/sessions/{id:guid}", (Guid id, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Poll(id, context.User, false, ct, context.Request.Query.ContainsKey("inputs")));
         group.MapPost("/sessions/{id:guid}/stop", (Guid id, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Poll(id, context.User, true, ct));
         group.MapPost("/sessions/{id:guid}/accept/{candidateId}", (Guid id, string candidateId, HttpContext context, PlanningSessions sessions, CancellationToken ct) => sessions.Accept(id, candidateId, context.User, ct));
-        group.MapGet("/equipment", (Aurora.Modules.Routing.FirebirdRoutingSource source, CancellationToken ct) => OrderWorkspaceEndpoints.Guard(async()=>Results.Ok(await source.ReadFleet(ct))));
+        group.MapGet("/equipment", (Aurora.Modules.Routing.IPlanningDataSource source, CancellationToken ct) => OrderWorkspaceEndpoints.Guard(async()=>Results.Ok(await source.ReadFleet(ct))));
         group.MapPost("/equipment/import", () => Results.BadRequest(new ApiErrorDto("Manage equipment in Nova Fleet Management.")));
-        group.MapPut("/equipment/types", () => Results.BadRequest(new ApiErrorDto("Manage equipment in Nova Fleet Management.")));
-        group.MapPut("/equipment/units", () => Results.BadRequest(new ApiErrorDto("Manage equipment in Nova Fleet Management.")));
+        group.MapPut("/equipment/types", (EquipmentTypeDto input,Aurora.Modules.Routing.EquipmentStore store,CancellationToken ct) => OrderWorkspaceEndpoints.Guard(async()=>{await store.Save(input,ct);return Results.Ok();}));
+        group.MapPut("/equipment/units", (EquipmentUnitDto input,Aurora.Modules.Routing.EquipmentStore store,CancellationToken ct) => OrderWorkspaceEndpoints.Guard(async()=>{await store.Save(input,ct);return Results.Ok();}));
 
     }
 

@@ -1,29 +1,55 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject OrderPlanningSelection PlanningSelection
 @if(_error is not null){<p class="alert" role="alert">@_error</p>}
 @if(_message is not null){<p role="status">@_message</p>}
 <section class="planning-card orders-card">
- <div class="tms-filters">
- <label class="field">From date/time<input type="datetime-local" @bind="_from" /></label><label class="field">To date/time<input type="datetime-local" @bind="_to" /></label>
- <label class="field">Status<select @bind="_status"><option value="">All statuses</option>@foreach(var s in WorkspaceOrderStatus.All){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
- <label class="field">Terminal<select @bind="_terminalFilter"><option value="">All terminals</option>@foreach(var terminal in _terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
- <label class="field order-search">Search<input @bind="_search" placeholder="PRO, customer, city, reference" /></label>
- </div>
- <div class="tms-selection"><strong>@_orders.Count orders</strong><button class="outline-button" @onclick="Load" disabled="@_busy">Apply filters</button><button class="text-button" @onclick="Clear" disabled="@_busy">Clear filters</button><button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
- <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Scheduled</th><th>Customer</th><th>City</th><th>Status</th><th>Manifest</th><th></th></tr></thead><tbody>
- @foreach(var o in _orders){<EditGridRow Disabled="@(_busy || _edit is not null)" OnEdit="()=>Edit(o)"><td><strong>@o.Id</strong></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span>@if(o.OptimizationDraftId is not null){<span class="status-badge status-optimizing" title="An open optimization plan holds this order.">Optimization in Process</span>}</td><td>@o.ManifestNumber</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><button class="text-button" disabled="@(_busy || _edit is not null || _workflowOrder is not null)" @onclick="()=>_workflowOrder=o">Freight workflow</button><button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></EditGridRow>}
+ <div class="tms-filters orders-toolbar">
+ <label class="field">From date/time<input type="datetime-local" @bind="_from" @bind:after="Load" disabled="@_busy" /></label><label class="field">To date/time<input type="datetime-local" step="1" @bind="_to" @bind:after="Load" disabled="@_busy" /></label>
+ <label class="field">Status<select @bind="_status" @bind:after="Load" disabled="@_busy"><option value="">All statuses</option>@foreach(var s in WorkspaceOrderStatus.All){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
+ <label class="field">Terminal<select @bind="_terminalFilter" @bind:after="Load" disabled="@_busy"><option value="">All terminals</option>@foreach(var terminal in _terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
+ <label class="field order-search">Search<input @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyDown" disabled="@_busy" placeholder="PRO, customer, city, reference" title="Press Enter to search" /></label>
+ <button class="primary-button" disabled="@(_busy || _edit is not null || _selected.Count==0)" @onclick="OptimizeSelected">Optimize routes</button>@if(_selected.Count>0){<button class="text-button" disabled="@_busy" @onclick="ClearSelection">Clear selection</button>}<button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
+ @foreach(var plan in _openPlans)
+ {
+  <div class="orders-open-plan" role="status">
+   <span><strong>@plan.Name</strong> · @plan.OrderCount orders in an open plan</span>
+   <a class="outline-button" href="@($"/aurora/planning?draft={plan.Id}")">Resume plan</a>
+   <button class="outline-button" disabled="@(_busy || _edit is not null)" @onclick="()=>CancelOpenPlan(plan.Id)">Cancel plan &amp; release orders</button>
+  </div>
+ }
+ <div class="orders-count" role="status"><strong>@_orders.Count orders</strong><span>@_selected.Count selected</span></div><div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th><input type="checkbox" aria-label="Select all listed orders" checked="@AllSelected" disabled="@(_busy || _edit is not null || _orders.Count==0)" @onchange="SelectAll" /></th><th>PRO / Order</th><th>Scheduled</th><th>Customer</th><th>City</th><th>Terminal</th><th>Status</th><th>Manifest</th><th></th></tr></thead><tbody>
+ @foreach(var o in _orders){<EditGridRow Disabled="@(_busy || _edit is not null)" OnEdit="()=>Edit(o)"><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input @key="(Key(o), _selectionVersion)" type="checkbox" aria-label="@($"Select order {o.Id}")" title="Shift-click to select a range" checked="@_selected.Contains(Key(o))" disabled="@(_busy || _edit is not null)" @onclick="e=>SelectOrder(o,e)" /></td><td><strong>@o.Id</strong></td><td>@o.ScheduledAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td><td>@o.Customer</td><td>@o.City</td><td>@(o.TerminalCode ?? _terminals.FirstOrDefault(t => t.Id == o.TerminalId)?.Code ?? "Unassigned")</td><td><span class="status-badge status-@(o.Status.ToLowerInvariant())">@WorkspaceOrderStatus.Label(o.Status)</span>@if(o.OptimizationDraftId is not null){<span class="status-badge status-optimizing" title="An open optimization plan holds this order.">Optimization in Process</span>}</td><td>@o.ManifestNumber</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true">@if(ShowFreightWorkflow){<button class="text-button" disabled="@(_busy || _edit is not null || _workflowOrder is not null)" @onclick="()=>_workflowOrder=o">Freight workflow</button>}<button class="text-button" disabled="@(_busy || _edit is not null || o.ManifestId is not null)" @onclick="()=>_delete=o">Delete</button></td></EditGridRow>}
  </tbody></table></div>
  @if(_orders.Count==0){<p>No orders match these filters.</p>}
 </section>
+@if(_planSelection is {} selectedPlan)
+{
+ <EditPopup Title="Route schedule" Busy="_busy" OnClose="ClosePlanSchedule" Class="orders-schedule-dialog">
+  @if(_planError is not null){<p class="alert" role="alert"><RecordErrorMessage Message="@_planError" Link="@_planErrorLink" /></p>}
+  <fieldset class="orders-schedule-fields" disabled="@_busy">
+   <label class="field">Ship date<InputDate @bind-Value="_planDate" /></label>
+   <label class="field">Depart<input type="time" @bind="_planDepart" /></label>
+   <label class="field">Return<input type="time" @bind="_planReturn" /></label>
+   <label class="field">Return date (optional)<InputDate @bind-Value="_planReturnDate" /></label>
+  </fieldset>
+  <div class="popup-actions">
+   <button class="primary-button" disabled="@_busy" @onclick="CreateSelectedPlan">@(_busy ? "Opening plan…" : $"Continue ({selectedPlan.Orders.Length})")</button>
+   <button class="outline-button" disabled="@_busy" @onclick="ClosePlanSchedule">Cancel</button>
+  </div>
+ </EditPopup>
+}
 @if(_workflowOrder is {} workflowOrder){<FreightWorkflowEditor Order="workflowOrder" Nodes="_terminals" OnClose="()=>_workflowOrder=null" />}
 @if(_delete is {} deleting){<section class="planning-card" role="alert"><p>Delete order <strong>@deleting.Id</strong>?</p><button class="primary-button" disabled="@_busy" @onclick="Delete">Delete order</button><button class="outline-button" @onclick="()=>_delete=null">Cancel</button></section>}
 @if(_edit is {} e){
 <EditPopup Title="@(_new ? "Add order" : "Edit order · " + e.Id)" Busy="_busy" OnClose="()=>_edit=null" Class="order-dialog"><section class="compact-order-editor">
 @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
-<fieldset disabled="@_busy" class="tms-edit-fields"><div class="manifest-edit-grid order-header-fields">
+<fieldset disabled="@_busy" class="tms-edit-fields"><div class="order-summary-panel"><div class="manifest-edit-grid order-header-fields">
 <label class="field">PRO / Order<input @bind="e.Id" disabled="@(!_new)" maxlength="200" /></label>
 <label class="field">Scheduled date/time<input type="datetime-local" @bind="_scheduled" /></label>
-<label class="field">Status<select @bind="e.Status" disabled="@(e.ManifestId is not null)">@foreach(var s in WorkspaceOrderStatus.All.Where(s=>e.ManifestId is not null || !new[]{"Routed","Dispatched","InTransit","OutForDelivery"}.Contains(s))){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
+<label class="field">Status<select @bind="e.Status" disabled>@foreach(var s in WorkspaceOrderStatus.All.Where(s=>e.ManifestId is not null || !new[]{"Routed","Dispatched","InTransit","OutForDelivery"}.Contains(s))){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
+<label class="field">Work type<select @bind="e.WorkType"><option>Delivery</option><option>Pickup</option></select></label><label class="field">Receiving terminal<select @bind="e.ReceivingTerminal"><option value="">Deliver locally</option>@foreach(var terminal in _terminals){<option value="@terminal.Code">@terminal.Code · @terminal.Name</option>}</select></label>
 <label class="field">Reference<input @bind="e.Reference" maxlength="200" /></label>
 <label class="field">Terminal<select @bind="e.TerminalId"><option value="">Unassigned</option>@foreach(var terminal in _terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
 <label class="field">Service type<select @bind="e.ServiceType"><option value="">Standard</option>@foreach(var s in OrderServiceTypes.All){<option value="@s">@s</option>}</select></label>
@@ -31,6 +57,7 @@
 <label class="field order-deliver-to">Deliver to<select @bind="e.DeliverToNodeId"><option value="">Consignee address</option>@foreach(var node in _terminals){<option value="@node.Id">@node.Code · @node.Name (@node.NodeType)</option>}</select></label>
 </div>
 <CustomerDropdown Label="Customer" Options="@CustomerOptions" Value="@(e.CustomerId?.ToString())" ValueChanged="ChooseCustomer" />
+</div>
 <div class="order-parties">
 <fieldset class="order-party"><legend>Shipper</legend>
 <div class="order-address-fields">
@@ -41,6 +68,7 @@
 <label class="field">City<input aria-label="Shipper city" @bind="e.OriginCity" maxlength="200" /></label>
 <label class="field">State<input aria-label="Shipper state / province" @bind="e.OriginState" maxlength="200" /></label>
 <label class="field">ZIP<input aria-label="Shipper zip / postal code" @bind="e.OriginPostalCode" maxlength="200" /></label>
+<div class="order-coordinates"><label class="field">Latitude<InputNumber @bind-Value="e.OriginLatitude" step="any" /></label><label class="field">Longitude<InputNumber @bind-Value="e.OriginLongitude" step="any" /></label></div>
 </div></fieldset>
 <fieldset class="order-party"><legend>Consignee</legend>
 <div class="order-address-fields">
@@ -51,6 +79,7 @@
 <label class="field">City<input aria-label="Consignee city" @bind="e.City" maxlength="200" /></label>
 <label class="field">State<input aria-label="Consignee state / province" @bind="e.State" maxlength="200" /></label>
 <label class="field">ZIP<input aria-label="Consignee zip / postal code" @bind="e.PostalCode" maxlength="200" /></label>
+<div class="order-coordinates"><label class="field">Latitude<InputNumber @bind-Value="e.Latitude" step="any" /></label><label class="field">Longitude<InputNumber @bind-Value="e.Longitude" step="any" /></label></div>
 </div></fieldset>
 <fieldset class="order-party"><legend>Bill To</legend>
 <div class="order-address-fields">
@@ -62,27 +91,150 @@
 <label class="field">State<input aria-label="Bill To state / province" @bind="e.BillToState" maxlength="200" /></label>
 <label class="field">ZIP<input aria-label="Bill To zip / postal code" @bind="e.BillToPostalCode" maxlength="200" /></label>
 </div><div class="address-copy"><button type="button" class="text-button" @onclick="()=>e.CopyBillTo(true)">Copy shipper</button><button type="button" class="text-button" @onclick="()=>e.CopyBillTo(false)">Copy consignee</button></div></fieldset>
-</div><h3 class="order-section-title">Freight &amp; notes</h3><div class="manifest-edit-grid order-freight-fields">
+</div><section class="order-freight-panel"><h3 class="order-section-title">Freight &amp; notes</h3><div class="manifest-edit-grid order-freight-fields">
+<label class="field">Service time (seconds)<InputNumber @bind-Value="e.ServiceSeconds" /></label>
 <label class="field">Pieces<InputNumber @bind-Value="e.Pieces" /></label><label class="field">Weight (lb)<InputNumber @bind-Value="e.Weight" /></label><label class="field">Cube (ft³)<InputNumber @bind-Value="e.Cube" /></label>
 <label class="field manifest-notes">Notes<textarea @bind="e.Notes" maxlength="4000" rows="2"></textarea></label>
-</div><div class="manifest-edit-actions"><button class="primary-button" @onclick="Save">Save order</button><button class="outline-button" @onclick="()=>_edit=null">Cancel</button></div></fieldset>
+</div></section><div class="manifest-edit-actions"><button class="outline-button" @onclick="()=>_edit=null">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div></fieldset>
 </section></EditPopup>}
 @code {
+ // Temporarily hide the entry point while retaining the workflow editor.
+ bool ShowFreightWorkflow => false;
+ OrderPlanningSelection.Selection? _planSelection;
+ DateOnly? _planDate,_planReturnDate;
+ TimeOnly? _planDepart,_planReturn;
+ string? _planError;
+ RecordErrorLink? _planErrorLink;
+ void ClosePlanSchedule(){if(!_busy){_planSelection=null;_planError=null;_planErrorLink=null;}}
+ void OptimizeSelected()
+ {
+     if(_busy || _edit is not null)return;
+     try
+     {
+         PlanningSelection.Set(_orders.Where(o=>_selected.Contains(Key(o))));
+         _planSelection=PlanningSelection.Take();
+         _planDate=DateOnly.FromDateTime(DateTime.Today);_planReturnDate=null;
+         _planDepart=new(6,0);_planReturn=new(18,0);
+         _planError=null;_planErrorLink=null;_error=null;
+     }
+     catch(FormatException ex){_error=ex.Message;}
+ }
+ async Task CreateSelectedPlan()
+ {
+     if(_busy || _planSelection is not {} selection)return;
+     _busy=true;_planError=null;_planErrorLink=null;
+     try
+     {
+         if(_planDate is not {} date)throw new FormatException("Choose a ship date.");
+         if(_planDepart is not {} depart || _planReturn is not {} back)throw new FormatException("Enter departure and return times.");
+         if(_planReturnDate is {} returning && (returning<date || returning.DayNumber-date.DayNumber>13))
+             throw new FormatException("Choose a return date within 14 days of the ship date.");
+         if(depart==back && !(_planReturnDate>date))throw new FormatException("Departure and return must differ.");
+         using var response=await Http.PostAsJsonAsync("api/v1/aurora/drafts",new CreateOrderDraftDto(
+             selection.Orders[0].SourceId,selection.Orders.Select(o=>o.Id).ToArray(),date,
+             depart.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture),back.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture),
+             ReturnDate:_planReturnDate,RestRules:new()));
+         await ApiResponse.Check(response);
+         var draft=await response.Content.ReadFromJsonAsync<OrderDraftDto>()??throw new FormatException("No planning draft was returned.");
+         _planSelection=null;
+         Navigation.NavigateTo($"/aurora/planning?draft={draft.Id}");
+     }
+     catch(Exception ex){_planError=ex.Message;_planErrorLink=(ex as RecordErrorException)?.Link;}
+     finally{_busy=false;}
+ }
+ List<OpenOrderDraftDto> _openPlans=[];
  List<TmsOrder> _orders=[]; TmsOrder? _edit,_delete,_workflowOrder; bool _new,_busy; string? _error,_message;
+ readonly HashSet<(Guid SourceId, string Id)> _selected=[];
+ (Guid SourceId, string Id)? _selectionAnchor;
+ int _selectionVersion;
+ static (Guid SourceId, string Id) Key(TmsOrder order)=>(order.SourceId,order.Id);
+ bool AllSelected=>_orders.Count>0 && _orders.All(o=>_selected.Contains(Key(o)));
+ void ClearSelection(){_selected.Clear();_selectionAnchor=null;_selectionVersion++;}
+ void SelectAll(ChangeEventArgs e)
+ {
+     if(_busy || _edit is not null)return;
+     foreach(var order in _orders){if(e.Value is true)_selected.Add(Key(order));else _selected.Remove(Key(order));}
+     _selectionAnchor=null;_selectionVersion++;
+ }
+ void SelectOrder(TmsOrder order,MouseEventArgs e)
+ {
+     if(_busy || _edit is not null)return;
+     var anchor=_orders.FindIndex(o=>Key(o)==_selectionAnchor);
+     var target=_orders.FindIndex(o=>Key(o)==Key(order));
+     if(e.ShiftKey && anchor>=0 && target>=0)
+     {
+         for(var i=Math.Min(anchor,target);i<=Math.Max(anchor,target);i++)_selected.Add(Key(_orders[i]));
+     }
+     else
+     {
+         if(!_selected.Add(Key(order)))_selected.Remove(Key(order));
+         _selectionAnchor=Key(order);
+     }
+     _selectionVersion++;
+ }
  List<TerminalDto> _terminals=[];
  Guid? _terminalFilter;
  List<CustomerDto> _customers=[];
  IEnumerable<CustomerDropdown.Option> CustomerOptions=>_customers.Select(c=>new CustomerDropdown.Option(c.Id.ToString(),$"{c.Code} · {c.Name}",$"{c.Address}, {c.City} {c.State} {c.PostalCode}"));
  void ChooseCustomer(string? id){if(_edit is null)return;_edit.CustomerId=Guid.TryParse(id,out var key)?key:null;if(_edit.CustomerId is {} customerId){var c=_customers.Single(c=>c.Id==customerId);_edit.Customer=c.Name;_edit.CustomerCode=c.Code;_edit.Address=c.Address;_edit.Address2=c.Address2;_edit.City=c.City;_edit.State=c.State;_edit.PostalCode=c.PostalCode;_edit.Country=c.Country;}else {_edit.CustomerCode=null;}}
- DateTime? _from=new DateTime(DateTime.Today.Year,DateTime.Today.Month,1),_to=DateTime.Today.AddDays(1).AddSeconds(-1); DateTime _scheduled;
- string _status=WorkspaceOrderStatus.Ready,_search="";
+ DateTime? _from=DateTime.Today,_to=DateTime.Today.AddDays(1).AddSeconds(-1); DateTime _scheduled;
+ string _status=WorkspaceOrderStatus.Ready,_search="",_appliedSearch="";
  protected override async Task OnInitializedAsync()=>await Load();
  async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;}}
  async Task Check(HttpResponseMessage r){if(!r.IsSuccessStatusCode)throw new FormatException((await r.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Request failed.");}
- async Task Load()=>await Run(async()=>{if(_from>_to)throw new FormatException("End must follow start.");_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];var url="api/v1/tms/orders?status="+Uri.EscapeDataString(_status)+"&search="+Uri.EscapeDataString(_search);if(_terminalFilter is {} terminal)url+="&terminal="+terminal;foreach(var pair in new[]{("from",_from),("to",_to)})if(pair.Item2 is {} d)url+="&"+pair.Item1+"="+Uri.EscapeDataString(await JS.InvokeAsync<string>("auroraWorkspace.utc",d.ToString("yyyy-MM-ddTHH:mm:ss")));_orders=await Http.GetFromJsonAsync<List<TmsOrder>>(url)??[];});
- async Task Clear(){_from=null;_to=null;_status="";_search="";_terminalFilter=null;await Load();}
- async Task New()=>await Run(async()=>{_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];_customers=await Http.GetFromJsonAsync<List<CustomerDto>>("api/v1/tms/customers")??[];_edit=new();_new=true;_scheduled=DateTime.Now;_message=null;_delete=null;});
- async Task Edit(TmsOrder o)=>await Run(async()=>{_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];_customers=await Http.GetFromJsonAsync<List<CustomerDto>>("api/v1/tms/customers")??[];_edit=System.Text.Json.JsonSerializer.Deserialize<TmsOrder>(System.Text.Json.JsonSerializer.Serialize(o));_scheduled=o.ScheduledAt.LocalDateTime;_new=false;_message=null;_delete=null;});
- async Task Save(){await Run(async()=>{_edit!.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",_scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));_edit.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/orders",_edit):await Http.PutAsJsonAsync("api/v1/tms/orders",_edit);await Check(r);_edit=null;_message="Order saved.";});if(_edit is null)await Load();}
+ async Task Load()=>await Run(async()=>{if(_from>_to)throw new FormatException("End must follow start.");_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];var url="api/v1/tms/orders?status="+Uri.EscapeDataString(_status)+"&search="+Uri.EscapeDataString(_appliedSearch);if(_terminalFilter is {} terminal)url+="&terminal="+terminal;foreach(var pair in new[]{("from",_from),("to",_to)})if(pair.Item2 is {} d)url+="&"+pair.Item1+"="+Uri.EscapeDataString(await JS.InvokeAsync<string>("auroraWorkspace.utc",d.ToString("yyyy-MM-ddTHH:mm:ss")));_orders=await Http.GetFromJsonAsync<List<TmsOrder>>(url)??[];_openPlans=await Http.GetFromJsonAsync<List<OpenOrderDraftDto>>("api/v1/aurora/drafts")??[];var visible=_orders.Select(Key).ToHashSet();_selected.RemoveWhere(key=>!visible.Contains(key));_selectionAnchor=null;_selectionVersion++;});
+ async Task CancelOpenPlan(Guid id)
+ {
+     var cancelled=false;
+     await Run(async()=>
+     {
+         using var response=await Http.PostAsync($"api/v1/aurora/drafts/{id}/cancel",null);
+         await Check(response);
+         cancelled=true;
+         _message="Plan canceled. Its orders are available for optimization again.";
+     });
+     if(cancelled)await Load();
+ }
+ async Task SearchKeyDown(KeyboardEventArgs e)
+ {
+     if(e.Key!="Enter" || _busy)return;
+     _appliedSearch=_search;
+     await Load();
+ }
+ async Task New()=>await Run(async()=>{_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];_customers=await Http.GetFromJsonAsync<List<CustomerDto>>("api/v1/tms/customers")??[];_edit=new();_new=true;_scheduled=DateTime.Now;CaptureAddresses();_message=null;_delete=null;});
+ async Task Edit(TmsOrder o)=>await Run(async()=>{_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];_customers=await Http.GetFromJsonAsync<List<CustomerDto>>("api/v1/tms/customers")??[];_edit=System.Text.Json.JsonSerializer.Deserialize<TmsOrder>(System.Text.Json.JsonSerializer.Serialize(o));_scheduled=o.ScheduledAt.LocalDateTime;CaptureAddresses();_new=false;_message=null;_delete=null;});
+ async Task Lookup(bool pickup)
+ {
+     var e=_edit!;var address=new Dictionary<string,string?>{{"OPS_ADDR1",pickup?e.OriginAddress:e.Address},{"OPS_ADDR2",pickup?e.OriginAddress2:e.Address2},{"OPS_CITY",pickup?e.OriginCity:e.City},{"OPS_STATE",pickup?e.OriginState:e.State},{"OPS_ZIP",pickup?e.OriginPostalCode:e.PostalCode},{"OPS_COUNTRY",pickup?e.OriginCountry:e.Country}};
+     using var response=await Http.PostAsJsonAsync("api/v1/tms/orders/lookup-address",address);await Check(response);
+     var result=(await response.Content.ReadFromJsonAsync<TerminalAddressLookupResult>())!;
+     if(result.Error is not null)throw new FormatException(result.Error);
+     var lat=double.Parse(result.Latitude!,System.Globalization.CultureInfo.InvariantCulture);var lon=double.Parse(result.Longitude!,System.Globalization.CultureInfo.InvariantCulture);
+     if(pickup){e.OriginLatitude=lat;e.OriginLongitude=lon;}else{e.Latitude=lat;e.Longitude=lon;}
+ }
+ string _shipperAddress="",_consigneeAddress="";
+ string AddressKey(bool pickup)=>System.Text.Json.JsonSerializer.Serialize(pickup
+     ? new[]{_edit!.OriginAddress,_edit.OriginAddress2,_edit.OriginCity,_edit.OriginState,_edit.OriginPostalCode,_edit.OriginCountry}
+     : new[]{_edit!.Address,_edit.Address2,_edit.City,_edit.State,_edit.PostalCode,_edit.Country});
+ void CaptureAddresses(){_shipperAddress=AddressKey(true);_consigneeAddress=AddressKey(false);}
+ async Task RefreshChangedAddresses()
+ {
+     foreach(var pickup in new[]{true,false})
+     {
+         if(AddressKey(pickup)==(pickup?_shipperAddress:_consigneeAddress))continue;
+         var e=_edit!;
+         var parts=pickup?new[]{e.OriginAddress,e.OriginCity,e.OriginState,e.OriginPostalCode}:new[]{e.Address,e.City,e.State,e.PostalCode};
+         if(parts.All(string.IsNullOrWhiteSpace))
+         {
+             if(pickup){e.OriginLatitude=null;e.OriginLongitude=null;}else{e.Latitude=null;e.Longitude=null;}
+         }
+         else
+         {
+             try{await Lookup(pickup);}catch(Exception ex){throw new FormatException($"Could not locate the {(pickup?"shipper":"consignee")} address. {ex.Message}",ex);}
+         }
+         if(pickup)_shipperAddress=AddressKey(true);else _consigneeAddress=AddressKey(false);
+     }
+ }
+ async Task Save(){await Run(async()=>{await RefreshChangedAddresses();_edit!.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",_scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));_edit.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/orders",_edit):await Http.PutAsJsonAsync("api/v1/tms/orders",_edit);await Check(r);_edit=null;_message="Order saved.";});if(_edit is null)await Load();}
  async Task Delete(){await Run(async()=>{var o=_delete!;using var r=await Http.DeleteAsync($"api/v1/tms/orders/{o.SourceId}/{Uri.EscapeDataString(o.Id)}?revision={o.Revision}");await Check(r);_delete=null;_message="Order deleted.";});if(_delete is null)await Load();}
 }

@@ -13,6 +13,7 @@ public static class LineHaulPlanning
             if(node.Latitude is not (>= -90 and <= 90) || node.Longitude is not (>= -180 and <= 180) || (node.Latitude==0 && node.Longitude==0))
                 throw new FormatException($"Set valid coordinates for terminal {node.Code} before planning.");
         var root=RoutingInput.Parse(json);
+        if(RoutingInput.Items(root["orders"]?["pickups"]).Any())throw new FormatException("Pickup orders must return to their origin terminal; do not include them in a transfer plan.");
         var ids=RoutingInput.Items(root["orders"]?["deliveries"]).Select(o=>RoutingInput.Text(o["id"])!).ToArray();
         root=RoutingInput.Parse(PlanningBatches.ApplyDestinations(json,ids.ToDictionary(id=>id,_=>destination)));
         foreach(var order in RoutingInput.Items(root["orders"]?["deliveries"]))

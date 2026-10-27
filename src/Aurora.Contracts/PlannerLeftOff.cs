@@ -10,7 +10,7 @@ public static class PlannerLeftOff
         var routed = result.Routes.SelectMany(r => r.Pros).Select(p => p.ProNumber).ToHashSet(StringComparer.Ordinal);
         var dropped = result.DroppedOrders.ToDictionary(o => o.OrderId, StringComparer.Ordinal);
         var rows = new List<DroppedOrderDto>();
-        foreach (var order in RoutingInput.Items(root["orders"]?["deliveries"]))
+        foreach (var order in RoutingInput.Orders(root))
         {
             var id = RoutingInput.Text(order["id"])!;
             var removed = PlanOrderDecisions.Get(root, id) == PlanOrderDecisions.Excluded;
@@ -22,13 +22,13 @@ public static class PlannerLeftOff
                 continue;
             }
             var report = RoutingInput.ReportOrder(root, id);
-            var location = RoutingInput.Items(root["locations"]).FirstOrDefault(l => RoutingInput.Text(l["id"]) == RoutingInput.Text(order["delivery"]?["locationId"]));
+            var location = RoutingInput.Items(root["locations"]).FirstOrDefault(l => RoutingInput.Text(l["id"]) == RoutingInput.Text(RoutingInput.CustomerTask(order)?["locationId"]));
             string Label(params string[] keys) => keys.Select(k => RoutingInput.Text(RoutingInput.Get(report, k))).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
             double? Load(string dimension) => Number(RoutingInput.Items(order["properties"]?["loads"]).FirstOrDefault(l => RoutingInput.Text(l["dimension"]) == dimension)?["value"]);
             rows.Add(new(id, Number(location?["latitude"]), Number(location?["longitude"]), removed ? "Removed by planner" : held ? "Not added to a truck" : "Awaiting re-optimization",
                 Label("shipToName", "carrierConsigneeName", "consigneeName", "name"), Label("address1", "address"), Label("city"), Label("state"), Label("postalCode"),
                 Number(RoutingInput.Get(report, "units")), Number(RoutingInput.Get(report, "weight")) ?? Load("weight"), Number(RoutingInput.Get(report, "cubes")) ?? Load("volume"),
-                Label("billType"), (int?)Number(order["delivery"]?["duration"]), RoutingInput.Describe(root, id)));
+                Label("billType"), (int?)Number(RoutingInput.CustomerTask(order)?["duration"]), RoutingInput.Describe(root, id)) { WorkType=RoutingInput.IsPickup(order)?"Pickup":"Delivery" });
         }
         return rows.OrderBy(r => r.OrderId, StringComparer.Ordinal).ToList();
     }

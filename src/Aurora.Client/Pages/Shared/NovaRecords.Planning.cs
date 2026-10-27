@@ -13,14 +13,18 @@ public partial class NovaRecords
     long? _selectionAnchor;
     int _selectionVersion;
     string? _planningError;
+    string[] _planningWarnings=[];
+    HashSet<long> _consolidationOrders=[];
     bool _showPlanSchedule;
     OrderDraftDto[] _createdPlans = [];
     DateTime? _planDate = DateTime.Today;
+    DateTime? _planReturnDate;
+    double _tripDriving=10,_tripWorking=12,_tripRest=12;
     TimeOnly? _planDepart = new(6,0), _planReturn = new(18,0);
     void StartPlan()
     {
         if (_busy || _selectedOrders.Count == 0 || _planningError is not null) return;
-        _planDate=DateTime.Today; _planDepart=new(6,0); _planReturn=new(18,0);
+        _planDate=DateTime.Today; _planReturnDate=null; _planDepart=new(6,0); _planReturn=new(18,0);
         _error=null; _showPlanSchedule=true;
     }
     void ClosePlanSchedule() { if (!_busy) { _showPlanSchedule=false; _error=null; } }
@@ -33,10 +37,11 @@ public partial class NovaRecords
     bool AllPageSelected => PageAvailable.Any() && PageAvailable.All(row => _selectedOrders.Contains(row.Id));
     string SelectionHint(NovaRecordSummary row) => CanSelect(row) ? "Shift-click to select a range on this page"
         : _planningError is not null ? "Planning availability could not be loaded. Refresh to retry."
+        : _consolidationOrders.Contains(row.Id)?"Customer consolidation: held or assigned automatically without route optimization."
         : PlanningOrder(row)?.OptimizationDraftId is not null ? "Already in an open plan. Resume or cancel that plan to release this order."
         : PlanningOrder(row)?.ManifestId is not null ? "Already assigned to a manifest."
         : row.Issues.Length > 0 ? string.Join(" ", row.Issues.Select(issue => issue.Message))
-        : "No available planning record. Check the order's status and delivery manifest in Nova, then refresh.";
+        : "No available planning record. Check the order's status and pickup/delivery manifest in Nova, then refresh.";
     void ClearOrderSelection() { _selectedOrders.Clear(); _selectionAnchor = null; _selectionVersion++; }
     void SelectPage(ChangeEventArgs e)
     {
@@ -69,15 +74,16 @@ public partial class NovaRecords
         _planningError = null;
         try
         {
-            using var refresh = await Http.PostAsync("api/v1/aurora/firebird/refresh", null);
+            using var refresh = await PlanningLoadRetry.SendAsync(() => Http.PostAsync("api/v1/aurora/firebird/refresh", null));
             await Check(refresh);
             var sync = await refresh.Content.ReadFromJsonAsync<FirebirdSyncResult>() ?? throw new FormatException("Orders could not be refreshed for planning.");
-            using var response = await Http.GetAsync("api/v1/tms/orders?status=ReadyToRoute");
+            _planningWarnings=sync.Warnings;_consolidationOrders=sync.ConsolidationOrders.ToHashSet();
+            using var response = await PlanningLoadRetry.SendAsync(() => Http.GetAsync("api/v1/tms/orders?status=ReadyToRoute"));
             await Check(response);
             var orders = await response.Content.ReadFromJsonAsync<TmsOrder[]>() ?? [];
             // Native IDs, not display PRO numbers, identify the corresponding planning snapshots.
             _planningOrders = orders.Where(o => sync.SourceIds.Contains(o.SourceId) && o.Id.StartsWith("FB-", StringComparison.Ordinal))
-                .Select(o => (Order: o, Id: long.TryParse(o.Id.AsSpan(3), out var id) ? id : 0))
+                .Select(o => (Order: o, Id: o.NativeOrderId ?? (long.TryParse(o.Id.AsSpan(3), out var id) ? id : 0)))
                 .Where(x => x.Id > 0).GroupBy(x => x.Id).Where(g => g.Count() == 1)
                 .ToDictionary(g => g.Key, g => g.Single().Order);
             _selectedOrders.RemoveWhere(id => !_planningOrders.TryGetValue(id, out var o) || o.ManifestId is not null || o.OptimizationDraftId is not null);
@@ -88,7 +94,7 @@ public partial class NovaRecords
             _planningError = $"Route planning is unavailable: {ex.Message}";
         }
         // Existing plans remain reachable even if refreshing new orders fails.
-        using var drafts = await Http.GetAsync("api/v1/aurora/drafts");
+        using var drafts = await PlanningLoadRetry.SendAsync(() => Http.GetAsync("api/v1/aurora/drafts"));
         await Check(drafts);
         _openPlans = await drafts.Content.ReadFromJsonAsync<OpenOrderDraftDto[]>() ?? [];
     }
@@ -97,7 +103,7 @@ public partial class NovaRecords
         if (_planDate is null) throw new FormatException("Choose a route date.");
         if (_planDepart is not {} depart || _planReturn is not {} back)
             throw new FormatException("Enter departure and return times.");
-        if (depart==back) throw new FormatException("Return time must differ from departure.");
+        if (depart==back && !(_planReturnDate>_planDate)) throw new FormatException("Return time must differ from departure.");
         var ids = _selectedOrders.ToArray();
         await LoadPlanningOrders();
         if (_planningError is not null) throw new FormatException(_planningError);
@@ -107,7 +113,7 @@ public partial class NovaRecords
         if (orders.Select(o => o.SourceId).Distinct().Count() != 1)
             throw new FormatException("Select orders from one terminal to plan routes.");
         using var response = await Http.PostAsJsonAsync("api/v1/aurora/plans", new CreateOrderDraftDto(orders[0].SourceId,
-            orders.Select(o => o.Id).ToArray(), DateOnly.FromDateTime(_planDate.Value), depart.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture), back.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture)));
+            orders.Select(o => o.Id).ToArray(), DateOnly.FromDateTime(_planDate.Value), depart.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture), back.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture),ReturnDate:_planReturnDate is {} rd?DateOnly.FromDateTime(rd):null,RestRules:new(_tripDriving,_tripWorking,_tripRest)));
         await Check(response);
         var plans = await response.Content.ReadFromJsonAsync<OrderDraftDto[]>() ?? throw new FormatException("The plans could not be opened.");
         if (plans.Length == 0) throw new FormatException("No plans were created.");

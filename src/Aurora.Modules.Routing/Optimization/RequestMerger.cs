@@ -1,3 +1,4 @@
+using Aurora.Contracts;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -74,7 +75,7 @@ public static class RequestMerger
             }
 
             var newOrders = 0;
-            foreach (var order in Items(obj["orders"]?["deliveries"]))
+            foreach (var order in RoutingInput.Orders(obj))
             {
                 var id = Id(order);
                 if (id is null) continue;
@@ -132,7 +133,7 @@ public static class RequestMerger
         }
 
         if (deliveries.Count == 0)
-            throw new InvalidOperationException("None of the selected files contained any delivery orders.");
+            throw new InvalidOperationException("None of the selected files contained any pickup or delivery orders.");
         if (vehicles.Count == 0)
             throw new InvalidOperationException("None of the selected files contained any vehicles to use as a fleet template.");
 
@@ -158,7 +159,8 @@ public static class RequestMerger
             ["locations"] = new JsonArray(locations.Values.Select(v => v.DeepClone()).ToArray()),
             ["orders"] = new JsonObject
             {
-                ["deliveries"] = new JsonArray(deliveries.Select(d => d.DeepClone()).ToArray())
+                ["deliveries"] = new JsonArray(deliveries.Where(d=>d["delivery"] is not null).Select(d => d.DeepClone()).ToArray()),
+                ["pickups"] = new JsonArray(deliveries.Where(d=>d["pickup"] is not null).Select(d => d.DeepClone()).ToArray())
             },
             ["vehicles"] = new JsonArray(fleet.Select(v => v.DeepClone()).ToArray())
         };

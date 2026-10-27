@@ -25,14 +25,14 @@ public static class DataRequirements
 
     public static DataRequirementIssue[] Depot(string code, double? latitude, double? longitude) =>
         HasCoordinates(latitude, longitude) ? [] :
-        [new("depot-coordinates", $"Depot {code} has no verified map location. Open it in Transportation Nodes, check its street address, city, state and ZIP, then save to look up its location automatically.", "aurora/terminals", "Open Transportation Nodes")];
+        [new("depot-coordinates", $"Depot {code} has no verified map location. Open it in Terminals, check its street address, city, state and ZIP, then save to look up its location automatically.", "aurora/terminals", "Open Terminals")];
 
     public static DataRequirementIssue[] Fleet(string terminal, bool terminalExists, string? street, string? city, string? postalCode, double? weight, double? cubes)
     {
         var issues = new List<DataRequirementIssue>();
         if (string.IsNullOrWhiteSpace(terminal)) issues.Add(new("fleet-terminal", "Assign a terminal code to this vehicle before using it for planning."));
-        else if (!terminalExists) issues.Add(new("unknown-terminal", $"Terminal {terminal} does not exist. Assign a valid terminal code to this vehicle.", "aurora/terminals", "Open Transportation Nodes"));
-        else issues.AddRange(Address(street, city, postalCode).Select(issue => issue with { Message = $"Terminal {terminal}: {issue.Message}", ActionUrl = "aurora/terminals", ActionLabel = "Open Transportation Nodes" }));
+        else if (!terminalExists) issues.Add(new("unknown-terminal", $"Terminal {terminal} does not exist. Assign a valid terminal code to this vehicle.", "aurora/terminals", "Open Terminals"));
+        else issues.AddRange(Address(street, city, postalCode).Select(issue => issue with { Message = $"Terminal {terminal}: {issue.Message}", ActionUrl = "aurora/terminals", ActionLabel = "Open Terminals" }));
         if (!(weight > 0)) issues.Add(new("fleet-weight", "Enter a maximum weight greater than zero before using this vehicle for planning."));
         if (!(cubes > 0)) issues.Add(new("fleet-cubes", "Enter a cubic capacity greater than zero before using this vehicle for planning."));
         return issues.ToArray();
@@ -41,7 +41,7 @@ public static class DataRequirements
     public static DataRequirementIssue[] Order(int deliveries, int missingCoordinates, string terminal, bool terminalExists)
     {
         var issues = new List<DataRequirementIssue>();
-        if (!terminalExists) issues.Add(new("order-terminal", $"This order needs a valid terminal assignment{(string.IsNullOrWhiteSpace(terminal) ? "." : $"; {terminal} is not defined.")} Correct the assignment in Nova.", "aurora/terminals", "Open Transportation Nodes"));
+        if (!terminalExists) issues.Add(new("order-terminal", $"This order needs a valid terminal assignment{(string.IsNullOrWhiteSpace(terminal) ? "." : $"; {terminal} is not defined.")} Correct the assignment in Nova.", "aurora/terminals", "Open Terminals"));
         if (deliveries != 1) issues.Add(new("delivery-count", "Planning requires exactly one delivery stop. Review this order’s delivery stops in Nova."));
         return issues.ToArray();
     }

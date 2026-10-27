@@ -13,6 +13,7 @@ public partial class NovaRecords
         using var response=await Http.GetAsync("api/v1/aurora/firebird/masters/customers/"+Uri.EscapeDataString(id));
         await Check(response);
         var account=(await response.Content.ReadFromJsonAsync<NovaMasterDocument>())!;
+        _coordinateParts.Remove(part);
         foreach(var value in NovaAccountSelection.Values(account,part=="header"))
             if(_values[part].ContainsKey(value.Key))_values[part][value.Key]=value.Value;
     });

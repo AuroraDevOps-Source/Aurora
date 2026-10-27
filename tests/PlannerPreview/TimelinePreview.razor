@@ -1,0 +1,31 @@
+@using Aurora.Contracts
+<div style="max-width:1100px;margin:30px auto;border:1px solid #dce5ef;border-radius:16px;overflow:hidden;background:white">
+    <Aurora.Client.Pages.Optimization.RouteTimeline Routes="_routes" SourceJson="@_source" OnFocusOrder="target => _focused = target.OrderId" />
+    @if (_focused is not null) { <p role="status">Map focus requested: @_focused</p> }
+</div>
+@code {
+    private string? _focused;
+    private readonly string _source = """
+    {"vehicles":[{"id":"TRK-104","end":{"latestEndTime":"2026-10-26T13:00:00-04:00"}},{"id":"TRK-208","end":{"latestEndTime":"2026-10-26T12:00:00-04:00"}}],"reporting":{"drivers":{"TRK-104":{"name":"Alex Morgan"},"TRK-208":{"name":"Jordan Lee"}}}}
+    """;
+    private static readonly DateTimeOffset Start = DateTimeOffset.Parse("2026-10-26T07:00:00-04:00");
+    private readonly RouteSummaryDto[] _routes = [MakeRoute("TRK-104", 0, 6), MakeRoute("TRK-208", 45, 4), MakeRoute("TRK-312", 90, 3)];
+    private static RouteSummaryDto MakeRoute(string truck, int offset, int count)
+    {
+        var names = new[] {"Northstar Distribution", "Oak & Pine Supply", "Riverside Market", "Central Freight", "West End Hardware", "Harbor Foods"};
+        var stops = new List<RouteStopDto> { new("DEPOT", 40, -74, null, Start.AddMinutes(offset), true, []) };
+        var pros = new List<ManifestProDto>();
+        for (var i = 0; i < count; i++)
+        {
+            var arrival = Start.AddMinutes(offset + 40 + i * 65);
+            var departure = arrival.AddMinutes(20 + i * 3);
+            var id = $"{truck}-{i+1}";
+            stops.Add(new(id, 40, -74, arrival, departure, false, [id]));
+            pros.Add(new(id, i+1, names[i], "100 Main Street", "New York", "NY", "10001", 10, 500, 40, "", 1200, 40, -74,
+                new([new(arrival.AddMinutes(-15), arrival.AddMinutes(15), null)], true, "Customer", true), arrival, departure));
+        }
+        var returned = stops[^1].Departure!.Value.AddMinutes(45);
+        stops.Add(new("DEPOT", 40, -74, returned, null, true, []));
+        return new(truck, count, count, 160, 11000, 320, .7, .8, "NYC", 18000, (int)(returned-Start.AddMinutes(offset)).TotalSeconds, count, 60, 3000, 240, pros, stops, Start.AddMinutes(offset), returned);
+    }
+}

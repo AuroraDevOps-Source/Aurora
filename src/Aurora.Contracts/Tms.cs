@@ -2,6 +2,9 @@ namespace Aurora.Contracts;
 
 public sealed class TmsOrder
 {
+    public string WorkType {get;set;}="Delivery";
+    public long? NativeOrderId {get;set;}
+
     public Guid SourceId { get; set; }
     public string Id { get; set; } = "";
     public Guid? TerminalId { get; set; }
@@ -25,6 +28,13 @@ public sealed class TmsOrder
     public string BillTo { get; set; } = "";
     public string Address2 { get; set; } = "";
     public string Country { get; set; } = "";
+    public double? Latitude {get;set;}
+    public double? Longitude {get;set;}
+    public double? OriginLatitude {get;set;}
+    public double? OriginLongitude {get;set;}
+    public DateTimeOffset? AppointmentFrom {get;set;}
+    public DateTimeOffset? AppointmentTo {get;set;}
+    public int ServiceSeconds {get;set;}=300;
     public string OriginAddress2 { get; set; } = "";
     public string OriginCountry { get; set; } = "";
     public string BillToAddress { get; set; } = "";
@@ -60,6 +70,11 @@ public sealed class TmsOrder
         BillToCountry = fromShipper ? OriginCountry : Country;
     }
     public void Validate() {
+        if(WorkType is not ("Delivery" or "Pickup"))throw new FormatException("Choose delivery or pickup.");
+        if(ServiceSeconds is <0 or >86400)throw new FormatException("Service duration must be between zero and 24 hours.");
+        if(AppointmentFrom is null != AppointmentTo is null || AppointmentTo<AppointmentFrom)throw new FormatException("Enter both appointment times with end after start.");
+        foreach(var point in new[]{(Latitude,Longitude),(OriginLatitude,OriginLongitude)})
+            if(point.Item1 is null != point.Item2 is null || point.Item1 is {} lat && (!double.IsFinite(lat)||lat is < -90 or >90) || point.Item2 is {} lon && (!double.IsFinite(lon)||lon is < -180 or >180))throw new FormatException("Enter valid latitude and longitude together.");
         if(string.IsNullOrWhiteSpace(Id) || string.IsNullOrWhiteSpace(Customer)) throw new FormatException("PRO and customer are required.");
         if(!WorkspaceOrderStatus.All.Contains(Status)) throw new FormatException("Unknown order status.");
         if(new[]{Id,Customer,Address,City,State,PostalCode,Shipper,OriginAddress,OriginCity,OriginState,OriginPostalCode,BillTo,Reference,Address2,Country,OriginAddress2,OriginCountry,BillToAddress,BillToAddress2,BillToCity,BillToState,BillToPostalCode,BillToCountry}.Any(v=>v is null || v.Length>200) || Notes is null || Notes.Length>4000) throw new FormatException("Fields allow 200 characters; notes allow 4,000.");
@@ -81,7 +96,7 @@ public sealed class TmsManifest
     public decimal Pieces { get; set; }
     public decimal Weight { get; set; }
     public static readonly string[] Statuses=["Planning","Loading","Loaded","Ready","Dispatched","En Route","Arrived","Complete"];
-    public bool Editable => Status is "Planning" or "Loading" or "Loaded" or "Ready";
+    public bool Editable => Details.SourceReadOnlyReason is null && Status is "Planning" or "Loading" or "Loaded" or "Ready";
     public void Validate() {
         if(string.IsNullOrWhiteSpace(Number) || Number.Length>100 || Vehicle is null || Vehicle.Length>200) throw new FormatException("Manifest number is required (up to 100 characters); truck allows 200.");
         if(!Statuses.Contains(Status) || Details is null) throw new FormatException("Valid manifest status and details are required.");

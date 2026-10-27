@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using Aurora.Contracts;
 using Aurora.Modules.Routing;
 using Aurora.Api.Features.Auth;
@@ -8,8 +9,22 @@ public static class OrderWorkspaceEndpoints
 {
     public static void MapOrderWorkspaceEndpoints(this IEndpointRouteBuilder app)
     {
-        var group=app.MapGroup("/api/v1/aurora").RequireAuthorization();
+        var group=app.MapGroup("/api/v1/aurora").RequireAuthorization().AddEndpointFilter<LocalWorkspaceFilter>();
+        group.MapGet("/firebird/manifests/{id:long}", (long id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>{
+            var result=await source.ReadManifests(null,null,null,true,ct,manifestId:id);
+            return result.Manifests.SingleOrDefault() is {} manifest ? Results.Ok(manifest) : Results.NotFound(new ApiErrorDto("Manifest no longer exists."));
+        }));
+        group.MapPost("/firebird/records/orders/lookup-address", (Dictionary<string,string?> input,MasterAddressLookup lookup,CancellationToken ct)=>Guard(async()=>Results.Ok(await lookup.LookUpOrderAddress(input,ct))));
+        group.MapPost("/firebird/masters/terminals/lookup-address", (NovaMasterEdit input,MasterAddressLookup lookup,CancellationToken ct)=>Guard(async()=>Results.Ok(await lookup.LookUpTerminal(input,ct))));
+        group.MapGet("/firebird/customers/{code}/planning",(string code,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadCustomerPlanning(code,ct))));
+        group.MapPut("/firebird/customers/{code}/planning",(string code,CustomerPlanning input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveCustomerPlanning(code,input,ct))));
+        group.MapPost("/firebird/manifests/{id:long}/release-consolidation",(long id,ConsolidationRelease input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReleaseConsolidation(id,input,ct))));
+        group.MapGet("/firebird/drivers", (FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadDrivers(ct))));
+        group.MapPut("/firebird/drivers/{id:long}", (long id,NovaDriver input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveDriver(id,input,ct))));
+        group.MapDelete("/firebird/drivers/{id:long}", (long id,string revision,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>{await source.DeleteDriver(id,revision,ct);return Results.NoContent();}))
+            .RequireAuthorization(p=>p.RequireRole("aurora:Admin","aurora:PowerUser"));
         group.MapGet("/firebird", (FirebirdRoutingSource source) => Results.Ok(source.Status));
+        group.MapPut("/firebird/manifests/{id:long}/planning-lock", (long id,ManifestPlanningLockEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SavePlanningLock(id,input,ct))));
         group.MapGet("/firebird/routing-configuration", (FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.RoutingConfiguration(ct))))
             .RequireAuthorization(p=>p.RequireRole("aurora:Admin"));
         group.MapPut("/firebird/routing-configuration", (NovaRoutingConfigurationEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>{await source.SaveRoutingConfiguration(input,ct);return Results.Ok();}))
@@ -28,10 +43,12 @@ public static class OrderWorkspaceEndpoints
         group.MapGet("/firebird/masters/{kind}", (string kind,string? search,int? page,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadMasters(kind,search,page??0,ct))));
         group.MapGet("/firebird/masters/{kind}/{id}", (string kind,string id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadMaster(kind,id,ct))));
         group.MapPut("/firebird/masters/{kind}/{id}", (string kind,string id,NovaMasterEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveMaster(kind,id,input,ct))));
+        group.MapGet("/firebird/equipment/{id:long}/routing-profile", (long id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadEquipmentProfile(id,ct))));
+        group.MapPut("/firebird/equipment/{id:long}/routing-profile", (long id,EquipmentRoutingProfileEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveEquipmentProfile(id,input,ct))));
         group.MapGet("/firebird/record-options", (FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.RecordOptions(ct))));
         group.MapGet("/firebird/orders/{id:long}/routing", (long id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadOrderRouting(id,ct))));
         group.MapPut("/firebird/orders/{id:long}/routing", (long id,NovaOrderRoutingEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveOrderRouting(id,input,ct))));
-        group.MapGet("/firebird/records/{kind}", (string kind,string? search,int? page,string? terminal,int? status,bool? readyOnly,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.RecordList(kind,search,page??0,ct,terminal,status,readyOnly??false))));
+        group.MapGet("/firebird/records/{kind}", (string kind,string? search,int? page,string? terminal,int? status,bool? readyOnly,bool? unknownTerminal,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.RecordList(kind,search,page??0,ct,terminal,status,readyOnly??false,unknownTerminal??false))));
         group.MapGet("/firebird/records/{kind}/{id:long}", (string kind,long id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadRecord(kind,id,ct))));
         group.MapPut("/firebird/records/{kind}/{id:long}", (string kind,long id,NovaRecordEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveRecord(kind,id,input,ct))));
         group.MapGet("/firebird/manifests", (DateOnly? from, DateOnly? to, int? status, bool? allDates, bool? manifestDates, FirebirdRoutingSource source, CancellationToken ct) => Guard(async () => Results.Ok(await source.ReadManifests(from,to,status,allDates ?? false,ct,manifestDates ?? false))));
@@ -63,13 +80,13 @@ public static class OrderWorkspaceEndpoints
         group.MapPost("/drafts/{id:guid}/finish", (Guid id,FinishOrderDraftDto input,HttpContext context,OrderWorkspace store,PlanningSessions sessions,CancellationToken ct)=>Guard(async()=>
         {
             var result=await sessions.Completed(input.SessionId,id,context.User,ct);
-            return Results.Ok(await store.Finish(id,input.SessionId,PlanningSessions.Owner(context.User),result,ct,input.Vehicles));
+            return Results.Ok(await store.Finish(id,input.SessionId,PlanningSessions.Owner(context.User),result,ct,input.Vehicles,await sessions.CompletedRequest(input.SessionId,id,context.User,ct)));
         }));
     }
     internal static async Task<IResult> Guard(Func<Task<IResult>> action)
     {
         try { return await action(); }
-        catch(FormatException ex) { return Results.BadRequest(new ApiErrorDto(ex.Message)); }
+        catch(FormatException ex) { return Results.BadRequest(new ApiErrorDto(ex.Message) { RecordLink=(ex as RecordErrorException)?.Link }); }
         catch(KeyNotFoundException ex) { return Results.NotFound(new ApiErrorDto(ex.Message)); }
         catch(TimeoutException) { return Results.Json(new ApiErrorDto("The database request timed out. Check the Nova server address, port, and network connection in Admin > Users."),statusCode:503); }
         catch(FirebirdSql.Data.FirebirdClient.FbException) { return Results.Json(new ApiErrorDto("The Nova database request failed. No success is assumed; retry the same operation to recover a completed export."), statusCode:503); }

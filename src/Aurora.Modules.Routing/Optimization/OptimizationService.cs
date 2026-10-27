@@ -22,7 +22,7 @@ public sealed class OptimizationService(IOptions<PtvSettings> settings)
     {
         // A root-level reporting sidecar carries display fields PTV does not accept. Keep the
         // uploaded JSON for report enrichment and send only the canonical request to PTV.
-        requestJson = RoutingInput.Prepare(PlanOrderDecisions.Prepare(requestJson));
+        requestJson = CustomerPlanningRequest.GroupLocations(MultiDayPlanning.ApplyRest(RoutingInput.Prepare(PlanOrderDecisions.Prepare(requestJson))));
         if (previousResult is not null) requestJson = QuickUpdate.Prepare(requestJson, previousResult);
         var ptvRequestJson = ManifestReportExtractor.RemoveReportingSidecar(requestJson);
 
@@ -85,7 +85,7 @@ public sealed class OptimizationService(IOptions<PtvSettings> settings)
                     manifestRoute?.Pros.Select(pro => new ManifestProDto(
                         pro.ProNumber, pro.StopNumber, pro.ShipToName, pro.Address1, pro.City,
                         pro.State, pro.PostalCode, pro.Units, pro.Weight, pro.Cubes, pro.BillType,
-                        pro.AllottedStopSeconds, pro.Latitude, pro.Longitude, pro.Appointment, pro.Arrival, pro.Departure)).ToList() ?? [],
+                        pro.AllottedStopSeconds, pro.Latitude, pro.Longitude, pro.Appointment, pro.Arrival, pro.Departure) { WorkType=pro.WorkType }).ToList() ?? [],
                     detailsByVehicle.TryGetValue(route.Vehicle, out var detailRoute)
                         ? detailRoute.Stops.Select(stop => new RouteStopDto(
                             stop.LocationId, stop.Latitude, stop.Longitude, stop.Arrival, stop.Departure,
@@ -113,7 +113,7 @@ public sealed class OptimizationService(IOptions<PtvSettings> settings)
                     pro?.Cubes,
                     pro?.BillType ?? "Not provided",
                     pro?.AllottedStopSeconds,
-                    pro?.Appointment);
+                    pro?.Appointment) { WorkType=pro?.WorkType??"Delivery" };
             }).ToList();
 
             notes = parsed.Notes;

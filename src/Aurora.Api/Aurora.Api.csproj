@@ -21,7 +21,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Aurora.Infrastructure\Aurora.Infrastructure.csproj" />
     <ProjectReference Include="..\Aurora.Modules.Routing\Aurora.Modules.Routing.csproj" />
+    <ProjectReference Include="..\Aurora.Integrations.Nova\Aurora.Integrations.Nova.csproj" />
     <ProjectReference Include="..\Aurora.Contracts\Aurora.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../Aurora.Modules.Sync/Aurora.Modules.Sync.csproj" /></ItemGroup>
 </Project>

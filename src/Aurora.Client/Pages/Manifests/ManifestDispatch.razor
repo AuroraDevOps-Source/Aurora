@@ -18,6 +18,15 @@
             <div><dt>Estimated duration</dt><dd>@(d.PlannedRoute is {} timed ? $"{timed.EstimatedSeconds / 3600}h {timed.EstimatedSeconds % 3600 / 60:D2}m" : "—")</dd></div>
             <div><dt>Planned capacity</dt><dd>@(d.PlannedRoute?.LoadUtilization.ToString("P0") ?? "—")</dd></div>
         </dl>
+        @if(d.Consolidation is {} consolidation)
+        {
+            <p><strong>@(consolidation.Held?consolidation.Full?"Full — held for release":"Accumulating — held at terminal":"Released for dispatch")</strong> · Consignee @consolidation.Customer</p>
+            <p>Weight @consolidation.Weight.ToString("N0") / @consolidation.MaximumWeight.ToString("N0") · Cubes @consolidation.Cubes.ToString("N1") / @consolidation.MaximumCubes.ToString("N1")</p>
+            @if(consolidation.EstimatedOrders>0){<p>@consolidation.EstimatedOrders orders use estimated cubes.</p>}
+            @if(consolidation.Held && d.CanEdit){<button class="primary-button" type="button" @onclick="ReleaseConsolidation">Release for dispatch</button>}
+        }
+        <label><input type="checkbox" checked="@d.OptimizationLocked" disabled="@(!d.CanEdit || d.Consolidation is not null)" @onchange="SetPlanningLock" /> Lock from optimization</label>
+        @if(!d.CanEdit){<p>Dispatched, started, and closed manifests are excluded from optimization.</p>}
         <div class="manifest-assignment-fields">
             <label class="field">Driver<select @bind="_driver" disabled="@(!d.CanEdit)"><option value="0">Select driver</option>
                 @foreach(var item in d.Drivers){<option value="@item.Id" disabled="@(d.CanEdit && item.Unavailable is not null)">@OptionLabel(item,d.CanEdit)</option>}
@@ -81,6 +90,26 @@
     [Parameter] public long ManifestId {get;set;}
     [Parameter] public EventCallback<NovaDispatchDocument> OnSaved {get;set;}
     NovaDispatchDocument? _document;
+    async Task SetPlanningLock(ChangeEventArgs e)
+    {
+        if(_document is not {} document || _busy)return;
+        _busy=true;_error=null;
+        try
+        {
+            using var response=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/manifests/{ManifestId}/planning-lock",new ManifestPlanningLockEdit(document.Revision,e.Value is true));
+            await ApiResponse.Check(response);
+            _document=(await response.Content.ReadFromJsonAsync<NovaDispatchDocument>())! with{PlannedRoute=document.PlannedRoute};
+            await OnSaved.InvokeAsync(_document);
+        }
+        catch(Exception ex){_error=ex.Message;}
+        finally{_busy=false;}
+    }
+    async Task ReleaseConsolidation()
+    {
+        if(_busy||_document is not {} d)return;_busy=true;_error=null;
+        try{using var r=await Http.PostAsJsonAsync(Url+"/release-consolidation",new ConsolidationRelease(d.Revision));await ApiResponse.Check(r);_document=await r.Content.ReadFromJsonAsync<NovaDispatchDocument>();Reset();await OnSaved.InvokeAsync(_document);}
+        catch(Exception e){_error=e.Message;}finally{_busy=false;}
+    }
     long _driver,_truck;
     string _status="", _notes="";
     bool _notesSaved;
@@ -96,7 +125,7 @@
     static string Label(string code,string fallback)=>code switch{"UNAS"=>"Unassigned","ASG"=>"Assigned","DPCH"=>"Dispatched","ENR"=>"In transit","CPLT"=>"Closed",_=>fallback};
     static string OptionLabel(NovaDispatchOption item,bool editing)=>!editing || item.Unavailable is null?item.Name:$"{item.Name} — {item.Unavailable}";
     protected override Task OnInitializedAsync()=>Load();
-    void Reset(){_driver=_document?.DriverId??0;_truck=_document?.TruckId??_document?.PlannedTruckId??0;_status=_document?.StatusCode??"";_occurredAt=null;_error=null;_notes=_document?.Notes??"";_notesSaved=false;}
+    void Reset(){_driver=_document?.DriverId??_document?.PlannedDriverId??0;_truck=_document?.TruckId??_document?.PlannedTruckId??0;_status=_document?.StatusCode??"";_occurredAt=null;_error=null;_notes=_document?.Notes??"";_notesSaved=false;}
     async Task Load()
     {
         if(_busy)return;_busy=true;_error=null;

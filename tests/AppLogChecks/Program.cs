@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Security.Claims;
 using System.Text.Json;
 using Aurora.Api.Features.Auth;

@@ -197,6 +197,18 @@ public sealed class PlanningSessions
         }
         finally { gate.Release(); }
     }
+    public async Task<string> CompletedRequest(Guid id,Guid draftId,ClaimsPrincipal user,CancellationToken ct)
+    {
+        var gate=Gate(id);await gate.WaitAsync(ct);
+        try
+        {
+            var saved=Read(Owner(user),id);
+            if(saved?.WorkspaceDraftId!=draftId || saved.Status!="SUCCEEDED" || saved.Result is null)
+                throw new FormatException("A completed optimization belonging to this selection is required.");
+            return saved.RequestJson;
+        }
+        finally{gate.Release();}
+    }
     public async Task<IResult> Accept(Guid id, string candidateId, ClaimsPrincipal user, CancellationToken ct)
     {
         var gate = Gate(id);

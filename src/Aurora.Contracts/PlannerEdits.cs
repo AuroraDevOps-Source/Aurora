@@ -54,12 +54,12 @@ public static class PlannerEdits
         return 2 * 6371 * Math.Asin(Math.Min(1, Math.Sqrt(h)));
     }
 
-    public static string FleetDay(string json, DateOnly date, string departAt, string returnBy)
+    public static string FleetDay(string json, DateOnly date, string departAt, string returnBy, DateOnly? returnDate = null)
     {
         if (!TimeOnly.TryParseExact(departAt, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var depart) ||
             !TimeOnly.TryParseExact(returnBy, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var back))
             throw new FormatException("Enter truck departure and return times as HH:mm.");
-        if (depart == back) throw new FormatException("Trucks must return at a different time than they depart.");
+        if (depart == back && !(returnDate>date)) throw new FormatException("Trucks must return at a different time than they depart.");
         var root = RoutingInput.Parse(json);
         var trucks = RoutingInput.Items(root["vehicles"]).Concat(RoutingInput.Items(root["reporting"]?["unavailableVehicles"])).ToArray();
         if (trucks.Length == 0) throw new FormatException("There are no trucks in this plan.");
@@ -68,7 +68,7 @@ public static class PlannerEdits
             var offset = RoutingInput.Time(truck["start"]?["earliestStartTime"])?.Offset
                 ?? throw new FormatException($"Truck {RoutingInput.Text(truck["id"])} has no dated shift to take its UTC offset from.");
             var start = new DateTimeOffset(date.ToDateTime(depart), offset);
-            var end = new DateTimeOffset((back > depart ? date : date.AddDays(1)).ToDateTime(back), offset);
+            var end = new DateTimeOffset((returnDate??(back > depart ? date : date.AddDays(1))).ToDateTime(back), offset);
             truck["start"]!["earliestStartTime"] = start.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
             truck["end"]!["latestEndTime"] = end.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
         }
@@ -87,12 +87,12 @@ public static class PlannerEdits
     public static string Appointment(string json, string id, string? start, string? end, bool confirmed, double? serviceMinutes, bool clear, bool replaceNativeWindows = false)
     {
         var root = RoutingInput.Parse(json);
-        var order = RoutingInput.Items(root["orders"]?["deliveries"]).SingleOrDefault(x => RoutingInput.Text(x["id"]) == id)
+        var order = RoutingInput.Orders(root).SingleOrDefault(x => RoutingInput.Text(x["id"]) == id)
             ?? throw new FormatException("Choose an order from this plan.");
         if (replaceNativeWindows)
         {
             if (root["routes"] is JsonArray { Count: > 0 }) throw new FormatException("Edit appointments on a fresh delivery request without preassigned routes.");
-            var delivery = order["delivery"] as JsonObject ?? throw new FormatException("This order has no delivery task.");
+            var delivery = RoutingInput.CustomerTask(order) ?? throw new FormatException("This order has no delivery task.");
             var locations = root["locations"] as JsonArray ?? throw new FormatException("The plan needs locations.");
             var oldId = RoutingInput.Text(delivery["locationId"]);
             var location = locations.OfType<JsonObject>().SingleOrDefault(x => RoutingInput.Text(x["id"]) == oldId) ?? throw new FormatException("The order's location was not found.");
@@ -121,7 +121,7 @@ public static class PlannerEdits
         if (serviceMinutes is not null)
         {
             if (!double.IsFinite(serviceMinutes.Value) || serviceMinutes < 0 || serviceMinutes > 1440) throw new FormatException("Service time must be between 0 and 1,440 minutes.");
-            order["delivery"]!["duration"] = (int)Math.Round(serviceMinutes.Value * 60);
+            RoutingInput.CustomerTask(order)!["duration"] = (int)Math.Round(serviceMinutes.Value * 60);
         }
         if (clear)
         {

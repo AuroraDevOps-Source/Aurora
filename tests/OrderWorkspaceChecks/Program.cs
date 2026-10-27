@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using Aurora.Contracts;
 using Aurora.Modules.Routing;
 using Aurora.Modules.Routing.Optimization;
@@ -220,6 +221,16 @@ if(connection is not null)
  Check(!(await customers.List(default)).Any(c=>c.Id==savedCustomer.Id),"customer delete persists");
  if(args.Length>0) { await store.Import(new("Desktop appointment file",File.ReadAllText(args[0])),default); var desktop=(await store.Sources(default)).Single(s=>s.Name=="Desktop appointment file"); Check((await store.Orders(desktop.Id,null,null,null,default)).Count()==100,"all 100 desktop orders import with dates"); }
 }
+
+var pickupInput=RoutingInput.Parse(json);
+var pickup=pickupInput["orders"]!["deliveries"]!.AsArray()[0]!.AsObject();
+pickupInput["orders"]!["deliveries"]!.AsArray().Remove(pickup);
+pickup["pickup"]=pickup["delivery"]!.DeepClone();pickup.Remove("delivery");
+pickupInput["orders"]!["pickups"]=new JsonArray(pickup);
+var pickupKey=RoutingInput.Text(pickup["id"])!;
+Check(OrderWorkspace.OrderIds(pickupInput.ToJsonString()).Contains(pickupKey),"pickup identity participates in workspace selection");
+var pickupSelection=RoutingInput.Parse(OrderWorkspace.SelectOrders(pickupInput.ToJsonString(),[pickupKey]));
+Check(RoutingInput.Items(pickupSelection["orders"]?["pickups"]).Count()==1 && !RoutingInput.Items(pickupSelection["orders"]?["deliveries"]).Any(),"pickup selection keeps its task and removes unselected deliveries");
 Console.WriteLine($"{count} order workspace checks passed.");
 sealed record TestTenant(Guid Id) : ITenantContext { public Guid? TenantIdOrNull=>Id;public Guid? UserIdOrNull=>Guid.Empty; }
 

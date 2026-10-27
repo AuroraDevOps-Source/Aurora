@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using Aurora.Modules.Routing;
 using Aurora.Contracts;
 using Aurora.Modules.Routing.Optimization;
@@ -98,6 +99,25 @@ Check(ManifestReportExtractor.ExtractPtv(response.ToJsonString(), RoutingInput.P
 var assigned = RoutingInput.Parse(json);
 assigned["routes"] = JsonNode.Parse("""[{"vehicleId":"TEST_TRUCK_1","stops":[]}]""");
 Reject(() => RoutingInput.Prepare(assigned.ToJsonString()), "preassigned route constraints cannot be silently changed by appointment import");
+
+foreach(var profile in EquipmentRoutingProfiles.Choices.Keys)
+{
+    EquipmentRoutingProfiles.Validate(profile);
+    var fleet=FirebirdRoutingSource.MapFleet([new(){NativeId=901,Unit="PROFILE-TRUCK",Description="Test vehicle",Terminal="TEST",Weight=12000,Cubes=1700,PerHour=25,PerMile=1.609344}],"-06:00");
+    fleet.Types[0].RoutingProfile=profile;
+    var profileRequest=RoutingInput.Parse(json);
+    profileRequest["reporting"]!["terminal"]="TEST";
+    var built=FleetPlanning.Build(profileRequest.ToJsonString(),fleet);
+    var rebuilt=RoutingInput.Parse(FleetPlanning.ApplySavedFleet(built,fleet,"TEST"));
+    rebuilt["vehicles"]![0]!["routing"]!["profile"]="CLIENT-OVERRIDE";
+    var trusted=FleetPlanning.ApplySavedFleet(rebuilt.ToJsonString(),fleet,"TEST");
+    var outgoing=RoutingInput.Parse(ManifestReportExtractor.RemoveReportingSidecar(RoutingInput.Prepare(trusted)));
+    var vehicle=RoutingInput.Items(outgoing["vehicles"]).Single();
+    Check(RoutingInput.Text(vehicle["routing"]?["profile"])==profile,$"saved profile reaches PTV and overrides client edits: {profile}");
+    Check(vehicle["costs"]!["perHour"]!.GetValue<double>()==25 && vehicle["costs"]!["perKilometer"]!.GetValue<double>()==1 &&
+        RoutingInput.Items(vehicle["constraints"]?["maximumLoads"]).Any(l=>RoutingInput.Text(l["dimension"])=="weight" && l["value"]!.GetValue<double>()==12000),"profile preserves capacity and costs");
+}
+Reject(()=>EquipmentRoutingProfiles.Validate("invented-profile"),"unsupported profile rejected");
 Console.WriteLine($"{count} routing checks passed.");
 
 var draft = Aurora.Client.RoutingDraft.Read(json);
@@ -363,11 +383,11 @@ ont.OutboundRoutes=[new(){DestinationTerminalId=finalTerminal.Id,ViaTerminalId=c
 var consolidationNetwork = new[] {ont,consolidation,finalTerminal};
 var outboundOrder = new TmsOrder {SourceId=groupSource,Id="CONSOL-1",PostalCode="90044",DeliverToNodeId=finalTerminal.Id};
 var inboundGroup=PlanningBatches.GroupPlans(new(groupSource,[outboundOrder.Id]),[outboundOrder],ont,consolidationNetwork).Single();
-Check(inboundGroup.Batch==PlanningBatch.Consolidation && inboundGroup.ToTerminalId==consolidation.Id,"freight routes via consolidation terminal even inside the same region");
+Check(inboundGroup.Batch==PlanningBatch.LineHaul && inboundGroup.ToTerminalId==consolidation.Id,"terminal transfer stays line haul regardless of consolidation terminal flag");
 var onwardGroup=PlanningBatches.GroupPlans(new(groupSource,[outboundOrder.Id]),[outboundOrder],consolidation,consolidationNetwork).Single();
 Check(onwardGroup.Batch==PlanningBatch.LineHaul && onwardGroup.ToTerminalId==finalTerminal.Id,"received freight leaves consolidation for its next terminal without looping");
 Check(PlanningBatches.Classify(new TmsOrder{Id="LOCAL-FINAL",PostalCode="90044",DeliverToNodeId=finalTerminal.Id},finalTerminal,consolidationNetwork).Batch==PlanningBatch.General,"at final terminal freight becomes local delivery");
-Check(PlanningBatches.Classify(new TmsOrder{Id="DIRECT-CON",PostalCode="91761",DeliverToNodeId=consolidation.Id},ont,consolidationNetwork).Batch==PlanningBatch.Consolidation,"direct transfer into marked terminal is consolidation");
+Check(PlanningBatches.Classify(new TmsOrder{Id="DIRECT-CON",PostalCode="91761",DeliverToNodeId=consolidation.Id},ont,consolidationNetwork).Batch==PlanningBatch.LineHaul,"direct transfer into marked terminal stays line haul");
 var otherOrigin=Node("OTHER","10001","EAST","","100",40);
 var laneNetwork=new[]{ont,otherOrigin,consolidation,finalTerminal,lax};
 Check(PlanningBatches.Classify(outboundOrder,otherOrigin,laneNetwork).DestinationNodeId==finalTerminal.Id,"same destination can go direct from a different origin");
@@ -391,8 +411,8 @@ ont.OutboundRoutes[0].ViaTerminalId=consolidation.Id;
 otherOrigin.OutboundRoutes=[];
 ont.OutboundRoutes=[];
 var consolidationJson=LineHaulPlanning.Prepare(json,ont,consolidation);
-Check(RoutingInput.Text(RoutingInput.Parse(consolidationJson)["reporting"]?["transferKind"])==PlanningBatch.Consolidation,"consolidation type is stored in the saved transfer request");
-Check(RoutingInput.Text(RoutingInput.Parse(LineHaulPlanning.RestoreDestination(consolidationJson,json))["reporting"]?["transferKind"])==PlanningBatch.Consolidation,"reoptimization restores saved consolidation type");
+Check(RoutingInput.Text(RoutingInput.Parse(consolidationJson)["reporting"]?["transferKind"])==PlanningBatch.LineHaul,"terminal setting does not create a consolidation manifest");
+Check(RoutingInput.Text(RoutingInput.Parse(LineHaulPlanning.RestoreDestination(consolidationJson,json))["reporting"]?["transferKind"])==PlanningBatch.LineHaul,"reoptimization restores saved transfer type");
 Check(RoutingInput.Text(RoutingInput.Items(redirected["orders"]!["deliveries"]).Single(d => RoutingInput.Text(d["id"]) == "TEST_NORTH")["delivery"]!["locationId"]) == "NODE-LAX"
     && RoutingInput.Items(redirected["locations"]).Any(l => RoutingInput.Text(l["id"]) == "NODE-LAX")
     && RoutingInput.Text(redirected["reporting"]!["orders"]!["TEST_NORTH"]!["deliverToNode"]) == "LAX", "redirected order is delivered to the node location");
@@ -526,4 +546,72 @@ Check(PlanOrderDecisions.PreserveLeftOff(json, routedLeftOffFixture) == json,
 var removedAndAdded = PlanOrderDecisions.PreserveLeftOff(PlanOrderDecisions.Set(oneAdded, "TEST_NORTH", PlanOrderDecisions.Excluded), routedLeftOffFixture);
 Check(RoutingInput.Items(RoutingInput.Parse(PlanOrderDecisions.Prepare(removedAndAdded))["orders"]?["deliveries"]).Select(o => RoutingInput.Text(o["id"])).SequenceEqual(["TEST_EARLY"]),
     "explicit removals remain excluded alongside unselected left-off orders");
+
+// A pickup retains its own task semantics throughout editing and reoptimization.
+var mixedPickup=RoutingInput.Parse(json);
+var collected=mixedPickup["orders"]!["deliveries"]!.AsArray()[0]!.AsObject();
+mixedPickup["orders"]!["deliveries"]!.AsArray().Remove(collected);
+collected["pickup"]=collected["delivery"]!.DeepClone();collected.Remove("delivery");
+mixedPickup["orders"]!["pickups"]=new JsonArray(collected);
+var mixedJson=mixedPickup.ToJsonString();
+var pickupId=RoutingInput.Text(collected["id"])!;
+Check(RoutingInput.Orders(mixedPickup).Count()==3,"mixed input includes pickups and deliveries");
+var pickupPrepared=RoutingInput.Parse(RoutingInput.Prepare(mixedJson));
+Check(RoutingInput.CustomerTask(RoutingInput.Orders(pickupPrepared).Single(o=>RoutingInput.Text(o["id"])==pickupId))!["timeSlotIds"] is JsonArray,"pickup appointment reaches its pickup task");
+Check(Aurora.Client.RoutingDraft.Read(mixedJson).Orders==3,"planner includes pickup in order count");
+var pickupEdited=RoutingInput.Parse(PlannerEdits.Appointment(mixedJson,pickupId,null,null,false,22,true));
+Check(RoutingInput.Orders(pickupEdited).Single(o=>RoutingInput.Text(o["id"])==pickupId)["pickup"]!["duration"]!.GetValue<int>()==1320,"pickup service time edits loading task");
+var excludedPickup=RoutingInput.Parse(PlanOrderDecisions.Prepare(PlanOrderDecisions.Set(mixedJson,pickupId,PlanOrderDecisions.Excluded)));
+Check(!RoutingInput.Orders(excludedPickup).Any(o=>RoutingInput.Text(o["id"])==pickupId) && RoutingInput.Orders(excludedPickup).Count()==2,"excluding a pickup preserves deliveries");
+Check(PickupCapacity.Peak([(false,80d,8d),(true,80d,8d)])==(80d,8d),"delivery frees capacity for later pickup");
+Check(PickupCapacity.Peak([(true,80d,8d),(false,80d,8d)])==(160d,16d),"pickup before delivery counts combined onboard load");
+Check(PickupCapacity.Peak([(true,30d,3d),(true,40d,4d)])==(70d,7d),"pickup-only route accumulates freight");
+var pickupReused=RoutingInput.Parse(reusable.ToJsonString());
+foreach(var task in RoutingInput.Items(pickupReused["routes"]).SelectMany(r=>RoutingInput.Items(r["stops"])).SelectMany(st=>RoutingInput.Items(st["appointments"])).SelectMany(a=>RoutingInput.Items(a["tasks"])).Where(t=>RoutingInput.Text(t["orderId"])==pickupId))
+{
+    var type=RoutingInput.Text(task["type"]);
+    task["type"]=type=="PICKUP"?"DELIVERY":"PICKUP";
+}
+var reusedPickup=RoutingInput.Parse(QuickUpdate.Prepare(RoutingInput.Prepare(mixedJson),pickupReused.ToJsonString()));
+Check(RoutingInput.Items(reusedPickup["orders"]?["pickups"]).Count()==1,"quick update retains pickup order type");
+var pickupOnly=RoutingInput.Parse(mixedJson);pickupOnly["orders"]!["deliveries"]=new JsonArray();
+Check(Aurora.Client.RoutingDraft.Read(RoutingInput.Prepare(pickupOnly.ToJsonString())).Orders==1,"pickup-only planning accepts appointment inputs");
+
+
+var pickupResponse=RoutingInput.Parse("""
+{"status":"SUCCEEDED","routes":[{"vehicleId":"TEST_TRUCK_1","start":{"departure":"2030-01-01T08:00:00-06:00"},"stops":[
+{"locationId":"NORTH","appointments":[{"tasks":[{"orderId":"TEST_NORTH","type":"PICKUP"}]}]},
+{"locationId":"DEPOT","appointments":[{"tasks":[{"orderId":"TEST_NORTH","type":"DELIVERY","depotId":"TEST_DEPOT"}]}]}
+],"end":{"locationId":"DEPOT","arrival":"2030-01-01T12:00:00-06:00"}}],"unscheduledOrders":[]}
+""");
+var pickupSeed=RoutingInput.Parse(QuickUpdate.Prepare(RoutingInput.Prepare(mixedJson),pickupResponse.ToJsonString()));
+var pickupSeedTasks=RoutingInput.Items(pickupSeed["routes"]).SelectMany(r=>RoutingInput.Items(r["tasks"])).ToArray();
+Check(pickupSeedTasks.Length==2 && RoutingInput.Text(pickupSeedTasks[0]["type"])=="PICKUP" && pickupSeedTasks[0]["depotId"] is null,"quick update retains customer pickup as customer task");
+Check(RoutingInput.Text(pickupSeedTasks[1]["type"])=="DELIVERY" && RoutingInput.Text(pickupSeedTasks[1]["depotId"])=="TEST_DEPOT","quick update unloads pickup freight at depot");
+var pickupReport=ManifestReportExtractor.ExtractPtv(pickupResponse.ToJsonString(),mixedJson);
+Check(pickupReport.Routes["TEST_TRUCK_1"].Pros.Single().WorkType=="Pickup","route report labels pickup and omits depot unload duplicate");
+var pickupCustomer=PlanningCustomers.Read(mixedJson).Single(c=>c.OrderIds.Contains(pickupId));
+Check(pickupCustomer.Name.StartsWith("Pickup"),"appointment lookup distinguishes pickup customers");
+var returnRoute=new RouteSummaryDto("329",1,1,1,60,1,0,0,"102",3600,60,1,1,1,1,[new(pickupId,1,"Customer","Street","City","WV","",1,1,1,"",900,39,-80) {WorkType="Pickup"}],[new("DEPOT",39,-80,null,null,true,[])]);
+PickupPlanning.ValidateReturn(mixedJson,[returnRoute]);Check(true,"pickup route returning to depot accepted");
+Reject(()=>PickupPlanning.ValidateReturn(mixedJson,[returnRoute with {RouteStops=[new("NORTH",39,-80,null,null,false,[pickupId])]}]),"pickup route ending at customer rejected");
+var pickupNative=new Aurora.Integrations.Nova.FirebirdRoutingSource.SourceOrder{NativeId=123,StopKind="P"};
+Check(pickupNative.Id=="FB-P-123" && new Aurora.Integrations.Nova.FirebirdRoutingSource.SourceOrder{NativeId=123}.Id=="FB-123","pickup and delivery snapshots have separate identities");
+
+var customerPolicy=new CustomerPlanning{EstimatedCubesPerPiece=2.5m};
+Check(customerPolicy.PlanningCubes(12,4)==12 && customerPolicy.PlanningCubes(0,4)==10 && customerPolicy.PlanningCubes(null,null) is null,"customer estimates preserve actual cubes and require a piece count");
+Reject(()=>new CustomerPlanning{Consolidation=true}.Validate(),"consolidation requires both equipment capacities");
+Check(!ConsolidationCapacity.Fits(100,8,10,3,200,10)&&!ConsolidationCapacity.Fits(100,8,101,1,200,10),"either capacity can stop consolidation filling");
+var groupedInput="""{"locations":[{"id":"A","latitude":42,"longitude":-71},{"id":"B","latitude":42,"longitude":-71},{"id":"C","latitude":42,"longitude":-71,"stopProperties":{"timeSlots":[{"id":"LATER"}]}}],"orders":{"deliveries":[{"id":"1","delivery":{"locationId":"A"}},{"id":"2","delivery":{"locationId":"B"}},{"id":"3","delivery":{"locationId":"C"}}]},"reporting":{"orders":{"1":{"destinationKey":"STORE","keepTogether":true},"2":{"destinationKey":"STORE","keepTogether":true},"3":{"destinationKey":"STORE","keepTogether":true}}}}""";
+var customerGrouped=RoutingInput.Parse(CustomerPlanningRequest.GroupLocations(groupedInput));
+var customerTasks=RoutingInput.Orders(customerGrouped).Select(o=>RoutingInput.CustomerTask(o)!).ToArray();
+Check(customerTasks[0]["locationId"]!.ToString()==customerTasks[1]["locationId"]!.ToString()&&customerTasks[0]["locationId"]!.ToString()!=customerTasks[2]["locationId"]!.ToString(),"same destination groups compatible stops but preserves conflicting visit restrictions");
+Check(RoutingInput.Orders(customerGrouped).Count()==3&&customerGrouped["locations"]![0]!["stopProperties"]!["taskAggregation"]!.ToString()=="REQUIRED","grouping preserves individual orders and enforces requested aggregation");
+Check(JsonNode.DeepEquals(customerGrouped,RoutingInput.Parse(CustomerPlanningRequest.GroupLocations(customerGrouped.ToJsonString()))),"customer location grouping is idempotent");
+var multi=RoutingInput.Parse(MultiDayPlanning.Apply(json,new(2030,1,1),new(2030,1,3),"18:00",new(10,12,12)));
+Check(RoutingInput.Items(multi["vehicles"]).All(v=>v["end"]!["latestEndTime"]!.ToString().StartsWith("2030-01-03")&&v["routing"]!["trafficMode"]!.ToString()=="CONSTANT"&&v["breaks"]!["driving"]![0]!["maximumDrivingDuration"]!.GetValue<int>()==36000),"multi-day trips extend the horizon and set driving and rest limits");
+Reject(()=>MultiDayPlanning.Apply(json,new(2030,1,1),new(2030,1,16),"18:00",null),"oversized planning horizon rejected");
+var metadata=ManifestNotes.WithTripUntil(ManifestNotes.SetPlanningLock(ManifestNotes.WithConsolidation("Dispatch note",new("STORE","ADDR","VAN",200,20,true,[])),true),new(2030,1,3));
+metadata=ManifestNotes.Write(metadata,"Changed note");
+Check(ManifestNotes.TripUntil(metadata)==new DateOnly(2030,1,3)&&ManifestNotes.Consolidation(metadata)?.Held==true&&ManifestNotes.OptimizationLocked(metadata)&&ManifestNotes.Read(metadata)=="Changed note","note edits preserve trip reservation and consolidation metadata");
 Console.WriteLine($"{count} routing checks passed including scoped manual additions.");

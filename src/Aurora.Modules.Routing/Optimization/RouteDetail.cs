@@ -1,3 +1,4 @@
+using Aurora.Contracts;
 using System.Text.Json.Nodes;
 using static Aurora.Modules.Routing.Optimization.RunSummary;
 
@@ -119,7 +120,7 @@ public static class RouteDetailExtractor
             // GoogleLvrTranslator builds shipments/vehicles by iterating these same two arrays in
             // file order and copying each id into "label" 1:1, so a response's shipmentIndex/
             // vehicleIndex is a safe positional fallback into them when shipmentLabel is missing.
-            var sourceDeliveryIds = Items(request["orders"]?["deliveries"]).Select(o => Str(o["id"])).ToList();
+            var sourceDeliveryIds = RoutingInput.Orders(request).Select(o => Str(o["id"])).ToList();
             var sourceVehicles = Items(request["vehicles"]).ToList();
 
             var routes = new List<RouteDetail>();
@@ -209,9 +210,9 @@ public static class RouteDetailExtractor
                 depotIds.Add(locId);
 
         var orderLocation = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var order in Items(request["orders"]?["deliveries"]))
+        foreach (var order in RoutingInput.Orders(request))
             if (Str(order["id"]) is string id)
-                orderLocation[id] = Str(order["delivery"]?["locationId"]);
+                orderLocation[id] = Str(RoutingInput.CustomerTask(order)?["locationId"]);
 
         return (coords, depotIds, orderLocation);
     }

@@ -63,6 +63,24 @@ public sealed class PreviewHttp : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         var apiPath = request.RequestUri!.AbsolutePath;
+        if(apiPath=="/api/v1/aurora/firebird/terminals") return new(HttpStatusCode.OK){Content=JsonContent.Create(Nodes)};
+        if(apiPath.StartsWith("/api/v1/aurora/firebird/orders/900") && apiPath.EndsWith("/routing"))
+            return new(HttpStatusCode.OK){Content=JsonContent.Create(new NovaOrderRouting(null,0))};
+        if(apiPath.StartsWith("/api/v1/aurora/firebird/records/orders/900"))
+        {
+            var id=long.Parse(apiPath.Split('/').Last());
+            string[] keys=["OPS_NAME","OPS_ADDR1","OPS_ADDR2","OPS_ADDR3","OPS_CITY","OPS_STATE","OPS_ZIP","OPS_COUNTRY","OPS_CONTACT","OPS_PHONE","OPS_CONTACT_EMAIL","OPS_ACCTID"];
+            var fields=keys.Select(k=>new NovaField(k,k,"text",150,false,k=="OPS_NAME"?$"Customer {id}":k=="OPS_CITY"?"Kansas City":"")).ToArray();
+            var doc=new NovaRecordDocument(id,"Synthetic order","preview",[new("header","Order",[new("PBNUM","PRO","text",20,false,id.ToString()),new("PB_LOCATION","Terminal","text",12,false,"KC")]),new("stop-1","Consignee / delivery",fields)]);
+            if(request.Method==HttpMethod.Put)
+            {
+                var edit=(await request.Content!.ReadFromJsonAsync<NovaRecordEdit>(ct))!;
+                if(edit.Values["stop-1"]["OPS_NAME"]!=$"Customer {id}") throw new Exception("Untouched mixed name was overwritten");
+                if(edit.Values["stop-1"]["OPS_CITY"]!="Chicago") throw new Exception("Edited city was not saved");
+            }
+            return new(HttpStatusCode.OK){Content=JsonContent.Create(doc)};
+        }
+
         if(apiPath=="/api/v1/aurora/firebird/masters/terminals")
             return new(HttpStatusCode.OK){Content=JsonContent.Create(new NovaMasterPage([new("KC",terminalPreview.Fields.Single(f=>f.Key=="LM_NAME").Value!,"Kansas City")],false))};
         if(apiPath=="/api/v1/aurora/firebird/masters/terminals/KC")

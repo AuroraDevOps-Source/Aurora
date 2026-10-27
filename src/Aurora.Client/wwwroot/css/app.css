@@ -237,25 +237,16 @@ code { color: var(--ink); }
 .order-dialog .order-party .address-copy { margin-top:6px; gap:8px; }
 .order-dialog .order-section-title { margin:6px 0 3px; }
 .order-dialog .manifest-edit-actions { margin-top:6px; gap:8px; }
+.order-dialog .order-summary-panel,.order-dialog .order-party,.order-dialog .order-freight-panel { background:#f7f9fc; border:1px solid #dce4ee; border-radius:6px; }
+.order-dialog .order-summary-panel,.order-dialog .order-freight-panel { padding:8px 10px; }
+.order-dialog .order-summary-panel { margin-bottom:10px; }
+.order-dialog .order-freight-panel { margin-top:10px; }
+.order-dialog .order-freight-panel .order-section-title { margin:0 0 6px; color:#344c6b; }
+.order-dialog .order-party legend { color:#344c6b; }
+.order-dialog .order-summary-panel .customer-dropdown,.order-dialog .order-freight-panel .manifest-edit-grid { margin-bottom:0; }
+.order-dialog input:not(:disabled),.order-dialog select:not(:disabled),.order-dialog textarea:not(:disabled) { background:#fff; }
+.order-dialog .manifest-edit-actions { justify-content:flex-end; margin-top:10px; }
 
-/* Optimization setup: order filters and one truck time window, then Start opens the planner. */
-.tms-workspace.tms-route-setup { height:calc(100dvh - var(--mud-appbar-height, 48px)); min-height:0; }
-.tms-route-setup > .tms-main { display:flex; flex-direction:column; min-height:0; overflow:auto; padding-bottom:14px; }
-.tms-route-setup .planner-header { flex-shrink:0; }
-.tms-route-setup .route-setup { display:flex; flex-direction:column; flex:1; min-height:240px; margin-bottom:0; gap:14px; }
-.route-setup > .tms-crud-grid { flex:1; min-height:0; max-height:none; overflow:auto; }
-.route-setup-form { flex-shrink:0; display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px 20px; }
-.route-setup-group { display:flex; align-items:flex-end; gap:8px 10px; min-width:0; margin:0; padding:0; border:0; }
-.route-setup-group + .route-setup-group { padding-left:20px; border-left:1px solid var(--line); }
-.route-setup-group legend { padding:0 0 4px; color:var(--blue-dark); font-size:var(--fs-xs); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
-.route-setup-group .field { width:140px; }
-.route-setup-group .route-setup-terminal { width:200px; }
-.route-setup-group .route-setup-time { width:120px; }
-.route-setup-group select, .route-setup-group input { width:100%; }
-.route-setup-start { margin-left:auto; min-width:100px; }
-.route-setup-start .mdi { font-size:16px; line-height:1; }
-.route-setup-skipped td { color:#94a3b8; }
-@media(max-width:700px) { .route-setup-group { flex-wrap:wrap; } .route-setup-group + .route-setup-group { padding-left:0; border-left:0; } .route-setup-start { margin-left:0; } }
 
 /* Status pills: tone tracks the lifecycle (queued, waiting, planned, moving, done, stopped). */
 .status-badge { display:inline-flex; align-items:center; gap:5px; padding:0 8px 0 7px; border-radius:999px; background:#eef2f6; color:#475569; font-size:var(--fs-xs); font-weight:600; line-height:20px; white-space:nowrap; }
@@ -320,8 +311,6 @@ code { color: var(--ink); }
 .route-open-plan { background:#fff8e6; border:1px solid #e9cd88; padding:10px 12px; border-radius:6px; }
 .route-open-plan span { flex:1; min-width:200px; }
 .route-order-selection { font-size:var(--fs-sm); }
-.route-setup input[type=checkbox] { width:16px; height:16px; accent-color:var(--blue); cursor:pointer; }
-.route-setup input[type=checkbox]:disabled { cursor:default; }
 
 .planner-time.planner-time-automatic { grid-template-columns:minmax(0,1fr); }
 
@@ -338,7 +327,44 @@ code { color: var(--ink); }
 .manifest-table .editable-grid-row:not([aria-disabled=true]):hover > td { background:#eef4fc; }
 .manifest-table .editable-grid-row:focus-visible { outline:2px solid #2363eb; outline-offset:-2px; }
 .manifest-table .data-issue-column { width:36px; min-width:36px; padding:3px 6px; text-align:center; }
+.dispatch-dialog.data-issue-dialog { width:min(560px,calc(100vw - 32px)); text-align:left; }
 /* Live optimization choices use the same accessible modal as other editors. */
 .optimization-results-dialog { width: min(1000px, 94vw); }
 .optimization-results-dialog .manifest-table-wrap { max-height: 55vh; overflow: auto; }
 .optimization-results-dialog th { position: sticky; top: 0; background: #eef3fa; }
+
+.map-heading-actions { display:flex; align-items:center; gap:8px; }
+.map-heading .map-popout-button { width:auto; padding:0 10px; white-space:nowrap; }
+body:has(.map-popout) .aurora-appbar, body:has(.map-popout) .tms-workspace > aside { display:none !important; }
+body:has(.map-popout) .mud-main-content, body:has(.map-popout) .tms-main { padding:0 !important; margin:0 !important; }
+body:has(.map-popout) .tms-workspace { display:block; }
+.map-popout.planner-page { margin:0; padding:12px; max-width:none; }
+.map-popout > :not(.results-page):not(.popout-status) { display:none !important; }
+.map-popout .planning-split-grid { display:block; }
+.map-popout .content-panel, .map-popout .planner-divider { display:none !important; }
+.map-popout .map-panel { position:static; width:100%; min-height:calc(100vh - 24px); }
+.map-popout #route-map { height:calc(100vh - 260px); min-height:300px; }
+
+/* Orders fill the viewport, with one scrollable toolbar above the grid. */
+.tms-workspace.tms-orders-page { height:calc(100dvh - var(--mud-appbar-height, 48px)); min-height:0; }
+.tms-orders-page > .tms-main { display:flex; flex-direction:column; min-height:0; overflow:hidden; padding-bottom:14px; }
+.tms-orders-page .planner-header { flex-shrink:0; }
+.tms-orders-page .orders-card { display:flex; flex-direction:column; flex:1; min-height:0; margin-bottom:0; }
+.orders-card > .tms-crud-grid { flex:1; min-height:0; max-height:none; overflow:auto; }
+.orders-card .orders-toolbar { flex-shrink:0; flex-wrap:nowrap; align-items:flex-end; overflow-x:auto; padding-bottom:8px; margin-bottom:0; }
+.orders-card .orders-toolbar .field { flex:0 0 130px; min-width:130px; margin:0; }
+.orders-card .orders-toolbar .field:has(input[type=datetime-local]) { flex:0 0 180px; }
+.orders-card .orders-toolbar .order-search { flex:1 0 180px; min-width:180px; max-width:none; }
+.orders-toolbar > button,.orders-toolbar > a { flex-shrink:0; white-space:nowrap; }
+.orders-count { display:flex; flex-shrink:0; gap:12px; padding:4px 0 8px; font-size:13px; }
+
+.orders-schedule-dialog { width:min(460px,calc(100vw - 24px)); }
+.orders-schedule-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:0; padding:0; border:0; }
+.orders-schedule-fields .field { min-width:0; margin:0; }
+.orders-schedule-fields input { width:100%; min-width:0; }
+
+.orders-open-plan { display:flex; flex-shrink:0; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 10px; margin:4px 0; border:1px solid #ead5a7; border-radius:6px; background:#fff8e8; font-size:13px; }
+.orders-open-plan > span { margin-right:auto; }
+.orders-open-plan > a,.orders-open-plan > button { flex:none; white-space:nowrap; }
+
+.order-coordinates { grid-column:1/-1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }

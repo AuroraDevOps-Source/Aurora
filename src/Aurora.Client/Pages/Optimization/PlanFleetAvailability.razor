@@ -1,5 +1,11 @@
+@inject HttpClient Http
 @using System.Text.Json.Nodes
 
+@if(RoutingInput.Text(_root["reporting"]?["driverCostBasis"]) is {} basis)
+{
+    <p class="preview-footnote">Choose a driver and working hours for each available truck. Costs include equipment and driver labor.</p>
+    @foreach(var reason in (_root["reporting"]?["driverExclusions"] as JsonArray ?? new JsonArray())) { <p class="preview-footnote">@reason</p> }
+}
 <div class="availability-list">
     @foreach (var truck in _trucks)
     {
@@ -8,6 +14,20 @@
                 <label class="switch-row truck-available"><input type="checkbox" aria-label="@($"{truck.Id} available")" checked="@truck.Available" @onchange="e => Toggle(truck, (bool)e.Value!)" /><span></span></label>
                 <button class="setup-row-toggle" aria-expanded="@(_expanded == truck.Id)" @onclick="()=>_expanded = _expanded == truck.Id ? null : truck.Id"><span>@(_expanded == truck.Id ? "▾" : "▸")</span><strong>@truck.Id</strong><span class="row-description">@Hours(truck.Start) – @Hours(truck.End)</span><small>@(truck.Available ? "Available" : "Not today")</small></button>
             </div>
+            @if(RoutingInput.Text(_root["reporting"]?["driverCostBasis"]) is not null)
+            {
+                <div class="driver-plan-fields">
+                    <label class="field">Driver<select value="@DriverValue(truck,"id")" disabled="@(!truck.Available || _drivers is null)" @onchange="e=>ChooseDriver(truck,e.Value?.ToString())">
+                        <option value="">Select driver</option>
+                        @foreach(var d in DriverOptions)
+                        {<option value="@d.Id" disabled="@AssignedElsewhere(d.Id,truck.Id)">@d.Number - @d.Name</option>}
+                    </select></label>
+                    <label class="field">Driver shift start<input type="time" value="@DriverValue(truck,"shiftStart")" disabled="@(!truck.Available)" @onchange='e=>Shift(truck,"shiftStart",e.Value?.ToString())' /></label>
+                    <label class="field">Driver shift end<input type="time" value="@DriverValue(truck,"shiftEnd")" disabled="@(!truck.Available)" @onchange='e=>Shift(truck,"shiftEnd",e.Value?.ToString())' /></label>
+                </div>
+                @if(_root["reporting"]?["drivers"]?[truck.Id] is {} driver && driver["addedLaborPerHour"] is not null)
+                {<p class="preview-footnote">Equipment @driver["equipmentPerHour"] / hour + added labor @driver["addedLaborPerHour"] / hour</p>}
+            }
             @if (_expanded == truck.Id)
             {
                 <div class="setup-row-editor truck-hours"><PlannerTime Label="Departure" Value="@truck.Start" AutomaticOffset="true" ValueChanged="v => ChangeTime(truck, v, true)" /><PlannerTime Label="Latest return" Value="@truck.End" AutomaticOffset="true" ValueChanged="v => ChangeTime(truck, v, false)" /></div>
@@ -15,12 +35,48 @@
         </div>
     }
 </div>
+@if(_driverError is not null){<p class="alert" role="alert">@_driverError <button class="outline-button" @onclick="LoadDrivers">Retry</button></p>}
 @if (_error is not null) { <p class="alert" role="alert">@RoutingDisplayText.Clean(_error)</p> }
 <p class="preview-footnote">@_trucks.Count(t => t.Available) available of @_trucks.Count trucks. Changes apply to this plan only.</p>
 
 @code {
     [Parameter] public string SourceJson { get; set; } = "{}";
     [Parameter] public EventCallback<string> OnApply { get; set; }
+    private DriverDirectory? _drivers;
+    private string? _driverError;
+    private IEnumerable<NovaDriver> DriverOptions=>(_drivers?.Drivers??[]).Where(d=>d.Terminal==RoutingInput.Text(_root["reporting"]?["terminal"]));
+    protected override async Task OnInitializedAsync()=>await LoadDrivers();
+    private async Task LoadDrivers()
+    {
+        try{using var response=await Http.GetAsync("api/v1/aurora/firebird/drivers");await ApiResponse.Check(response);_drivers=await response.Content.ReadFromJsonAsync<DriverDirectory>();_driverError=null;}
+        catch(Exception ex) when(ex is HttpRequestException or FormatException or TaskCanceledException){_driverError="Driver choices could not be loaded. "+ex.Message;}
+    }
+    private string DriverValue(Truck truck,string key)=>RoutingInput.Text(_root["reporting"]?["drivers"]?[truck.Id]?[key])??"";
+    private bool AssignedElsewhere(long id,string unit)=>_trucks.Any(t=>t.Available && t.Id!=unit && DriverValue(t,"id")==id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    private JsonObject DriverBinding(Truck truck)
+    {
+        _root["reporting"]??=new JsonObject();_root["reporting"]!["drivers"]??=new JsonObject();
+        _root["reporting"]!["drivers"]![truck.Id]??=new JsonObject();
+        return _root["reporting"]!["drivers"]![truck.Id]!.AsObject();
+    }
+    private async Task ChooseDriver(Truck truck,string? value)
+    {
+        var binding=DriverBinding(truck);
+        var equipment=binding["equipmentPerHour"]?.GetValue<double>()??truck.Node["costs"]?["perHour"]?.GetValue<double>()??0;
+        var driver=DriverOptions.SingleOrDefault(d=>d.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)==value);
+        binding.Clear();binding["id"]=value;binding["equipmentPerHour"]=equipment;
+        if(driver is not null)
+        {
+            binding["shiftStart"]=Clock(truck.Start);
+            binding["shiftEnd"]=Clock(truck.End);
+            binding["name"]=driver.Name;binding["number"]=driver.Number;
+        }
+        var labor=(double)(driver?.PerHour??0);
+        binding["addedLaborPerHour"]=labor;truck.Node["costs"]??=new JsonObject();truck.Node["costs"]!["perHour"]=equipment+labor;
+        await Save();
+    }
+    private static string Clock(string value)=>DateTimeOffset.TryParse(value,out var stamp)?stamp.ToString("HH:mm",System.Globalization.CultureInfo.InvariantCulture):"";
+    private async Task Shift(Truck truck,string key,string? value){DriverBinding(truck)[key]=value;await Save();}
     private string? _loaded, _error, _expanded;
     private static string Hours(string value) => DateTimeOffset.TryParse(value, out var time) ? time.ToString("h:mm tt") : value;
     private JsonObject _root = new();

@@ -1,3 +1,4 @@
+using Aurora.Contracts;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -62,7 +63,7 @@ public static class RunSummary
 
         var locations = (root["locations"] as JsonArray)?.Count ?? 0;
         var depots = (root["depots"] as JsonArray)?.Count ?? 0;
-        var deliveries = (root["orders"]?["deliveries"] as JsonArray)?.Where(n => n is not null).Select(n => n!).ToList() ?? [];
+        var deliveries = RoutingInput.Orders(root).Cast<JsonNode>().ToList();
         var vehicles = (root["vehicles"] as JsonArray)?.Where(n => n is not null).Select(n => n!).ToList() ?? [];
 
         lines.Add($"  orders            {deliveries.Count:N0}");
@@ -92,7 +93,7 @@ public static class RunSummary
         }
 
         var service = deliveries
-            .Select(d => (int)Dbl(d["delivery"]?["duration"]) / 60)
+            .Select(d => (int)Dbl(RoutingInput.CustomerTask(d as JsonObject)?["duration"]) / 60)
             .GroupBy(m => m).OrderByDescending(g => g.Count()).ToList();
         if (service.Count == 1)
             lines.Add($"  service           {service[0].Key} min/order");
@@ -159,7 +160,7 @@ public static class RunSummary
         {
             if (JsonNode.Parse(requestJson) is not JsonObject root) return (0, 0, 0, null, null, false);
 
-            var orders = (root["orders"]?["deliveries"] as JsonArray)?.Count(n => n is not null) ?? 0;
+            var orders = RoutingInput.Orders(root).Count();
             var locations = (root["locations"] as JsonArray)?.Count ?? 0;
             var vehicles = (root["vehicles"] as JsonArray)?.Where(n => n is not null).Select(n => n!).ToList() ?? [];
             var mixed = vehicles.Select(Spec).Distinct().Count() > 1;

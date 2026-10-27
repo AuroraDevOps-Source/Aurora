@@ -11,7 +11,7 @@
 {
 <section class="planning-card">
 
-<div class="tms-filters"><label class="field">From date<InputDate @bind-Value="_from" /></label><label class="field">To date<InputDate @bind-Value="_to" /></label><label class="field">Status<select @bind="_status"><option value="">All statuses</option>@foreach(var s in TmsManifest.Statuses){<option>@s</option>}</select></label><label class="field">Search<input @bind="_search" placeholder="Manifest, truck, carrier, bill to" /></label><button class="outline-button" @onclick="Load" disabled="@(_busy || _editing)">Apply filters / Refresh</button><button class="text-button" @onclick="Clear" disabled="@(_busy || _editing)">Clear filters</button></div>
+<div class="tms-filters"><label class="field">From date<InputDate @bind-Value="_from" /></label><label class="field">To date<InputDate @bind-Value="_to" /></label><label class="field">Status<select @bind="_status"><option value="">All statuses</option>@foreach(var s in new[]{"Planning","Dispatched","En Route","Complete"}){<option>@s</option>}</select></label><label class="field">Search<input @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyDown" title="Press Enter to search" placeholder="Manifest, truck, carrier, bill to" /></label></div>
 
 <div class="tms-selection"><strong>@Visible.Count() manifests</strong><button class="primary-button" @onclick="New" disabled="@(_editing || _busy)">Add manifest</button></div>
 
@@ -26,8 +26,8 @@
 
 @if (IsScreen) { <div class="manifest-screen-nav"><button class="text-button" disabled="@_busy" @onclick="Back">← Back to manifests</button></div> }
 @if (IsScreen && _selected is null && _busy) { <p role="status">Loading manifest…</p> }
-@if(_selected is {} m){<section class="planning-card manifest-screen">
-<div class="tms-selection"><div class="manifest-screen-title"><h2>@(_new?"Add manifest":"Manifest · "+m.Number)</h2>@if(!_new){<span class="status-badge status-@(m.Status.Replace(" ", "").ToLowerInvariant())">@m.Status</span>}</div>@if(!_new && !_editing){<button class="outline-button" @onclick="EditDetails" disabled="@_busy">Edit manifest</button><button class="text-button" @onclick="()=>_delete=true" disabled="@(!m.Editable || _busy)">Delete manifest</button>}</div>
+@if(_selected is {} m){@if(m.Details.SourceReadOnlyReason is {} reason){<p class="alert">@reason</p>}<section class="planning-card manifest-screen">
+<div class="tms-selection"><div class="manifest-screen-title"><h2>@(_new?"Add manifest":"Manifest · "+m.Number)</h2>@if(!_new){<span class="status-badge status-@(m.Status.Replace(" ", "").ToLowerInvariant())">@m.Status</span>}</div>@if(!_new && !_editing){<button class="outline-button" @onclick="EditDetails" disabled="@(_busy || m.Details.SourceReadOnlyReason is not null)">Edit manifest</button><button class="text-button" @onclick="()=>_delete=true" disabled="@(!m.Editable || _busy)">Delete manifest</button>}</div>
 @if(_delete){<div class="terminal-delete" role="alert"><span>Delete this manifest and return its orders to Ready to Route?</span><button class="primary-button" disabled="@_busy" @onclick="Delete">Confirm delete</button><button class="outline-button" @onclick="()=>_delete=false">Cancel</button></div>}
 
 <div class="planner-tabs" role="tablist" aria-label="Manifest sections">
@@ -38,11 +38,11 @@
 @if(_tab==ManifestTab.Details){
 @if(_editing && _edit is {} e){<div class="manifest-screen-editor"><fieldset disabled="@_busy" class="tms-edit-fields"><div class="manifest-edit-grid">
 
-<label class="field">Manifest number<input @bind="e.Number" maxlength="100" /></label><label class="field">Manifest date<InputDate @bind-Value="e.ManifestDate" /></label><label class="field">Status<select @bind="e.Status" disabled="@_new">@foreach(var s in TmsManifest.Statuses){<option>@s</option>}</select></label>
+<label class="field">Manifest number<input @bind="e.Number" maxlength="100" /></label><label class="field">Manifest date<InputDate @bind-Value="e.ManifestDate" /></label><label class="field">Status<select @bind="e.Status" disabled="@_new">@foreach(var s in new[]{"Planning","Dispatched","En Route","Complete"}){<option>@s</option>}</select></label>
 
 <label class="field">Truck<select @bind="e.Vehicle"><option value="">Unassigned</option>@if(!string.IsNullOrWhiteSpace(e.Vehicle) && !_trucks.Contains(e.Vehicle)){<option value="@e.Vehicle">@e.Vehicle (current)</option>}@foreach(var v in _trucks){<option value="@v">@v</option>}</select></label>
 
-<label class="field">Trailer<input @bind="e.Details.Trailer" maxlength="200" /></label><label class="field">Driver<input @bind="e.Details.Driver" maxlength="200" /></label><label class="field">Carrier<input @bind="e.Details.Carrier" maxlength="200" /></label><label class="field">Bill-to code<input @bind="e.Details.BillToCode" maxlength="200" /></label><label class="field">Bill-to name<input @bind="e.Details.BillToName" maxlength="200" /></label><label class="field">Origin terminal<input @bind="e.Details.OriginTerminal" maxlength="200" /></label><label class="field">Destination terminal<input @bind="e.Details.DestinationTerminal" maxlength="200" /></label><label class="field">Direction<select @bind="e.Details.Direction"><option>Outbound</option><option>Inbound</option></select></label><label class="field manifest-notes">Notes<textarea @bind="e.Details.Notes" maxlength="4000" rows="2"></textarea></label>
+<label class="field">Trailer<input @bind="e.Details.Trailer" maxlength="200" /></label><label class="field">Driver<select @bind="e.Details.DriverId"><option value="">Unassigned</option>@foreach(var driver in _drivers){<option value="@driver.Id">@driver.Number · @driver.Name</option>}</select></label><label class="field">Actual event time (Nova local time)<input type="datetime-local" @bind="e.Details.StatusOccurredAt" /></label><label class="field">Carrier<input @bind="e.Details.Carrier" maxlength="200" /></label><label class="field">Bill-to code<input @bind="e.Details.BillToCode" maxlength="200" /></label><label class="field">Bill-to name<input @bind="e.Details.BillToName" maxlength="200" /></label><label class="field">Origin terminal<input @bind="e.Details.OriginTerminal" maxlength="200" /></label><label class="field">Destination terminal<input @bind="e.Details.DestinationTerminal" maxlength="200" /></label><label class="field">Direction<select @bind="e.Details.Direction"><option>Outbound</option><option>Inbound</option></select></label><label class="field manifest-notes">Notes<textarea @bind="e.Details.Notes" maxlength="4000" rows="2"></textarea></label>
 
 </div><div class="manifest-edit-actions"><button class="primary-button" @onclick="Save">Save manifest</button><button class="outline-button" @onclick="Cancel">Cancel</button></div></fieldset></div>}
 else {<dl class="manifest-facts">
@@ -100,13 +100,13 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
  void Open(TmsManifest manifest)=>Navigation.NavigateTo($"/aurora/manifests/{manifest.Id}");
 
 
- List<TmsManifest> _manifests=[];List<TmsOrder> _orders=[],_available=[];List<string> _trucks=[];
+ List<TmsManifest> _manifests=[];List<TmsOrder> _orders=[],_available=[];List<string> _trucks=[];NovaDriver[] _drivers=[];
 
- TmsManifest? _selected,_edit;bool _busy,_editing,_new,_delete,_picker;string? _error,_message;string _status="",_search="",_orderSearch="";HashSet<TmsOrderKey> _picked=[];
+ TmsManifest? _selected,_edit;bool _busy,_editing,_new,_delete,_picker;string? _error,_message;string _status="",_search="",_appliedSearch="",_orderSearch="";HashSet<TmsOrderKey> _picked=[];
 
- DateOnly? _from=new DateOnly(DateTime.Today.Year,DateTime.Today.Month,1),_to=DateOnly.FromDateTime(DateTime.Today);
+ DateOnly? _from=DateOnly.FromDateTime(DateTime.Today),_to=DateOnly.FromDateTime(DateTime.Today);
 
- IEnumerable<TmsManifest> Visible=>_manifests.Where(m=>(_from is null || m.ManifestDate>=_from) && (_to is null || m.ManifestDate<=_to) && (_status=="" || m.Status==_status) && string.Join(" ",m.Number,m.Vehicle,m.Details.Carrier,m.Details.BillToName,m.Details.BillToCode).Contains(_search,StringComparison.OrdinalIgnoreCase));
+ IEnumerable<TmsManifest> Visible=>_manifests.Where(m=>(_from is null || m.ManifestDate>=_from) && (_to is null || m.ManifestDate<=_to) && (_status=="" || m.Status==_status) && string.Join(" ",m.Number,m.Vehicle,m.Details.Carrier,m.Details.BillToName,m.Details.BillToCode).Contains(_appliedSearch,StringComparison.OrdinalIgnoreCase));
 
  IEnumerable<TmsOrder> Candidates=>_available.Where(o=>string.Join(" ",o.Id,o.Customer,o.City).Contains(_orderSearch,StringComparison.OrdinalIgnoreCase));
 
@@ -117,9 +117,9 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
   _loadedScreen=key;await DisposeMap();_selected=_edit=null;_new=_editing=_delete=_picker=false;_message=null;_orders=[];_route=null;_tab=ManifestTab.Details;
   await Load();
   if(!IsScreen)return;
-  await Run(async()=>{_trucks=(await Http.GetFromJsonAsync<EquipmentCatalogDto>("api/v1/routing/equipment"))?.Units.Select(u=>u.Id).ToList()??[];});
+  await Run(async()=>{_drivers=await Http.GetFromJsonAsync<NovaDriver[]>("api/v1/tms/drivers")??[];_trucks=(await Http.GetFromJsonAsync<EquipmentCatalogDto>("api/v1/routing/equipment"))?.Units.Select(u=>u.Id).ToList()??[];});
   if(NewManifest){_selected=new(){Number="MAN-"+Guid.NewGuid().ToString("N")[..10].ToUpperInvariant()};_new=true;BeginEdit();}
-  else if(_manifests.FirstOrDefault(m=>m.Id==ManifestId) is {} manifest){await Select(manifest);await Run(LoadRoute);BeginEdit();}
+  else if(_manifests.FirstOrDefault(m=>m.Id==ManifestId) is {} manifest){await Select(manifest);await Run(LoadRoute);if(manifest.Details.SourceReadOnlyReason is null)BeginEdit();}
   else {_error ??= "Manifest not found. Return to the manifest list and refresh.";}
  }
 
@@ -130,7 +130,7 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
 
  async Task Load()=>await Run(async()=>{_manifests=await Http.GetFromJsonAsync<List<TmsManifest>>("api/v1/tms/manifests")??[];if(_selected is {} old){_selected=_manifests.FirstOrDefault(m=>m.Id==old.Id);if(_selected is not null)await LoadOrders();}});
 
- async Task Clear(){_from=null;_to=null;_status="";_search="";await Load();}
+ void SearchKeyDown(KeyboardEventArgs e){if(e.Key=="Enter")_appliedSearch=_search;}
 
  async Task Select(TmsManifest m){_selected=m;_new=false;_delete=false;_picker=false;_message=null;await Run(LoadOrders);}
 
@@ -142,7 +142,7 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
 
  void Cancel(){if(_new){Back();return;}_editing=false;_edit=null;_error=null;}
 
- async Task Save(){var wasNew=_new;Guid? id=null;await Run(async()=>{_edit!.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/manifests",_edit):await Http.PutAsJsonAsync("api/v1/tms/manifests",_edit);await Check(r);id=_new?(await r.Content.ReadFromJsonAsync<TmsManifest>())!.Id:_edit.Id;_editing=false;_new=false;_message="Manifest saved.";});if(id is {} saved){await Load();var m=_manifests.First(x=>x.Id==saved);await Select(m);_message="Manifest saved.";if(wasNew){_loadedScreen=saved.ToString();Navigation.NavigateTo($"/aurora/manifests/{saved}");}}}
+ async Task Save(){var wasNew=_new;Guid? id=null;await Run(async()=>{_edit!.Details.Driver=_drivers.FirstOrDefault(d=>d.Id==_edit.Details.DriverId)?.Name??"";_edit.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/manifests",_edit):await Http.PutAsJsonAsync("api/v1/tms/manifests",_edit);await Check(r);id=_new?(await r.Content.ReadFromJsonAsync<TmsManifest>())!.Id:_edit.Id;_editing=false;_new=false;_message="Manifest saved in Aurora. Background synchronization will update Nova.";});if(id is {} saved){await Load();var m=_manifests.First(x=>x.Id==saved);await Select(m);_message="Manifest saved in Aurora. Background synchronization will update Nova.";if(wasNew){_loadedScreen=saved.ToString();Navigation.NavigateTo($"/aurora/manifests/{saved}");}}}
 
  async Task Delete(){await Run(async()=>{using var r=await Http.DeleteAsync($"api/v1/tms/manifests/{_selected!.Id}?revision={_selected.Revision}");await Check(r);_selected=null;_delete=false;_message="Manifest deleted. Its orders are Ready to Route.";});if(_selected is null){if(IsScreen)Back();else await Load();}}
 

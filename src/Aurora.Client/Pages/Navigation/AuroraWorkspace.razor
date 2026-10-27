@@ -1,24 +1,39 @@
 @page "/aurora/{WorkspaceView}"
 @attribute [Authorize]
 @inject NavigationManager Navigation
-<PageTitle>Aurora Â· @Title</PageTitle>
-<div class="tms-workspace @(WorkspaceView == "route-optimization" ? "tms-route-setup" : null)">
+@inject HttpClient Http
+<PageTitle>Aurora &middot; @Title</PageTitle>
+<div class="tms-workspace @(WorkspaceView == "orders" && _local == true ? "tms-orders-page" : null)">
  <AuroraSidebar />
  <main class="tms-main"><header class="planner-header"><h1>@Title</h1></header>
- @if(WorkspaceView=="fleet"){<NovaRecords Kind="fleet" @key="WorkspaceView" />}
- else if(WorkspaceView=="manifests"){<NovaManifests @key="WorkspaceView" />}
- else if(WorkspaceView=="terminals"){<NovaMasters Kind="terminals" @key="WorkspaceView" />}
+ @if(WorkspaceView=="route-optimization"){<p role="status">Opening Orders...</p>}
+ else if(_modeError is not null){<p class="alert" role="alert">@_modeError</p>}
+ else if(_local is null){<p role="status">Loading workspace…</p>}
+ else if(_local==true && WorkspaceView=="fleet"){<FleetManagement />}
+ else if(_local==true && WorkspaceView=="orders"){<TmsOrders />}
+ else if(_local==true && WorkspaceView=="manifests"){<TmsManifests />}
+ else if(_local==true && WorkspaceView=="terminals"){<Terminals />}
+ else if(_local==true && WorkspaceView=="customers"){<Customers />}
+ else if(WorkspaceView=="synchronization"){<SynchronizationPanel />}
+ else if(WorkspaceView=="fleet"){<NovaRecords Kind="fleet" @key="WorkspaceView" />}
+ else if(WorkspaceView=="drivers"){<Drivers />}
+ else if(WorkspaceView=="manifests"){<NovaManifests EditId="@EditId" @key="EditorKey" />}
+ else if(WorkspaceView=="terminals"){<NovaMasters Kind="terminals" EditId="@EditId" @key="EditorKey" />}
  else if(WorkspaceView=="customers"){<NovaMasters Kind="customers" @key="WorkspaceView" />}
  else if(WorkspaceView=="databases"){<AuthorizeView Roles="aurora:Admin"><Authorized><DatabaseAdministration /></Authorized><NotAuthorized><p role="alert">Administrator access is required.</p></NotAuthorized></AuthorizeView>}
  else if(WorkspaceView=="applog"){<AuthorizeView Roles="aurora:Admin,aurora:PowerUser"><Authorized><ApplicationLog /></Authorized><NotAuthorized><p role="alert">Administrator or Power User access is required.</p></NotAuthorized></AuthorizeView>}
  else if(WorkspaceView=="users"){<AuthorizeView Roles="aurora:Admin"><Authorized><UserAdministration /></Authorized><NotAuthorized><p role="alert">Administrator access is required.</p></NotAuthorized></AuthorizeView>}
  else if(WorkspaceView is "ship-status" or "configuration"){<AuthorizeView Roles="aurora:Admin"><Authorized><RoutingConfiguration /></Authorized><NotAuthorized><p role="alert">A company administrator is required to manage ship statuses.</p></NotAuthorized></AuthorizeView>}
  else if(WorkspaceView=="reset"){<AuthorizeView Roles="aurora:Admin"><Authorized><WorkspaceResetPage /></Authorized><NotAuthorized><p role="alert">A company administrator is required to reset testing data.</p></NotAuthorized></AuthorizeView>}
- else {<NovaRecords Kind="orders" @key="WorkspaceView" />}
+ else {<NovaRecords Kind="orders" EditId="@EditId" @key="EditorKey" />}
  </main>
 </div>
 @code {
  [Parameter] public string WorkspaceView {get;set;}="orders";
- protected override void OnParametersSet() { if(WorkspaceView=="route-optimization") Navigation.NavigateTo("/aurora/orders",replace:true); if(WorkspaceView=="dispatch") Navigation.NavigateTo("/aurora/manifests",replace:true); }
- string Title=>WorkspaceView=="route-optimization"?"Optimization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="manifests"?"Manifests":WorkspaceView=="terminals"?"Terminals":WorkspaceView=="customers"?"Customers":WorkspaceView=="databases"?"Databases":WorkspaceView=="users"?"Users":WorkspaceView=="applog"?"Application Log":WorkspaceView is "ship-status" or "configuration"?"Ship Status":WorkspaceView=="reset"?"Reset":"Orders";
+ [SupplyParameterFromQuery(Name="edit")] public string? EditId {get;set;}
+ string EditorKey => WorkspaceView+":"+EditId;
+ bool? _local;string? _modeError;
+ protected override async Task OnInitializedAsync(){try{_local=(await Http.GetFromJsonAsync<WorkspaceMode>("api/v1/synchronization/mode"))!.Local;}catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException){_modeError="The workspace could not be loaded. Refresh to retry.";}}
+ protected override void OnParametersSet(){if(WorkspaceView=="route-optimization")Navigation.NavigateTo("/aurora/orders",replace:true);else if(WorkspaceView=="dispatch")Navigation.NavigateTo("/aurora/manifests",replace:true);}
+ string Title=>WorkspaceView=="synchronization"?"Synchronization":WorkspaceView=="fleet"?"Fleet Management":WorkspaceView=="drivers"?"Drivers":WorkspaceView=="manifests"?"Manifests":WorkspaceView=="terminals"?"Terminals":WorkspaceView=="customers"?"Customers":WorkspaceView=="databases"?"Databases":WorkspaceView=="users"?"Users":WorkspaceView=="applog"?"Application Log":WorkspaceView is "ship-status" or "configuration"?"Ship Status":WorkspaceView=="reset"?"Reset":"Orders";
 }

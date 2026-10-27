@@ -8,7 +8,7 @@ using Npgsql;
 
 namespace Aurora.Modules.Routing;
 
-public sealed class WorkspaceResetStore(NpgsqlConnectionFactory factory, ITenantContext tenant, FirebirdRoutingSource source)
+public sealed class WorkspaceResetStore(NpgsqlConnectionFactory factory, ITenantContext tenant, IExternalWorkspaceReset source)
 {
     public async Task<WorkspaceResetPreview> Preview(CancellationToken ct)
     {

@@ -1,0 +1,16 @@
+@inject HttpClient Http
+<label class="field">Driver<select @bind="Value" @bind:after="Changed" disabled="@(_drivers is null)">
+<option value="">No default driver</option>
+@foreach(var driver in (_drivers?.Drivers ?? []).Where(d=>d.Terminal.Equals(Terminal,StringComparison.OrdinalIgnoreCase) || d.Id==Value))
+{<option value="@driver.Id">@driver.Number - @driver.Name</option>}
+</select></label>
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+@code {
+ [Parameter] public long? Value {get;set;}
+ [Parameter] public EventCallback<long?> ValueChanged {get;set;}
+ [Parameter] public string Terminal {get;set;}="";
+ DriverDirectory? _drivers;
+ string? _error;
+ protected override async Task OnInitializedAsync(){try{_drivers=await Http.GetFromJsonAsync<DriverDirectory>("api/v1/aurora/firebird/drivers");}catch(Exception ex){_error="Could not load drivers. "+ex.Message;}}
+ Task Changed()=>ValueChanged.InvokeAsync(Value);
+}

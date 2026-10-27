@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Security.Claims;
 using System.Text.Json;
 using Aurora.Contracts;
@@ -45,7 +46,7 @@ public sealed class NovaUserConnections(IDataProtectionProvider protection,IOpti
 
 public sealed class UserAccessMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context,NpgsqlConnectionFactory factory,ITenantContext tenant,NovaUserConnections connections)
+    public async Task InvokeAsync(HttpContext context,NpgsqlConnectionFactory factory,ITenantContext tenant,NovaUserConnections connections,IConfiguration configuration)
     {
         if(context.Request.Path.StartsWithSegments("/api/v1") && context.User.Identity?.IsAuthenticated==true)
         {
@@ -62,7 +63,7 @@ public sealed class UserAccessMiddleware(RequestDelegate next)
                 foreach(var claim in identity.Claims.Where(c=>c.Type==identity.RoleClaimType && c.Value.StartsWith("aurora:")).ToArray())identity.RemoveClaim(claim);
             }
             if(context.User.Identity is ClaimsIdentity current)foreach(var role in roles)current.AddClaim(new Claim(current.RoleClaimType,role));
-            if(context.Request.Path.StartsWithSegments("/api/v1/aurora") || context.Request.Path.StartsWithSegments("/api/v1/routing") || context.Request.Path.StartsWithSegments("/api/v1/tms"))
+            if(!configuration.GetValue<bool>("Synchronization:LocalWorkspace") && (context.Request.Path.StartsWithSegments("/api/v1/aurora") || context.Request.Path.StartsWithSegments("/api/v1/routing") || context.Request.Path.StartsWithSegments("/api/v1/tms")))
             {
                 try{context.Items[NovaUserConnections.ItemsKey]=connections.Resolve(connections.Read(membership.Json),tenant.TenantId);}
                 catch(System.Security.Cryptography.CryptographicException){context.Response.StatusCode=503;await context.Response.WriteAsJsonAsync(new ApiErrorDto("The saved Nova password could not be opened. Ask an administrator to re-enter it."));return;}

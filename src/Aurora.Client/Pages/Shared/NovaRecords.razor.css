@@ -21,3 +21,13 @@
 .order-routing-fields .line-haul-toggle input[type=checkbox] { width:15px; height:15px; min-width:15px; flex:0 0 15px; margin:0; padding:0; }
 .order-routing-fields .receiving-terminal { flex:1 1 260px; max-width:520px; margin:0; }
 .order-routing-fields .receiving-terminal select { width:100%; min-width:0; }
+
+.nova-orders-list > .tms-filters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px; }
+.nova-orders-list > .tms-filters .field { flex:1 1 140px; min-width:120px; margin:0; }
+.nova-orders-list > .tms-filters .field:first-child { flex:1.4 1 180px; }
+.order-toolbar-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.order-toolbar-actions span { white-space:nowrap; font-size:12px; color:#64748b; }
+.nova-orders-list > .tms-filters button { white-space:nowrap; flex-shrink:0; }
+.address-lookup { display:flex; align-items:end; }
+.address-lookup .mdi { font-size:18px; }
+.order-manifest-link + .order-manifest-link { margin-left:8px; }

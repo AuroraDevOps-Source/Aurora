@@ -16,7 +16,7 @@ public static class PlanOrderDecisions
         if (root["reporting"]?["orderDecisions"] is not JsonObject decisions
             || !decisions.Any(d => RoutingInput.Text(d.Value)?.StartsWith("truck:", StringComparison.Ordinal) == true)) return json;
         var routed = result.Routes.SelectMany(r => r.Pros).Select(p => p.ProNumber).ToHashSet(StringComparer.Ordinal);
-        foreach (var order in RoutingInput.Items(root["orders"]?["deliveries"]))
+        foreach (var order in RoutingInput.Orders(root))
         {
             var id = RoutingInput.Text(order["id"])!;
             if (!routed.Contains(id) && Get(root, id) == "") decisions[id] = LeftOff;
@@ -37,7 +37,7 @@ public static class PlanOrderDecisions
     public static string Set(string json, string orderId, string decision)
     {
         var root = RoutingInput.Parse(json);
-        if (!RoutingInput.Items(root["orders"]?["deliveries"]).Any(o => RoutingInput.Text(o["id"]) == orderId))
+        if (!RoutingInput.Orders(root).Any(o => RoutingInput.Text(o["id"]) == orderId))
             throw new FormatException("Choose an order from this plan.");
         if (decision != "" && decision != Excluded && !RoutingInput.Items(root["vehicles"]).Any(v => "truck:" + RoutingInput.Text(v["id"]) == decision))
             throw new FormatException("Choose an available truck.");
@@ -53,13 +53,13 @@ public static class PlanOrderDecisions
         var root = RoutingInput.Parse(json);
         if (root["reporting"]?["orderDecisions"] is not JsonObject decisions || decisions.Count == 0) return json;
         if (RoutingInput.Items(root["routes"]).Any()) throw new FormatException("Edit order assignments on a plan without preassigned routes.");
-        var orders = root["orders"]!["deliveries"]!.AsArray();
+        var orders = RoutingInput.Orders(root).ToList();
         foreach (var (id, value) in decisions)
         {
             var order = orders.OfType<JsonObject>().SingleOrDefault(o => RoutingInput.Text(o["id"]) == id)
                 ?? throw new FormatException($"Order {id} is no longer in this plan.");
             var decision = RoutingInput.Text(value) ?? "";
-            if (decision is Excluded or LeftOff) { orders.Remove(order); continue; }
+            if (decision is Excluded or LeftOff) { ((JsonArray)order.Parent!).Remove(order); orders.Remove(order); continue; }
             if (!decision.StartsWith("truck:", StringComparison.Ordinal)) throw new FormatException($"Invalid assignment for {id}.");
             var truckId = decision[6..];
             var truck = RoutingInput.Items(root["vehicles"]).SingleOrDefault(v => RoutingInput.Text(v["id"]) == truckId)

@@ -17,7 +17,6 @@
                     <label class="field">Code<input @bind="item.Code" maxlength="80" disabled="@(!_new)" /></label>
                     <label class="field terminal-name">Name<input @bind="item.Name" maxlength="200" /></label>
                     <label class="field">Terminal type<select @bind="item.NodeType">@foreach (var type in NodeVocabulary.Types) { <option value="@type">@type</option> }</select></label>
-                    <label class="field">Routing role<select @bind="item.RoutingRole"><option value="">None</option>@foreach (var role in NodeVocabulary.Roles) { <option value="@role">@role</option> }</select></label>
                     <label class="field">Region<input @bind="item.Region" maxlength="200" placeholder="e.g. SOCAL" list="node-regions" /></label>
                     <label class="field terminal-address">Address<input @bind="item.Address" maxlength="200" /></label>
                     <label class="field">City<input @bind="item.City" maxlength="200" /></label>
@@ -30,9 +29,7 @@
                     <label class="field">Owner<input @bind="item.Owner" maxlength="200" placeholder="Company or agent account" /></label>
                     <fieldset class="node-options"><legend>Functions</legend>@foreach (var f in NodeVocabulary.Functions) { <label><input type="checkbox" checked="@item.Functions.Contains(f)" @onchange="e => Toggle(item, f, e.Value is true, functions: true)" />@f</label> }</fieldset>
                     <fieldset class="node-options"><legend>Special services</legend>@foreach (var s in NodeVocabulary.Services) { <label><input type="checkbox" checked="@item.Services.Contains(s)" @onchange="e => Toggle(item, s, e.Value is true, functions: false)" />@s</label> }</fieldset>
-                    <label class="field terminal-address">Direct service area<textarea @bind="item.ServiceArea" @bind:event="oninput" rows="2" maxlength="4000" placeholder="ZIP codes, prefixes, or ranges: 917, 923-925, 91700-91799"></textarea><small class="@(AreaError(item) is null ? "node-hint" : "node-hint invalid")">@(AreaError(item) ?? "Hub and Spoke terminals need a service area. Orders delivering outside it become line haul.")</small></label>
                 </div>
-                <TerminalRouteRules Origin="item" Nodes="_terminals" />
                 <datalist id="node-regions">@foreach (var region in _terminals.Select(n => n.Region.Trim()).Where(r => r.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)) { <option value="@region" /> }</datalist>
                 <div class="compact-form-actions"><button class="primary-button" @onclick="Save">Save terminal</button><button class="outline-button" @onclick="Cancel">Cancel</button></div>
             </fieldset>
@@ -42,12 +39,12 @@
     {
         <div class="terminal-delete" role="alert"><span>Delete <strong>@deleting.Code · @deleting.Name</strong>?</span><button class="outline-button" disabled="@_busy" @onclick="Delete">Delete terminal</button><button class="text-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button></div>
     }
-    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Region</th><th>Role</th><th>City</th><th>State</th><th>Service area</th><th>Position</th><th></th></tr></thead><tbody>
+    <div class="manifest-table-wrap tms-crud-grid"><table class="manifest-table"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Region</th><th>City</th><th>State</th><th>Position</th><th></th></tr></thead><tbody>
         @foreach (var node in Visible)
         {
-            <EditGridRow Disabled="@(_busy || _edit is not null)" OnEdit="()=>Edit(node)"><td><strong>@node.Code</strong></td><td>@node.Name</td><td>@node.NodeType</td><td>@Dash(node.Region)</td><td>@if (node.RoutingRole.Length > 0) { <span class="status-badge @(node.RoutingRole == NodeVocabulary.Hub ? "status-routed" : "status-ready")">@node.RoutingRole</span> } else { <span>—</span> }</td><td>@node.City</td><td>@node.State</td><td class="node-area" title="@node.ServiceArea">@Dash(node.ServiceArea)</td><td>@(node.Latitude is null ? "Missing" : "✓")</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_delete=node">Delete</button></td></EditGridRow>
+            <EditGridRow Disabled="@(_busy || _edit is not null)" OnEdit="()=>Edit(node)"><td><strong>@node.Code</strong></td><td>@node.Name</td><td>@node.NodeType</td><td>@Dash(node.Region)</td><td>@node.City</td><td>@node.State</td><td>@(node.Latitude is null ? "Missing" : "✓")</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><button class="text-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_delete=node">Delete</button></td></EditGridRow>
         }
-        @if (!Visible.Any()) { <tr><td colspan="10">@(_busy ? "Loading terminals…" : "No matching terminals.")</td></tr> }
+        @if (!Visible.Any()) { <tr><td colspan="8">@(_busy ? "Loading terminals…" : "No matching terminals.")</td></tr> }
     </tbody></table></div>
 </section>
 
@@ -59,7 +56,6 @@
     private bool _new, _busy;
     private IEnumerable<TerminalDto> Visible => _terminals.Where(t => $"{t.Code} {t.Name} {t.City} {t.Region} {t.NodeType}".Contains(_search, StringComparison.OrdinalIgnoreCase));
     private static string Dash(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
-    private static string? AreaError(TerminalDto node) { try { ServiceArea.Parse(node.ServiceArea); return null; } catch (FormatException ex) { return ex.Message; } }
     private static void Toggle(TerminalDto node, string value, bool on, bool functions)
     {
         var current = functions ? node.Functions : node.Services;

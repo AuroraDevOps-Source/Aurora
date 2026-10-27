@@ -10,6 +10,8 @@ public static class PlannerOvertime
     public static void Allow(JsonObject root, JsonObject truck)
     {
         var id = RoutingInput.Text(truck["id"])!;
+        // A manual order cannot extend an assigned driver beyond the saved working limits.
+        if(root["reporting"]?["drivers"]?[id] is not null)return;
         root["reporting"] ??= new JsonObject();
         root["reporting"]![ShiftKey] ??= new JsonObject();
         var shifts = root["reporting"]![ShiftKey]!.AsObject();

@@ -1,0 +1,60 @@
+@inject HttpClient Http
+@using System.Text.Json.Nodes
+<section class="planning-card">
+    <div class="tms-selection"><div><h2>Background synchronization</h2><p>Changes save in Aurora first. The worker exchanges updates with the tenant’s assigned database.</p></div><button class="outline-button" disabled="@_busy" @onclick="Load">Refresh status</button></div>
+    @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+    @if(_status is {} status)
+    {
+        <dl class="manifest-facts">
+            <div><dt>Source</dt><dd>@status.Source</dd></div><div><dt>Connection</dt><dd>@(status.Enabled?"Enabled":"Paused / not connected")</dd></div>
+            <div><dt>Waiting to send</dt><dd>@status.Pending</dd></div><div><dt>Sending</dt><dd>@status.Working</dd></div><div><dt>Needs review</dt><dd>@status.Conflicts</dd></div>
+            <div><dt>Last successful exchange</dt><dd>@Time(status.LastSuccess)</dd></div><div><dt>Last attempt</dt><dd>@Time(status.LastAttempt)</dd></div>
+        </dl>
+        @if(status.Error is not null){<p class="alert" role="alert">@status.Error</p>}
+    }
+</section>
+<AuthorizeView Roles="aurora:Admin,aurora:PowerUser"><Authorized>
+    <section class="planning-card"><h2>Record issues</h2>
+    @if(_issues.Length==0 && _conflicts.Length==0){<p>No record issues reported.</p>}
+    @foreach(var issue in _issues){<p><strong>@issue.EntityType · @issue.LocalId</strong><br />@issue.Error <small>(@issue.Attempts attempts)</small> <button class="text-button" disabled="@_busy" @onclick="()=>Retry(issue.Id)">Retry latest saved version</button></p>}
+    @foreach(var conflict in _conflicts)
+    {
+        <article class="sync-conflict"><h3>@conflict.EntityType · @conflict.LocalId</h3><p>Both systems changed this record. Review both versions before choosing the value to keep.</p>
+            <div class="sync-compare"><details><summary>Aurora @Deleted(conflict.LocalDeleted)</summary><pre>@Pretty(conflict.LocalValue)</pre></details><details><summary>Nova @Deleted(conflict.ExternalDeleted)</summary><pre>@Pretty(conflict.ExternalValue)</pre></details></div>
+            <button class="outline-button" disabled="@_busy" @onclick="()=>Resolve(conflict,false)">Keep Aurora version</button>
+            <button class="outline-button" disabled="@_busy" @onclick="()=>Resolve(conflict,true)">Use Nova version</button>
+        </article>
+    }
+    </section>
+</Authorized></AuthorizeView>
+@code {
+    SynchronizationStatus? _status;SynchronizationIssue[] _issues=[];Conflict[] _conflicts=[];bool _busy;string? _error;
+    protected override Task OnInitializedAsync()=>Load();
+    static string Time(DateTime? value)=>value?.ToLocalTime().ToString("MMM d, yyyy h:mm:ss tt")??"Not yet";
+    static string Deleted(bool value)=>value?"(deleted)":"";
+    static string Pretty(string json)=>JsonNode.Parse(json)!.ToJsonString(new System.Text.Json.JsonSerializerOptions{WriteIndented=true});
+    async Task Load(){_busy=true;_error=null;try{await Read();}catch(Exception ex) when(ex is HttpRequestException or FormatException or TaskCanceledException){_error=ex.Message;}finally{_busy=false;}}
+    async Task Read()
+    {
+        using var response=await Http.GetAsync("api/v1/synchronization/status");await ApiResponse.Check(response);_status=await response.Content.ReadFromJsonAsync<SynchronizationStatus>();
+        using var issues=await Http.GetAsync("api/v1/synchronization/issues");
+        if(issues.StatusCode==System.Net.HttpStatusCode.Forbidden)return;
+        await ApiResponse.Check(issues);_issues=await issues.Content.ReadFromJsonAsync<SynchronizationIssue[]>()??[];
+        using var conflicts=await Http.GetAsync("api/v1/synchronization/conflicts");await ApiResponse.Check(conflicts);_conflicts=await conflicts.Content.ReadFromJsonAsync<Conflict[]>()??[];
+    }
+    async Task Retry(Guid id)
+    {
+        _busy=true;_error=null;
+        try{using var response=await Http.PostAsync($"api/v1/synchronization/issues/{id}/retry",null);await ApiResponse.Check(response);await Read();}
+        catch(Exception ex) when(ex is HttpRequestException or FormatException or TaskCanceledException){_error=ex.Message;}
+        finally{_busy=false;}
+    }
+    async Task Resolve(Conflict conflict,bool external)
+    {
+        _busy=true;_error=null;
+        try{using var response=await Http.PostAsJsonAsync($"api/v1/synchronization/conflicts/{conflict.Id}/resolve",new{conflict.LocalRevision,Data=JsonNode.Parse(external?conflict.ExternalValue:conflict.LocalValue),Deleted=external?conflict.ExternalDeleted:conflict.LocalDeleted});await ApiResponse.Check(response);await Read();}
+        catch(Exception ex) when(ex is HttpRequestException or FormatException or TaskCanceledException){_error=ex.Message;}
+        finally{_busy=false;}
+    }
+    sealed record Conflict(Guid Id,string EntityType,string LocalId,string ExternalId,string LocalValue,string ExternalValue,string Fields,long LocalRevision,bool LocalDeleted,bool ExternalDeleted);
+}

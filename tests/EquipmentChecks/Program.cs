@@ -34,7 +34,7 @@ try
     var other = new TestTenant(Guid.NewGuid());
     var otherStore = new EquipmentStore(new NpgsqlConnectionFactory(dataSource, other), other);
     Check((await otherStore.List(default)).Types.Count == 0, "another tenant cannot read saved equipment through the store");
-    await store.Save(new EquipmentUnitDto { Id = "UNIT1", TypeCode = "BOX", Terminal = "LAX", Available = false }, default);
+    var unit = saved.Units.Single(); unit.Available = false; await store.Save(unit, default);
     Check(!(await store.List(default)).Units.Single().Available, "unit availability edits persist");
     Console.WriteLine($"{count} equipment database checks passed.");
 }

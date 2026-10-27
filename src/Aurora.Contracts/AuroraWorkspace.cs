@@ -4,7 +4,7 @@ public sealed record OrderSourceDto(Guid Id, string Name);
 public sealed record OpenOrderDraftDto(Guid Id, string Name, int OrderCount);
 public sealed record WorkspaceOrderDto(string Id, DateTimeOffset ScheduledAt, string Customer, string City, string Status);
 // ShipDate with DepartAt/ReturnBy ("HH:mm") replaces every truck's shift in the new draft.
-public sealed record CreateOrderDraftDto(Guid SourceId, string[] OrderIds, DateOnly? ShipDate = null, string? DepartAt = null, string? ReturnBy = null, string? Batch = null, Guid? ToTerminalId = null);
+public sealed record CreateOrderDraftDto(Guid SourceId, string[] OrderIds, DateOnly? ShipDate = null, string? DepartAt = null, string? ReturnBy = null, string? Batch = null, Guid? ToTerminalId = null, DateOnly? ReturnDate = null, TripRestRules? RestRules = null, string? DriverCostBasis = null);
 public sealed record OrderDraftDto(Guid Id, Guid SourceId, string FileName, string RequestJson, bool Finished, string Batch = PlanningBatch.General, bool Cancelled = false);
 // Vehicles limits which optimized routes become manifests; the rest return to Ready to Route.
 public sealed record FinishOrderDraftDto(Guid SessionId, string[]? Vehicles = null);
@@ -22,6 +22,11 @@ public sealed class ManifestDetailsDto
     public string BillToName { get; set; } = "";
     public string Carrier { get; set; } = "";
     public string Driver { get; set; } = "";
+    public long? DriverId {get;set;}
+    public DateTime? StatusOccurredAt {get;set;}
+    public string? SourceReadOnlyReason {get;set;}
+    public DateOnly? ReturnDate {get;set;}
+    public bool OptimizationLocked {get;set;}
     public string Trailer { get; set; } = "";
     public string OriginTerminal { get; set; } = "";
     public string DestinationTerminal { get; set; } = "";

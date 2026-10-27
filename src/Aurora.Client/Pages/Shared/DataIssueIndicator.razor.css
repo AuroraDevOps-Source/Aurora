@@ -1,5 +1,7 @@
 .data-issue-indicator { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin:0; padding:0; border:2px solid #b42318; border-radius:50%; color:#b42318; background:#fff1f0; font-weight:800; font-size:16px; cursor:pointer; vertical-align:middle; }
 .data-issue-indicator:hover { background:#fee4e2; }
 .data-issue-indicator:focus-visible { outline:3px solid #2363eb; outline-offset:3px; }
-.data-issue-list { padding-left:24px; }
-.data-issue-list li { margin-bottom:16px; }
+.data-issue-list { margin:0; padding-left:20px; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+.data-issue-list li + li { margin-top:12px; }
+.data-issue-list p { margin:0; }
+.data-issue-actions { display:flex; justify-content:flex-end; margin-top:20px; }

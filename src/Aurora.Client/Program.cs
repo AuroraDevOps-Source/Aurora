@@ -12,6 +12,7 @@ var apiBaseAddress = builder.Configuration["ApiBaseUrl"] ?? builder.HostEnvironm
 
 builder.Services.AddMudServices();
 builder.Services.AddScoped<Aurora.Client.Layout.SidebarState>();
+builder.Services.AddScoped<Aurora.Client.OrderPlanningSelection>();
 
 builder.Services.AddOidcAuthentication(options =>
 {

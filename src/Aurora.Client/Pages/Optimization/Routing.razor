@@ -11,7 +11,8 @@
 
 <PageTitle>Plan routes - Aurora</PageTitle>
 
-<section class="planner-page">
+<section class="planner-page @(MapOnly?"map-popout":"")">
+@if(MapOnly && _result is null){<p class="popout-status" role="status">@(_error??"Waiting for the planner...")</p>}
     <header class="planner-header">
         <div>
             <h1>@(_result is null ? "Plan routes" : "Review routes")</h1>
@@ -24,11 +25,23 @@
                 <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="OpenTruckSettings">Trucks</button>
                 <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="()=>_showAppointments=true">Appointments</button>
                 <button class="outline-button" disabled="@(!CanOptimize)" @onclick="() => Optimize()">@(_busy ? "Optimizing..." : "Re-optimize")</button>
-                <button class="primary-button" @onclick="FinishWorkspace" disabled="@(_savingManifest || IsWorking || _appointmentEditing || _workspaceFinished || _planCancelled || _completedSessionId is null || UnscheduledPins.Count > 0 || _result?.Summary?.Scheduled is not > 0 || AcceptedRoutes == 0)">@(_savingManifest ? "Saving..." : AcceptedRoutes == 1 ? "Create manifest" : $"Create {AcceptedRoutes} manifests")</button>
+                <button class="primary-button" @onclick="FinishWorkspace" disabled="@(_savingManifest || IsWorking || _appointmentEditing || _workspaceFinished || _planCancelled || _completedSessionId is null || UnscheduledPins.Count > 0 || UnscheduledManifestOrders.Length>0 || _result?.Summary?.Scheduled is not > 0 || AcceptedRoutes == 0)">@(_savingManifest ? "Saving..." : "Save manifests")</button>
             }
         </div>
     </header>
-
+    @if(_sourceJson is not null)
+    {
+        var reportRows=RoutingInput.Parse(_sourceJson)["reporting"]?["orders"]?.AsObject().Select(p=>p.Value).ToArray()??[];
+        var estimated=reportRows.Count(r=>r?["volumeEstimated"]?.GetValue<bool>()==true);
+        var missing=reportRows.Count(r=>r?["volumeMissing"]?.GetValue<bool>()==true);
+        @if(estimated>0){<p role="status">@estimated orders use estimated cubes. Cubic utilization includes estimates.</p>}
+        @if(missing>0){<p class="alert" role="alert">@missing orders have unknown cubes. Cubic utilization understates their load; enter actual cubes or a reliable customer estimate before relying on it.</p>}
+    }
+    @if(IncludedManifests.Length>0)
+    {
+        <p>Replanning @IncludedManifests.Sum(m=>m.OrderIds.Length) existing orders from manifests @string.Join(", ",IncludedManifests.Select(m=>m.Id)) together with your selected orders. Existing manifests stay unchanged until you save.</p>
+    }
+    @if(UnscheduledManifestOrders.Length>0){<p class="alert" role="alert">@UnscheduledManifestOrders.Length existing manifest orders could not be scheduled. Adjust the plan before saving.</p>}
     @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert planner-alert" role="alert">@RoutingDisplayText.Clean(_error)</div> }
     @if (_workspaceFinished) { <div class="finish-notice">Manifests saved. <a href="/aurora/manifests">View manifests</a>.</div> }
     @if (_planCancelled) { <div class="finish-notice cancelled-notice">This plan was cancelled and its orders were released. <a href="/aurora/orders">Start a new plan</a>.</div> }
@@ -79,7 +92,7 @@
         @if (_sourceJson is not null)
         {
             <fieldset disabled="@(IsWorking || _workspaceFinished || _planCancelled)">
-                <PlanTruckSetup SourceJson="@_sourceJson" OnApply="ApplyFleet" />
+                <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="OpenTruckSettings">Trucks &amp; drivers</button>
                 <details class="planning-advanced"><summary>Selected orders (@_draft?.Orders)</summary>
                     <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Customer / destination</th></tr></thead><tbody>
                         @foreach (var order in _draft?.Deliveries ?? []) { <tr><td>@order.Id</td><td>@order.Name</td></tr> }
@@ -88,7 +101,7 @@
                 @if (_draft is { Trucks: 0 }) { <p role="status">Select at least one available truck.</p> }
                 <div class="popup-actions">
                     <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="()=>_showAppointments=true">Appointments</button>
-                    <button class="primary-button" disabled="@(!CanOptimize)" @onclick="() => Optimize()">@(_busy ? "Optimizing..." : "Optimize")</button>
+                    <button class="primary-button" disabled="@(!CanOptimize)" @onclick="OpenTruckSettings">@(_busy ? "Optimizing..." : "Optimize")</button>
                 </div>
             </fieldset>
         }
@@ -113,6 +126,7 @@ else
                 <nav class="view-tabs" aria-label="Result views">
                     <button class="@TabClass(ResultTab.Manifest)" @onclick="() => SelectTab(ResultTab.Manifest)">Manifest</button>
                     <button class="@TabClass(ResultTab.Summary)" @onclick="() => SelectTab(ResultTab.Summary)">Summary</button>
+                    <button class="@TabClass(ResultTab.Timeline)" @onclick="() => SelectTab(ResultTab.Timeline)">Timeline</button>
                     <button class="@TabClass(ResultTab.LeftOff)" @onclick="() => SelectTab(ResultTab.LeftOff)">
                         Left off <span class="count-pill">@LeftOffOrders.Count</span>
                     </button>
@@ -122,8 +136,6 @@ else
                 {
                     <div class="panel-body">
                         <div class="section-title"><div><span>ROUTE MANIFEST</span><h2>Truck assignments</h2></div><small>@_result.Routes.Count routes</small></div>
-                        <p class="preview-footnote">Load is the optimizer's reported truck capacity usage. Route time includes travel and stops; appointments and working hours can limit a route even when load is low. Fewer trucks can leave more orders off.</p>
-                        <p class="preview-footnote">Drag a delivery onto another truck to move it and recalculate routes and KPIs. You can also use Move to truck on a delivery. Manual assignments may extend the truck's shift; overtime is shown on the result.</p>
                         @if (_result.Routes.Count == 0)
                         {
                             <div class="empty-state compact">No routes were returned.</div>
@@ -185,7 +197,7 @@ else
                                                     <tr @key="pro.ProNumber">
                                                         <td><button type="button" class="delivery-drag-handle" disabled="@(!CanEditOrders || !CanOptimize)" data-drag-order="@pro.ProNumber" data-from-truck="@route.Vehicle" title="Drag delivery to another truck" aria-label="Drag @pro.ProNumber to another truck">⠿</button><button type="button" class="table-stop map-stop-link" style="border-color:@color" title="Show stop on map" @onclick="() => FocusOrder(pro.ProNumber, route.Vehicle)">@pro.StopNumber</button></td>
                                                         <td><button type="button" class="map-order-link pro-number" title="Show order on map" @onclick="() => FocusOrder(pro.ProNumber, route.Vehicle)">@pro.ProNumber</button></td>
-                                                        <td><strong>@pro.ShipToName</strong><small>@Address(pro.Address1, pro.City, pro.State, pro.PostalCode)</small></td>
+                                                        <td><strong>@pro.ShipToName <small>@(pro.WorkType??"Delivery")</small></strong><small>@Address(pro.Address1, pro.City, pro.State, pro.PostalCode)</small></td>
                                                         <td class="appointment-cell"><AppointmentDisplay Appointment="pro.Appointment" /></td>
                                                         <td class="schedule-cell">@ScheduleTime(pro.Arrival)</td>
                                                         <td class="schedule-cell">@ScheduleTime(pro.Departure)</td>
@@ -206,6 +218,10 @@ else
                             </details>
                         }
                     </div>
+                }
+                else if (_tab == ResultTab.Timeline)
+                {
+                    <RouteTimeline Routes="_result.Routes" SourceJson="@_sourceJson" OnFocusOrder="@(item => FocusOrder(item.OrderId, item.Vehicle))" />
                 }
                 else if (_tab == ResultTab.Summary)
                 {
@@ -253,7 +269,7 @@ else
                                         <tr @key="order.OrderId">
                                             <td><button type="button" class="table-stop map-stop-link" style="border-color:#dc2626;color:#dc2626" disabled="@(order.Latitude is null || order.Longitude is null)" title="Show left-off stop on map" @onclick="() => FocusOrder(order.OrderId)">@row.Number</button></td>
                                             <td><strong class="pro-number">@order.OrderId</strong></td>
-                                            <td><strong>@order.ShipToName</strong><small>@Address(order.Address1, order.City, order.State, order.PostalCode)</small></td>
+                                            <td><strong>@order.ShipToName <small>@(order.WorkType??"Delivery")</small></strong><small>@Address(order.Address1, order.City, order.State, order.PostalCode)</small></td>
                                             
                                             
                                             
@@ -274,7 +290,10 @@ else
 
             <div class="planner-divider" role="separator" tabindex="0" aria-label="Resize manifest and map" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="62" title="Drag to resize. Double-click to reset."><span></span></div>
             <aside class="map-panel">
-                <div class="map-heading"><div><span>MANIFEST MAP</span><h2>Route sequence</h2></div><button title="Fit selected routes" aria-label="Fit selected routes" @onclick="FitMap">⌗</button></div>
+                <div class="map-heading"><div><span>MANIFEST MAP</span><h2>Route sequence</h2></div><div class="map-heading-actions">
+                    @if(MapOnly){<button class="map-popout-button" onclick="window.opener?.focus(); window.close();">Return to planner</button>}
+                    else{<button class="map-popout-button" onclick="auroraMapPopout.open()">Pop out</button>}
+                    <button title="Fit selected routes" aria-label="Fit selected routes" @onclick="FitMap">⌗</button></div></div>
                 <div class="map-filter">
                     <div class="map-view-toggle" role="group" aria-label="Route view">
                         <button class="@(!_roadMode ? "active" : "")" aria-pressed="@(!_roadMode)" @onclick="() => ChangeMapMode(false)">Bird’s-eye</button>
@@ -344,7 +363,7 @@ else
         <EditPopup Title="Trucks" Busy="IsWorking" OnClose="CloseTruckSettings">
             <PlanTruckSetup SourceJson="@_truckEditJson" OnApply="json=>_truckEditJson=json" />
             <div class="popup-actions">
-                <button class="primary-button" disabled="@(IsWorking)" @onclick="SaveTruckSettings">Save</button>
+                <button class="primary-button" disabled="@(IsWorking)" @onclick="SaveTruckSettings">@(_result is null ? "Optimize" : "Save")</button>
                 <button class="outline-button" disabled="@IsWorking" @onclick="CloseTruckSettings">Cancel</button>
             </div>
         </EditPopup>
@@ -364,11 +383,12 @@ else
     private bool CanEditSettings => !IsWorking && !_workspaceFinished && !_planCancelled && !_appointmentEditing;
     private void OpenTruckSettings() { _truckEditJson = _sourceJson; _showTruckSettings = true; }
     private void CloseTruckSettings() { _showTruckSettings = false; _truckEditJson = null; }
-    private void SaveTruckSettings()
+    private async Task SaveTruckSettings()
     {
         if (_truckEditJson is null) return;
         if (_truckEditJson != _sourceJson) ApplyFleet(_truckEditJson);
         CloseTruckSettings();
+        if (_result is null) await Optimize();
     }
     private readonly string[] _colors = ["#2363eb", "#f59e0b", "#16a078", "#8259d6", "#0e9fbd", "#b8652f", "#64748b", "#a855a1"];
     private string? _sourceJson;
@@ -395,7 +415,7 @@ else
     private string? _error;
     private ResultTab _tab = ResultTab.Manifest;
 
-    private enum ResultTab { Manifest, Summary, LeftOff }
+    private enum ResultTab { Manifest, Summary, LeftOff, Timeline }
     private bool IsWorking => _busy || _savingManifest || _cancellingPlan || _sessionId is not null;
     private bool CanOptimize => !_workspaceFinished && !_planCancelled && !_appointmentEditing && !_showTruckSettings && !_showAppointments && !IsWorking && _draft is { Orders: > 0, Trucks: > 0 };
 
@@ -421,6 +441,13 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!MapOnly) await JS.InvokeVoidAsync("auroraMapPopout.publish", new MapSnapshot(_result, _sourceJson));
+        if (firstRender && MapOnly)
+        {
+            _mapReference=DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("auroraMapPopout.listen", _mapReference);
+            return;
+        }
         if (firstRender)
         {
             if (WorkspaceDraftId is null) { Navigation.NavigateTo("/aurora/orders", replace: true); return; }
@@ -442,6 +469,7 @@ else
             }
             var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", PlanningStorageKey);
             if (Guid.TryParse(saved, out var id)) { _sessionId = id; await ResumePlanning(); StateHasChanged(); }
+            else if (_sourceJson is not null && !_workspaceFinished && !_planCancelled) { OpenTruckSettings(); StateHasChanged(); }
         }
         if (_result is not null)
         {
@@ -638,7 +666,7 @@ else
     }
     private static string FormatBytes(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:N1} MB" : $"{bytes / 1024d:N0} KB";
     private static string Coordinate(DroppedOrderDto order) => order.Latitude is { } lat && order.Longitude is { } lon ? $"{lat:F4}, {lon:F4}" : "No coordinates";
-    public void Dispose() { _dragReference?.Dispose(); _disposed = true; _cts?.Cancel(); _cts?.Dispose(); _roadCts?.Cancel(); }
+    public void Dispose() { _ = JS.InvokeVoidAsync("auroraMapPopout.stop", MapOnly); _mapReference?.Dispose(); _dragReference?.Dispose(); _disposed = true; _cts?.Cancel(); _cts?.Dispose(); _roadCts?.Cancel(); }
 
     private sealed record ComparisonSnapshot(string FileName, RunSummaryDto Summary, IReadOnlyList<RouteSummaryDto> Routes);
 }

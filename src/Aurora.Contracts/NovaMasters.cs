@@ -8,4 +8,8 @@ public sealed record NovaMasterDocument(string Id,string Revision,NovaField[] Fi
 {
     public string? LocationWarning { get; init; }
 }
-public sealed record NovaMasterEdit(string Revision,Dictionary<string,string?> Values);
+public sealed record NovaMasterEdit(string Revision,Dictionary<string,string?> Values)
+{
+    public bool UseCoordinates { get; init; }
+}
+public sealed record TerminalAddressLookupResult(string? Latitude, string? Longitude, string? Error);

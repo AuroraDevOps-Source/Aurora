@@ -1,14 +1,18 @@
 namespace Aurora.Contracts;
 
 public sealed record FirebirdRoutingStatus(bool Enabled, int? ReadyStatus = null);
-public sealed record NovaRoutingConfiguration(int[] ReadyStatuses, NovaManifestStatus[] AvailableStatuses);
-public sealed record NovaRoutingConfigurationEdit(int[] ReadyStatuses);
-public sealed record FirebirdSyncResult(int Orders, string[] Terminals, string[] Warnings, Guid[] SourceIds);
+public sealed record NovaRoutingConfiguration(int[] ReadyStatuses, NovaManifestStatus[] AvailableStatuses) { public int[] PickupReadyStatuses {get;init;}=[]; }
+public sealed record NovaRoutingConfigurationEdit(int[] ReadyStatuses) { public int[] PickupReadyStatuses {get;init;}=[]; }
+public sealed record FirebirdSyncResult(int Orders, string[] Terminals, string[] Warnings, Guid[] SourceIds){public long[] ConsolidationOrders {get;init;}=[];}
 public sealed record NovaManifestStatus(int Id, string Name);
 public sealed record NovaManifestCreate(string Origin,string Destination,DateOnly Date);
 public sealed record NovaManifestList(DateOnly Today, NovaManifestStatus[] Statuses, NovaManifest[] Manifests);
 public sealed class NovaManifest
 {
+    [System.Text.Json.Serialization.JsonIgnore] public string? StoredNotes {get;set;}
+    public string? ConsolidationCustomer {get;set;}
+    public bool ConsolidationHeld {get;set;}
+    public bool OptimizationLocked {get;set;}
     public string StartTerminal { get; set; } = "";
     public string EndTerminal { get; set; } = "";
     public double? EndLatitude { get; set; }

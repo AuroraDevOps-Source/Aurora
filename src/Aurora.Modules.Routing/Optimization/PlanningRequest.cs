@@ -8,7 +8,7 @@ public static class PlanningRequest
     public static string Prepare(StartPlanningDto input)
     {
         if (input.DurationSeconds is < 5 or > 1200) throw new FormatException("Choose a search budget between 5 and 1200 seconds.");
-        var prepared = RoutingInput.Prepare(PlanOrderDecisions.Prepare(input.RequestJson));
+        var prepared = CustomerPlanningRequest.GroupLocations(MultiDayPlanning.ApplyRest(RoutingInput.Prepare(PlanOrderDecisions.Prepare(input.RequestJson))));
         if (input.KeepAssignments && input.PreviousResult is null) throw new FormatException("Keeping assignments needs a previous successful plan.");
         if (input.PreviousResult is not null) prepared = QuickUpdate.Prepare(prepared, input.PreviousResult);
         var root = RoutingInput.Parse(prepared);
@@ -16,7 +16,7 @@ public static class PlanningRequest
         root["settings"]!["duration"] = input.DurationSeconds;
         if (input.KeepAssignments)
         {
-            var orders = RoutingInput.Items(root["orders"]?["deliveries"]).ToDictionary(o => RoutingInput.Text(o["id"])!);
+            var orders = RoutingInput.Orders(root).ToDictionary(o => RoutingInput.Text(o["id"])!);
             var vehicles = RoutingInput.Items(root["vehicles"]).ToDictionary(v => RoutingInput.Text(v["id"])!);
             root["constraints"] ??= new JsonObject();
             root["constraints"]!["combinations"] ??= new JsonObject();
@@ -27,7 +27,7 @@ public static class PlanningRequest
                 var id = RoutingInput.Text(route["vehicleId"])!;
                 var assigned = RoutingInput.Items(route["stops"]).SelectMany(s => RoutingInput.Items(s["appointments"]))
                     .SelectMany(a => RoutingInput.Items(a["tasks"]))
-                    .Where(t => RoutingInput.Text(t["type"]) == "DELIVERY")
+                    .Where(t => RoutingInput.Text(t["type"]) is "DELIVERY" or "PICKUP")
                     .Select(t => RoutingInput.Text(t["orderId"])!).Distinct()
                     .Where(orderId => orders.ContainsKey(orderId) && PlanOrderDecisions.Get(root, orderId) == "").ToList();
                 if (assigned.Count == 0) continue;

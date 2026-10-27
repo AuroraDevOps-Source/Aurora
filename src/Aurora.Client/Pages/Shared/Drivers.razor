@@ -1,0 +1,41 @@
+@inject HttpClient Http
+@if(_error is not null){<p class="alert" role="alert">@_error</p>}
+<section class="planning-card">
+@if(_edit is null)
+{
+    <div class="tms-filters"><label class="field">Find driver<input @bind="_search" @bind:event="oninput" placeholder="Number, name or terminal" /></label><button class="outline-button" disabled="@_busy" @onclick="Load">Refresh</button><button class="primary-button" disabled="@_busy" @onclick="()=>_edit=new()">Add driver</button></div>
+    <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Driver</th><th>Name</th><th>Terminal</th><th>Labor / hour</th><th>Status</th></tr></thead><tbody>
+    @foreach(var row in _data.Drivers.Where(d=>$"{d.Number} {d.Name} {d.Terminal}".Contains(_search,StringComparison.OrdinalIgnoreCase)))
+    {
+        <EditGridRow Disabled="@_busy" OnEdit="()=>Edit(row)"><td>@row.Number</td><td>@row.Name</td><td>@row.Terminal</td><td>@row.ShiftStart – @row.ShiftEnd</td><td>@row.PerHour?.ToString("N2")</td><td>@(row.TerminationDate<=DateTime.Today?"Inactive":row.LicenseExpiry<DateTime.Today?"License expired":"Active")</td></EditGridRow>
+    }
+    </tbody></table></div>
+    @if(!_busy && _data.Drivers.Length==0){<p>No drivers found. Add a driver to get started.</p>}
+}
+else
+{
+    <div class="tms-selection"><h2>@(_edit.Id==0?"Add driver":$"{_edit.Number} — {_edit.Name}")</h2>
+        @if(_edit.Id>0){<DeleteRecordButton RecordType="driver" Name="@_edit.Name" ButtonText="Delete" Disabled="@_busy" OnDelete="Delete" />}
+        <button class="outline-button" disabled="@_busy" @onclick="()=>_edit=null">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Save">Save</button>
+    </div>
+    <fieldset class="driver-fields" disabled="@_busy"><legend>Driver</legend>
+        <label class="field">Driver number<input @bind="_edit.Number" maxlength="14" readonly="@(_edit.Id>0)" /></label>
+        <label class="field">First name<input @bind="_edit.FirstName" maxlength="40" /></label><label class="field">Last name<input @bind="_edit.LastName" maxlength="40" /></label>
+        <label class="field">Terminal<select @bind="_edit.Terminal"><option value="">Choose terminal</option>@foreach(var t in _data.Terminals){<option>@t</option>}</select></label>
+        <label class="field">Phone<input @bind="_edit.Phone" maxlength="32" /></label><label class="field">Email<input type="email" @bind="_edit.Email" maxlength="150" /></label>
+        <label class="field">Hire date<InputDate @bind-Value="_edit.HireDate" /></label><label class="field">Termination date<InputDate @bind-Value="_edit.TerminationDate" /></label><label class="field">License expiry<InputDate @bind-Value="_edit.LicenseExpiry" /></label>
+    </fieldset>
+    <fieldset class="driver-fields" disabled="@_busy"><legend>Labor cost</legend>
+        <label class="field">Fully burdened labor cost / hour<InputNumber @bind-Value="_edit.PerHour" step="0.0001" min="0" /></label>
+    </fieldset>
+}
+</section>
+@code {
+    DriverDirectory _data=new([],[],[]);NovaDriver? _edit;string _search="";string? _error;bool _busy;
+    protected override async Task OnInitializedAsync()=>await Load();
+    void Edit(NovaDriver d){_edit=System.Text.Json.JsonSerializer.Deserialize<NovaDriver>(System.Text.Json.JsonSerializer.Serialize(d));_error=null;}
+    async Task Run(Func<Task> action){_busy=true;_error=null;try{await action();}catch(Exception ex) when(ex is HttpRequestException or FormatException or TaskCanceledException){_error=ex.Message;}finally{_busy=false;}}
+    async Task Load()=>await Run(async()=>{using var response=await Http.GetAsync("api/v1/aurora/firebird/drivers");await ApiResponse.Check(response);_data=(await response.Content.ReadFromJsonAsync<DriverDirectory>())!;});
+    async Task Save()=>await Run(async()=>{_edit!.Validate();using var response=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/drivers/{_edit.Id}",_edit);await ApiResponse.Check(response);var saved=(await response.Content.ReadFromJsonAsync<NovaDriver>())!;_data=_data with{Drivers=_data.Drivers.Where(d=>d.Id!=saved.Id).Append(saved).OrderBy(d=>d.Number).ToArray()};_edit=null;});
+    async Task Delete()=>await Run(async()=>{using var response=await Http.DeleteAsync($"api/v1/aurora/firebird/drivers/{_edit!.Id}?revision={Uri.EscapeDataString(_edit.Revision)}");await ApiResponse.Check(response);_data=_data with{Drivers=_data.Drivers.Where(d=>d.Id!=_edit.Id).ToArray()};_edit=null;});
+}

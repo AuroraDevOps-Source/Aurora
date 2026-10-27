@@ -10,12 +10,15 @@ public sealed record NovaDispatchDocument(long ManifestId, string Revision, stri
     bool CanEdit, bool Dispatched, DateTime? DispatchedAt, NovaDispatchOption[] Drivers,
     NovaDispatchOption[] Trucks, string[] Issues)
 {
+    public long? PlannedDriverId {get;init;}
+    public ConsolidationProgress? Consolidation {get;init;}
     public string StatusCode { get; init; } = "";
     public string ManifestType { get; init; } = "Delivery";
     public string Origin { get; init; } = "";
     public string Destination { get; init; } = "";
     public string Notes { get; init; } = "";
     public bool CanEditNotes { get; init; }
+    public bool OptimizationLocked { get; init; }
     public int OrderCount { get; init; }
     public RouteSummaryDto? PlannedRoute { get; init; }
     public string[] AllowedStatuses { get; init; } = [];

@@ -4,6 +4,7 @@ namespace Aurora.Contracts;
 
 public sealed class EquipmentTypeDto
 {
+    public long Revision { get; set; }
     public string Code { get; set; } = "";
     public string Description { get; set; } = "";
     public double? Weight { get; set; }
@@ -48,8 +49,10 @@ public sealed class EquipmentTypeDto
 
 public sealed class EquipmentUnitDto
 {
+    public long Revision { get; set; }
     public string Id { get; set; } = "";
     public string Alias { get; set; } = "";
+    public long? DriverId { get; set; }
     public string Terminal { get; set; } = "";
     public string TypeCode { get; set; } = "";
     public bool Available { get; set; } = true;

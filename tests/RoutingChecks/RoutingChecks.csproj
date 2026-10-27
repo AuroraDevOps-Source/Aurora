@@ -6,4 +6,5 @@
   <ItemGroup><Compile Include="../../src/Aurora.Client/AuthenticationNavigation.cs" Link="AuthenticationNavigation.cs" /></ItemGroup>
   <ItemGroup><None Include="../../src/Aurora.Client/wwwroot/samples/appointment-test.json" Link="sample.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><None Include="../../src/Aurora.Client/wwwroot/samples/equipment-catalog.json" Link="equipment.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/Aurora.Integrations.Nova/Aurora.Integrations.Nova.csproj" /></ItemGroup>
 </Project>

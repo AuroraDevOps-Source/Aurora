@@ -1,0 +1,53 @@
+@inject HttpClient Http
+<fieldset class="edit-group" disabled="@_busy">
+    <legend>Planning</legend>
+    @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+    @if(_settings is {} p)
+    {
+        <label><input type="checkbox" @bind="p.Consolidation" /> Consolidation customer</label>
+        @if(p.Consolidation)
+        {
+            <p>Accumulate this consignee's freight for one delivery address at each origin terminal across days. Orders bypass route optimization. Release each manifest when it is ready to leave.</p>
+            <label class="field">Copy capacity from equipment<select value="@p.EquipmentType" @onchange="EquipmentChanged"><option value="">Choose equipment</option>
+                @foreach(var unit in (_fleet?.Units??[]).Where(u=>_fleet!.Types.Any(t=>t.Code==u.TypeCode&&!t.PowerOnly&&t.Weight>0&&t.Cubes>0))){<option value="@unit.TypeCode">@unit.Id · @unit.Terminal</option>}
+            </select></label>
+            <div class="master-fields">
+                <label class="field">Maximum weight<input value="@p.MaximumWeight" readonly /></label>
+                <label class="field">Maximum cubes<input value="@p.MaximumCubes" readonly /></label>
+            </div>
+            <small>These capacities define a load; choosing a template does not reserve that truck.</small>
+        }
+        else {<label><input type="checkbox" @bind="p.KeepDeliveriesTogether" /> Keep compatible deliveries to the same destination together</label>}
+        <div class="master-fields">
+            <label class="field">Estimated cubes per piece<InputNumber @bind-Value="p.EstimatedCubesPerPiece" /><small>Used only when actual cubes are missing. Leave blank when no reliable estimate is available.</small></label>
+            <label class="field">Setup minutes per stop<InputNumber @bind-Value="p.SetupMinutes" /></label>
+            <label class="field">Handling minutes per piece<InputNumber @bind-Value="p.MinutesPerPiece" /></label>
+            <label class="field">Handling minutes per cube<InputNumber @bind-Value="p.MinutesPerCube" /></label>
+        </div>
+        <button class="outline-button" type="button" @onclick="Save">Save planning settings</button>
+        @if(_saved){<span role="status">Planning settings saved.</span>}
+    }
+</fieldset>
+@code {
+    [Parameter] public string Code {get;set;}="";
+    string? _loaded,_error;bool _busy,_saved;CustomerPlanning? _settings;EquipmentCatalogDto? _fleet;
+    string Url=>$"api/v1/aurora/firebird/customers/{Uri.EscapeDataString(Code)}/planning";
+    protected override async Task OnParametersSetAsync()
+    {
+        if(_loaded==Code)return;_loaded=Code;_busy=true;_saved=false;
+        try{using var r=await Http.GetAsync(Url);await ApiResponse.Check(r);_settings=await r.Content.ReadFromJsonAsync<CustomerPlanning>();
+            using var f=await Http.GetAsync("api/v1/aurora/firebird/fleet");await ApiResponse.Check(f);_fleet=await f.Content.ReadFromJsonAsync<EquipmentCatalogDto>();}
+        catch(Exception e){_error=e.Message;}finally{_busy=false;}
+    }
+    void EquipmentChanged(ChangeEventArgs e)
+    {
+        _settings!.EquipmentType=e.Value?.ToString()??"";var type=_fleet?.Types.SingleOrDefault(t=>t.Code==_settings.EquipmentType);
+        _settings.MaximumWeight=(decimal?)type?.Weight;_settings.MaximumCubes=(decimal?)type?.Cubes;_saved=false;
+    }
+    async Task Save()
+    {
+        _busy=true;_saved=false;_error=null;
+        try{_settings!.Validate();using var r=await Http.PutAsJsonAsync(Url,_settings);await ApiResponse.Check(r);_settings=await r.Content.ReadFromJsonAsync<CustomerPlanning>();_saved=true;}
+        catch(Exception e){_error=e.Message;}finally{_busy=false;}
+    }
+}

@@ -23,12 +23,10 @@ else
         </div></fieldset>
         <fieldset class="edit-group"><legend>Database</legend><div class="user-fields">
             <label class="field wide">Database<select @bind="_databaseId"><option value="">Select a database</option>@foreach(var database in _databases){<option value="@database.Id">@database.Name (@database.Host)</option>}</select></label>
-            <label class="field"><span><input type="checkbox" @bind="_novaApiLogin" /> Allow Nova API sign-in (User level only)</span></label>
+            <label class="field nova-login-option"><input type="checkbox" @bind="_novaApiLogin" /><span>Allow Nova API sign-in (User level only)</span></label>
             <label class="field">Nova user ID<input @bind="_novaUserId" maxlength="128" placeholder="Leave blank to disable Nova sign-in" /></label>
-            @if(_databaseId is not null){<p class="field wide">Nova launch database ID: <code>@_databaseId</code></p>}
-            <p class="field wide">Set the Nova user ID only after the Nova launch integration is installed and its database permissions are verified. This lets that Nova user sign in with this account’s access level.</p>
         </div></fieldset>
-        <div class="user-toolbar"><span class="spacer"></span><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" disabled="@(_databaseId is null)" @onclick="Save">Save user</button></div>
+        <div class="user-toolbar"><span class="spacer"></span><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" disabled="@(_databaseId is null)" @onclick="Save">Save</button></div>
     </fieldset>
 }
 </section>

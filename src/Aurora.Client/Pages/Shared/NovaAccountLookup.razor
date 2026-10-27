@@ -5,7 +5,7 @@
     <div class="lookup-control">
         <input id="@_id" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="@_open"
                aria-controls="@(_id+"-options")" aria-activedescendant="@(_open && _active>=0?$"{_id}-{_active}":null)"
-               value="@_text" maxlength="@MaxLength" disabled="@Disabled" placeholder="Type a name or search Nova…"
+               value="@_text" maxlength="@MaxLength" disabled="@Disabled" placeholder="@(Placeholder ?? "Type a name or search Nova…")"
                @oninput="Input" @onfocus="()=>Search(_text)" @onblur="Close" @onkeydown="KeyDown" />
         <button type="button" disabled="@Disabled" aria-label="@($"Look up {Label}")" @onmousedown:preventDefault @onclick="()=>Search(string.Empty)">▾</button>
     </div>
@@ -31,6 +31,7 @@
     }
 </div>
 @code {
+    [Parameter] public string? Placeholder {get;set;}
     [Parameter] public string Label {get;set;}="Name";
     [Parameter] public string? Value {get;set;}
     [Parameter] public EventCallback<string?> ValueChanged {get;set;}

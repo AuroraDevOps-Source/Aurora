@@ -3,7 +3,9 @@ namespace Aurora.Contracts;
 public sealed record NovaRecordSummary(long Id, string Number, string Description, string Terminal, string Status)
 {
     public DataRequirementIssue[] Issues { get; init; } = [];
+    public string WorkType {get;init;}="Delivery";
     public string? ReceivingTerminal { get; init; }
+    public long[] ManifestNumbers { get; init; } = [];
 }
 public sealed record NovaRecordPage(NovaRecordSummary[] Records, bool HasMore);
 public sealed record NovaRecordOptions(string[] Terminals, NovaManifestStatus[] Statuses)
@@ -18,6 +20,9 @@ public sealed record NovaRecordDocument(long Id, string Title, string Revision, 
 {
     public string[] LocationWarnings { get; init; } = [];
 }
-public sealed record NovaRecordEdit(string Revision, Dictionary<string, Dictionary<string,string?>> Values);
+public sealed record NovaRecordEdit(string Revision, Dictionary<string, Dictionary<string,string?>> Values)
+{
+    public string[] CoordinateParts { get; init; } = [];
+}
 public sealed record NovaOrderRouting(string? ReceivingTerminal, int Revision);
 public sealed record NovaOrderRoutingEdit(string? ReceivingTerminal, int Revision, string OrderRevision);

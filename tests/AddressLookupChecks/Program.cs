@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Net;
 using System.Text.Json;
 using Aurora.Contracts;
@@ -115,6 +116,81 @@ await source.ResolveOrdersForPlanning(selectedPlan,default);
 source.PrepareDraft(selectedPlan,new TerminalDto { Code="MHT",Latitude=42,Longitude=-71 });
 Check(handler.Count==count,"unselected order with missing coordinates is neither looked up nor validated");
 Console.WriteLine("Address lookup checks passed.");
+
+handler.Body="{\"locations\":["+match+"]}";
+count=handler.Count;
+var preview=await lookup.LookUpTerminal(found.Edit,default);
+Check(preview.Error is null && preview.Latitude=="42.9171" && handler.Count==count+1,"explicit lookup refreshes even existing coordinates");
+count=handler.Count;
+var supplied=await lookup.Resolve("terminals",manual with { UseCoordinates=true },Current(found.Edit),default);
+Check(supplied.Edit.Values["LM_LATITUDE"]=="43" && handler.Count==count,"explicit terminal coordinates survive save without another lookup");
+try { await lookup.Resolve("terminals",partial with { UseCoordinates=true },null,default); throw new Exception("partial explicit coordinates accepted"); } catch(FormatException) {}
+handler.Body="{\"locations\":[]}";
+Check((await lookup.LookUpTerminal(input,default)).Error!.Contains("no matching address"),"no match explained");
+handler.Body="{\"locations\":["+match.Replace("97","60")+"]}";
+Check((await lookup.LookUpTerminal(input,default)).Error!.Contains("scored 60"),"low confidence explained");
+handler.Status=HttpStatusCode.Forbidden;
+Check((await lookup.LookUpTerminal(input,default)).Error!.Contains("geocoding permissions"),"access failure explained");
+handler.Status=HttpStatusCode.TooManyRequests;
+Check((await lookup.LookUpTerminal(input,default)).Error!.Contains("request limit"),"quota failure explained");
+handler.Timeout=true;
+Check((await lookup.LookUpTerminal(input,default)).Error!.Contains("timed out"),"timeout explained");
+Check((await noKey.LookUpTerminal(input,default)).Error!.Contains("not configured"),"explicit lookup configuration failure explained");
+Console.WriteLine("Terminal coordinate editing and lookup checks passed.");
+handler.Timeout=false;handler.Status=HttpStatusCode.OK;handler.Body="{\"locations\":["+match+"]}";
+var stopLookup=await lookup.LookUpOrderAddress(address,default);
+Check(stopLookup.Error is null && stopLookup.Latitude=="42.9171","order address lookup maps stop address fields");
+var explicitOrder=resolved.Edit with { CoordinateParts=["delivery"], Values=resolved.Edit.Values.ToDictionary(p=>p.Key,p=>new Dictionary<string,string?>(p.Value)) };
+explicitOrder.Values["delivery"]["OPS_LATITUDE"]="43";
+explicitOrder.Values["delivery"]["OPS_LONGITUDE"]="-70";
+count=handler.Count;
+var explicitSaved=await lookup.ResolveOrder(explicitOrder,OrderCurrent(resolved.Edit),default);
+Check(explicitSaved.Edit.Values["delivery"]["OPS_LATITUDE"]=="43" && handler.Count==count,"manual stop coordinates survive save while unchanged other stop is preserved");
+explicitOrder.Values["delivery"]["OPS_LONGITUDE"]=null;
+try { await lookup.ResolveOrder(explicitOrder,OrderCurrent(resolved.Edit),default); throw new Exception("partial stop coordinates accepted"); } catch(FormatException) {}
+handler.Body="{\"locations\":[]}";
+Check((await lookup.LookUpOrderAddress(address,default)).Error!.Contains("no matching address"),"order lookup explains no match");
+Console.WriteLine("Order coordinate editing and lookup checks passed.");
+var missingAddressPlan=RoutingInput.Parse("""{"reporting":{"firebirdSource":"check","orders":{"FB-1370826":{"nativePro":160633,"nativeStopKind":"D"}}},"locations":[{"id":"DEPOT"},{"id":"FB-1370826"}]}""");
+void CheckAddressError(string number,string kind)
+{
+    try { source.PrepareDraft(missingAddressPlan.ToJsonString(),new TerminalDto { Code="101",Latitude=42,Longitude=-71 }); throw new Exception("Missing coordinates accepted"); }
+    catch(RecordErrorException e) {
+        Check(e.Message==$"The {kind} address for order {number} could not be located. Check the order's address and save again.","address error identifies the displayed order number and stop type");
+        Check(e.Link==new RecordErrorLink("orders","1370826",number),"error links the visible PRO to its internal record ID");
+        var dto=new ApiErrorDto(e.Message){RecordLink=e.Link};
+        Check(JsonSerializer.Deserialize<ApiErrorDto>(JsonSerializer.Serialize(dto))!.RecordLink==e.Link,"API preserves structured record link");
+    }
+}
+CheckAddressError("160633","delivery");
+missingAddressPlan["reporting"]!["orders"]!["FB-1370826"]!["nativeStopKind"]="P";
+CheckAddressError("160633","pickup");
+missingAddressPlan["reporting"]!["orders"]!["FB-1370826"]!["nativePro"]=0;
+CheckAddressError("FB-1370826","pickup");
+missingAddressPlan["reporting"]!["orders"]=new System.Text.Json.Nodes.JsonObject();
+CheckAddressError("FB-1370826","delivery");
+Console.WriteLine("Planning address error order-number checks passed.");
+try { source.PrepareDraft(missingAddressPlan.ToJsonString(),new TerminalDto { Code="101" });throw new Exception("Missing terminal coordinates accepted"); }
+catch(RecordErrorException e){Check(e.Link==new RecordErrorLink("terminals","101","101"),"terminal coordinate error links its editor");}
+
+// Captured shape of PTV's Hurricane result, with no provider credentials.
+const string interpolated="""{"locationType":"INTERPOLATED_ADDRESS","quality":{"totalScore":98},"referencePosition":{"latitude":38.41500473022461,"longitude":-82.01858520507812},"address":{"houseNumber":"2426","street":"US Route 60","city":"Hurricane","state":"West Virginia","countryCode":"US-WV","countryCodeIsoAlpha2":"US","postalCode":"25526-9098"}}""";
+var hurricane=new NovaMasterEdit("",new(){["LM_ADDR1"]="2426 Route 60",["LM_CITY"]="Hurricane",["LM_STATE"]="WV",["LM_ZIP"]="25526"});
+handler.Body="{\"locations\":["+interpolated+"]}";
+var hurricaneResult=await lookup.LookUpTerminal(hurricane,default);
+Check(hurricaneResult.Error is null && hurricaneResult.Latitude is not null,"matching high-score interpolated address accepted");
+foreach(var mismatch in new[]{interpolated.Replace("2426","2427"),interpolated.Replace("Route 60","Route 34"),interpolated.Replace("Hurricane","Dingess"),interpolated.Replace("US-WV","US-VA"),interpolated.Replace("25526-9098","25671"),interpolated.Replace("98","89"),interpolated.Replace("INTERPOLATED_ADDRESS","STREET")})
+{
+    handler.Body="{\"locations\":["+mismatch+"]}";
+    Check((await lookup.LookUpTerminal(hurricane,default)).Error is not null,"mismatching, low-score or street-only interpolation rejected");
+}
+handler.Body="{\"locations\":["+interpolated+","+interpolated.Replace("38.41500473022461","38.42")+"]}";
+Check((await lookup.LookUpTerminal(hurricane,default)).Error is not null,"multiple distinct matching locations rejected");
+handler.Body="{\"locations\":["+interpolated+","+interpolated.Replace("Route 60","Route 34")+"]}";
+Check((await lookup.LookUpTerminal(hurricane,default)).Error is null,"other streets do not disqualify the matching address");
+var hurricaneStop=hurricane.Values.ToDictionary(p=>p.Key.Replace("LM_","OPS_"),p=>p.Value);
+Check((await lookup.LookUpOrderAddress(hurricaneStop,default)).Error is null,"order lookup uses interpolated matching too");
+Console.WriteLine("Interpolated address checks passed.");
 
 sealed class LookupHandler : HttpMessageHandler
 {

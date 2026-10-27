@@ -3,13 +3,21 @@
 @page "/planner"
 @page "/reset-preview"
 @page "/terminal-edit-preview"
+@page "/bulk-consignee-preview"
+@page "/timeline-preview"
 @page "/aurora/{WorkspaceView}"
 @page "/aurora/manifests/new"
 @page "/aurora/manifests/{ManifestId:guid}"
 @using Microsoft.AspNetCore.Components.Web
 @inject NavigationManager Navigation
 <!DOCTYPE html><html><head><base href="/" /><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@@mdi/font@7.4.47/css/materialdesignicons.min.css" /><link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" /><style>:root{--mud-typography-default-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;--mud-typography-default-size:.875rem;--mud-typography-default-lineheight:1.43;--mud-palette-text-primary:#2d3748;--mud-palette-background:#f0f2f5}</style><link rel="stylesheet" href="/css/route-optimization.css" /><link rel="stylesheet" href="/css/app.css" /><link rel="stylesheet" href="/Aurora.Client.styles.css" /><HeadOutlet /></head><body><p style="padding:8px 24px;background:#fff3cd;margin:0">Local UI preview: synthetic orders and simulated PTV responses. Freight workflows save in memory only. The full application uses SSO; this test harness does not sign in.</p>
-@if (new Uri(Navigation.Uri).AbsolutePath == "/terminal-edit-preview") {
+@if (new Uri(Navigation.Uri).AbsolutePath == "/timeline-preview") {
+<TimelinePreview @rendermode="new InteractiveServerRenderMode(prerender: false)" />
+}
+else if (new Uri(Navigation.Uri).AbsolutePath == "/bulk-consignee-preview") {
+<Aurora.Client.Pages.Shared.BulkConsigneePopup OrderIds="@(new long[]{90001,90002})" @rendermode="new InteractiveServerRenderMode(prerender: false)" />
+}
+else if (new Uri(Navigation.Uri).AbsolutePath == "/terminal-edit-preview") {
 <main style="padding:24px"><TerminalEditPreview @rendermode="new InteractiveServerRenderMode(prerender: false)" /></main>
 }
 else if (new Uri(Navigation.Uri).AbsolutePath == "/reset-preview") {

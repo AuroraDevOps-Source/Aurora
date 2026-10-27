@@ -28,7 +28,7 @@ public sealed class FreightLocation
     {
         FreightWorkflow.Text(Name, 200, "Location name", true);
         foreach (var value in new[] { Address, City, State, PostalCode, Country }) FreightWorkflow.Text(value, 200, "Location");
-        if (NodeId == Guid.Empty) throw new FormatException("Choose a valid transportation node.");
+        if (NodeId == Guid.Empty) throw new FormatException("Choose a valid terminal.");
     }
     public static FreightLocation From(TerminalDto n) => new() { NodeId = n.Id, Name = n.Name, Address = n.Address, City = n.City, State = n.State, PostalCode = n.PostalCode, Country = n.Country };
 }

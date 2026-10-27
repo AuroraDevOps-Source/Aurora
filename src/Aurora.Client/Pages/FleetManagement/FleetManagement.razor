@@ -12,7 +12,7 @@
         }
     </tbody></table></div>
     @if(!_fleet.Units.Any(u=>u.UseForRouting)) { <p class="empty-state">Add your first truck. Equipment types define its capacity, routing profile, and operating costs.</p> }
-    <p class="preview-footnote">Driver scheduling is a separate step to add later. This version plans trucks and their working hours; it does not enforce driver hours of service.</p>
+    <p class="preview-footnote">Saved drivers default into new plans and can be changed during planning. Driver hours-of-service compliance is not enforced.</p>
 </section>
 @if(_editing)
 {
@@ -22,6 +22,7 @@
         <fieldset disabled="@_saving"><div class="editor-grid">
             <label class="field">Truck ID<input @bind="_truck.Id" disabled="@_existing" /></label><label class="field">Display name<input @bind="_truck.Alias" /></label>
             <label class="field">Terminal<input @bind="_truck.Terminal" placeholder="LAX" /></label><label class="field">Equipment type<select @bind="_truck.TypeCode"><option value="">Choose type</option>@foreach(var type in _fleet.Types.Where(t=>!t.PowerOnly)) { <option value="@type.Code">@type.Code — @type.Description</option> }</select></label>
+            <EquipmentDriverSelect @bind-Value="_truck.DriverId" Terminal="@_truck.Terminal" />
             <label class="field">VIN<input @bind="_truck.Vin" /></label><label class="field">License plate<input @bind="_truck.Plate" /></label><label class="field">Plate state<input @bind="_truck.PlateState" /></label>
             <label class="field">Default departure (HH:mm)<input @bind="_truck.ShiftStart" placeholder="08:00" /></label><label class="field">Latest return (HH:mm)<input @bind="_truck.ShiftEnd" placeholder="18:00" /></label>
             <label><input type="checkbox" @bind="_truck.Available" /> Available for planning</label>

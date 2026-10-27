@@ -1,37 +1,36 @@
 @inject HttpClient Http
 <EditPopup Title="Update consignee" Busy="_busy" OnClose="OnClose">
     @if(_error is not null){<p class="alert" role="alert">@_error</p>}
-    <p>@OrderIds.Length selected orders. Only checked fields will change. Check a field and leave it blank to clear it.</p>
     <fieldset disabled="@(_busy || _preview || _finished)">
         <div class="record-fields">
             @foreach(var field in _fields)
             {
                 @if(field.Key=="OPS_NAME")
                 {
-                    <div><label class="field"><span><input type="checkbox" @bind="field.Apply" /> Update name</span></label>
-                        <NovaAccountLookup Label="Consignee name" Value="@field.Value" MaxLength="@field.Length"
-                            Disabled="@(_busy || _preview || _finished || !field.Apply)" ValueChanged="value=>ChangeName(field,value)" OnSelected="SelectAccount" />
+                    <div>
+                        <NovaAccountLookup Label="Consignee name" Value="@field.Value" MaxLength="@field.Length" Placeholder="@(field.Mixed?"Mixed values":null)"
+                            Disabled="@(_busy || _preview || _finished)" ValueChanged="value=>ChangeName(field,value)" OnSelected="SelectAccount" />
+                        @if(field.Mixed){<button type="button" class="text-button" @onclick="()=>ChangeName(field,string.Empty)">Clear name</button>}
                     </div>
                 }
                 else
                 {
-                <label class="field"><span><input type="checkbox" @bind="field.Apply" /> @field.Label</span><input @bind="field.Value" maxlength="@field.Length" disabled="@(!field.Apply)" /></label>
+                <label class="field">@field.Label<input value="@field.Value" @oninput="e=>ChangeField(field,e.Value?.ToString())" maxlength="@field.Length" placeholder="@(field.Mixed?"Mixed values":null)" />@if(field.Mixed){<button type="button" class="text-button" @onclick="()=>ChangeField(field,string.Empty)">Clear @field.Label.ToLowerInvariant()</button>}</label>
                 }
             }
         </div>
-        <label class="field"><span><input type="checkbox" @bind="_changeRouting" /> Update Line Haul setting</span></label>
-        @if(_changeRouting)
-        {
-            <label class="field"><span><input type="checkbox" @bind="_lineHaul" /> Line Haul</span></label>
+        <div class="bulk-routing">
+            <label class="bulk-toggle"><input type="checkbox" @bind="_lineHaul" @bind:after="RoutingChanged" /> Line Haul</label>
+            @if(_routingMixed && !_changeRouting){<span>Mixed routing settings</span>}
             @if(_lineHaul)
             {
-                <label class="field">Receiving terminal<select @bind="_receiving">
+                <label class="field">Receiving terminal<select @bind="_receiving" @bind:after="RoutingChanged">
                     <option value="">Select receiving terminal</option>
                     @foreach(var node in _nodes.Where(n=>!_items.Any(i=>Origin(i.Document)==n.Code)))
                     {<option value="@node.Code">@node.Code — @node.Name — @node.Address, @node.City, @node.State @node.PostalCode</option>}
                 </select></label>
             }
-        }
+        </div>
     </fieldset>
     @if(_preview || _finished)
     {
@@ -58,13 +57,15 @@
 @code {
     [Parameter] public long[] OrderIds {get;set;}=[];
     [Parameter] public EventCallback OnClose {get;set;}
-    sealed class EditField(string key,string label,int length){public string Key=key;public string Label=label;public int Length=length;public bool Apply;public string Value="";}
+    sealed class EditField(string key,string label,int length){public string Key=key;public string Label=label;public int Length=length;public bool Apply;public string Value="";public string Initial="";public bool Mixed;}
     sealed class Item(NovaRecordDocument document,NovaOrderRouting routing){public NovaRecordDocument Document=document;public NovaOrderRouting Routing=routing;public string Result="Not saved";}
     EditField[] _fields=[new("OPS_NAME","Name",40),new("OPS_ADDR1","Address",50),new("OPS_ADDR2","Address 2",50),new("OPS_ADDR3","Address 3",50),new("OPS_CITY","City",35),new("OPS_STATE","State",2),new("OPS_ZIP","ZIP",9),new("OPS_COUNTRY","Country",4),new("OPS_CONTACT","Contact",40),new("OPS_PHONE","Phone",32),new("OPS_CONTACT_EMAIL","Email",150)];
     List<Item> _items=[];
     TerminalDto[] _nodes=[];
     bool _busy,_preview,_finished,_changeRouting,_lineHaul;
     string _receiving="";
+    string? _initialReceiving;
+    bool _routingMixed;
     string? _error;
     string? _accountId;
     string ChangeSummary=>string.Join("; ", _fields.Where(f=>f.Apply).Select(f=>$"{f.Label}: {(string.IsNullOrWhiteSpace(f.Value)?"(clear)":f.Value)}"));
@@ -72,7 +73,9 @@
     static string? Origin(NovaRecordDocument doc)=>doc.Parts[0].Fields.Single(f=>f.Key=="PB_LOCATION").Value;
     static string? Pro(NovaRecordDocument doc)=>doc.Parts[0].Fields.Single(f=>f.Key=="PBNUM").Value;
     static async Task Check(HttpResponseMessage r){if(!r.IsSuccessStatusCode)throw new FormatException((await r.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Request failed.");}
-    void ChangeName(EditField field,string? value){field.Value=value??"";_accountId=null;}
+    void ChangeField(EditField field,string? value){field.Value=value??"";field.Apply=field.Mixed || field.Value!=field.Initial;}
+    void ChangeName(EditField field,string? value){ChangeField(field,value);_accountId=null;}
+    void RoutingChanged(){_changeRouting=_routingMixed || (_lineHaul?_receiving:null)!=_initialReceiving;}
     async Task SelectAccount(string id)
     {
         _busy=true;_error=null;
@@ -102,13 +105,23 @@
                 using var routing=await Http.GetAsync($"api/v1/aurora/firebird/orders/{id}/routing");await Check(routing);
                 _items.Add(new(document,(await routing.Content.ReadFromJsonAsync<NovaOrderRouting>())!));
             }
+            foreach(var field in _fields)
+            {
+                var values=_items.Select(i=>Delivery(i.Document).Fields.Single(f=>f.Key==field.Key).Value??"").Distinct().ToArray();
+                field.Mixed=values.Length>1;field.Initial=field.Value=field.Mixed?"":values.FirstOrDefault()??"";
+            }
+            var destinations=_items.Select(i=>i.Routing.ReceivingTerminal).Distinct().ToArray();
+            _routingMixed=destinations.Length>1;
+            _initialReceiving=_routingMixed?null:destinations.FirstOrDefault();
+            _receiving=_initialReceiving??"";_lineHaul=_initialReceiving is not null;
+
         }
         catch(Exception ex){_error=ex.Message;}finally{_busy=false;}
     }
     void Preview()
     {
         _error=null;
-        if(!_fields.Any(f=>f.Apply) && !_changeRouting){_error="Choose at least one field to update.";return;}
+        if(!_fields.Any(f=>f.Apply) && !_changeRouting){_error="Change at least one field to update.";return;}
         if(_changeRouting && _lineHaul && (string.IsNullOrEmpty(_receiving) || _items.Any(i=>Origin(i.Document)==_receiving))){_error="Choose a receiving terminal different from every selected order's starting terminal.";return;}
         _preview=true;
     }

@@ -16,7 +16,7 @@ public static class FleetPlanning
             ?? throw new FormatException("Orders need a depot location.");
         var dateText=RoutingInput.Text(RoutingInput.Items(root["vehicles"]).FirstOrDefault()?["start"]?["earliestStartTime"]);
         var date=dateText is not null ? DateOnly.ParseExact(dateText[..10],"yyyy-MM-dd",CultureInfo.InvariantCulture)
-            : DateOnly.FromDateTime((RoutingInput.Items(root["orders"]?["deliveries"]).Select(o=>RoutingInput.Describe(root,RoutingInput.Text(o["id"])!))
+            : DateOnly.FromDateTime((RoutingInput.Orders(root).Select(o=>RoutingInput.Describe(root,RoutingInput.Text(o["id"])!))
                 .SelectMany(a=>a?.Windows ?? []).Select(w=>w.EarliestStart).FirstOrDefault(d=>d is not null)
                 ?? throw new FormatException("Choose a planning date for these orders.")).DateTime);
         var eligible=Eligible(catalog,terminal);
@@ -35,6 +35,24 @@ public static class FleetPlanning
         root["reporting"]!["vehicles"]=new JsonObject();
         root["reporting"]!.AsObject().Remove("unavailableVehicles");
         foreach(var unit in eligible)root["reporting"]!["vehicles"]![unit.Id]=new JsonObject { ["equipmentType"]=unit.TypeCode };
+        return root.ToJsonString();
+    }
+    public static string DefaultDrivers(string json, EquipmentCatalogDto catalog)
+    {
+        var root=RoutingInput.Parse(json);
+        var report=root["reporting"]!.AsObject();
+        report["drivers"] ??= new JsonObject();
+        foreach(var truck in RoutingInput.Items(root["vehicles"]))
+        {
+            var id=RoutingInput.Text(truck["id"])!;
+            var unit=catalog.Units.SingleOrDefault(u=>u.Id==id);
+            if(unit?.DriverId is not {} driver || report["drivers"]![id] is not null)continue;
+            report["drivers"]![id]=new JsonObject {
+                ["id"]=driver.ToString(CultureInfo.InvariantCulture),
+                ["shiftStart"]=RoutingInput.Time(truck["start"]?["earliestStartTime"])?.ToString("HH:mm",CultureInfo.InvariantCulture),
+                ["shiftEnd"]=RoutingInput.Time(truck["end"]?["latestEndTime"])?.ToString("HH:mm",CultureInfo.InvariantCulture)
+            };
+        }
         return root.ToJsonString();
     }
     // The browser may choose availability and daily shifts, but cannot invent vehicles or change saved capacities.

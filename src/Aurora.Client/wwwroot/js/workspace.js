@@ -50,3 +50,37 @@ window.auroraWorkspace = (() => {
         unwatch() { if(onFocus) window.removeEventListener('focus',onFocus); if(onStorage) window.removeEventListener('storage',onStorage); onFocus=onStorage=null; }
     };
 })();
+
+// Each window keeps its own Blazor and Leaflet events; only route data is shared.
+window.auroraMapPopout = (() => {
+    let snapshot = null, version = 0, serialized = '', popup, timer, busy = false;
+    const name = 'aurora-map-' + crypto.randomUUID();
+    return {
+        publish(value) {
+            const json = JSON.stringify(value);
+            if (json !== serialized) { serialized = json; snapshot = value; version++; }
+        },
+        read() { return { version, snapshot }; },
+        open() {
+            if (popup && !popup.closed) { popup.focus(); return; }
+            popup = window.open('/aurora/planning?mapOnly=true', name, 'popup,width=1200,height=900,resizable=yes,scrollbars=yes');
+            if (!popup) window.alert('Allow popups for Aurora to open the map panel.');
+        },
+        listen(dotnet) {
+            clearInterval(timer);
+            let last = -1;
+            const sync = async () => {
+                if (busy) return;
+                busy = true;
+                try {
+                    const state = window.opener && !window.opener.closed ? window.opener.auroraMapPopout?.read() : null;
+                    const next = state?.version ?? -2;
+                    if (next !== last) { await dotnet.invokeMethodAsync('ReceiveMapSnapshot', state?.snapshot ?? null); last = next; }
+                } catch { clearInterval(timer); }
+                finally { busy = false; }
+            };
+            timer = setInterval(sync, 1000); sync();
+        },
+        stop(child) { if(child) clearInterval(timer); else {snapshot=null;serialized='';version++;} }
+    };
+})();

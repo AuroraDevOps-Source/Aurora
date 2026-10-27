@@ -14,10 +14,10 @@ public sealed record RoutingDraft(int Orders, int Trucks, int Windows, int Infor
             .ToDictionary(l => RoutingInput.Text(l["id"])!, StringComparer.Ordinal);
         var deliveries = new List<RoutingDraftOrder>();
         var points = new List<RoutingPreviewPoint>();
-        foreach (var order in RoutingInput.Items(root["orders"]?["deliveries"]))
+        foreach (var order in RoutingInput.Orders(root))
         {
             var id = RoutingInput.Text(order["id"])!;
-            locations.TryGetValue(RoutingInput.Text(order["delivery"]?["locationId"]) ?? "", out var location);
+            locations.TryGetValue(RoutingInput.Text(RoutingInput.CustomerTask(order)?["locationId"]) ?? "", out var location);
             var report = RoutingInput.ReportOrder(root, id);
             var name = Label(report, "shipToName", "carrierConsigneeName", "consigneeName", "name")
                 ?? Label(location, "name") ?? "Delivery location";

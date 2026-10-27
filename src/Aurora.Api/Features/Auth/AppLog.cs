@@ -49,7 +49,7 @@ public sealed class AppLog(NpgsqlDataSource dataSource, ITenantContext tenant, I
         else if (path.Contains("/client-error")) action = "Application error";
         else
         {
-            var noun=path.Contains("/fleet") ? "truck" : path.Contains("/terminals") ? "transportation node" : path.Contains("/customers") ? "customer"
+            var noun=path.Contains("/fleet") ? "truck" : path.Contains("/terminals") ? "terminal" : path.Contains("/customers") ? "customer"
                 : path.Contains("/orders") ? "order" : path.Contains("/manifests") ? "manifest" : path.Contains("/users") ? "user" : path.Contains("/databases") ? "database" : "record";
             action=(method switch { "POST"=>"Added ", "PUT" or "PATCH"=>"Edited ", "DELETE"=>"Deleted ", _=>"Viewed " })+noun;
         }

@@ -1,0 +1,116 @@
+@using System.Globalization
+@using System.Text.Json.Nodes
+
+<section class="route-timeline" aria-label="Route timeline">
+    <header class="timeline-heading">
+        <div><span class="eyebrow">THE DAY AT A GLANCE</span><h2>Route timeline</h2><p>@Routes.Count trucks · @Routes.Sum(r => r.ManifestStops) stops · planned schedule</p></div>
+        <label class="zoom-control">Scale <select @bind="_scale"><option value="1">Fit</option><option value="2">2×</option><option value="4">4×</option></select></label>
+    </header>
+    <div class="timeline-legend"><span><i class="travel"></i>Between stops</span><span><i class="stop"></i>At customer</span><span><i class="depot"></i>At terminal</span><span><i class="overtime-key"></i>Over shift</span></div>
+    @if (_start is not { } start || _end is not { } end)
+    {
+        <div class="timeline-empty">@(Routes.Count == 0 ? "No routes to display." : "Schedule times were not returned for these routes.")</div>
+    }
+    else
+    {
+        <p class="timeline-date">@start.ToString("ddd, MMM d", CultureInfo.InvariantCulture)@((end.Date != start.Date) ? $" – {end:ddd, MMM d}" : "") <span>· UTC@(start.ToString("zzz"))</span></p>
+        <div class="timeline-scroll" tabindex="0" role="region" aria-label="Scrollable fleet schedule">
+            <div class="timeline-canvas" style="min-width:@(Math.Max(620, _scale * 620))px">
+                <div class="timeline-axis"><span class="axis-label">TRUCK / DRIVER</span><div class="axis-track">
+                    @for (var i = 0; i <= 4; i++)
+                    {
+                        var tick = start.AddTicks((end - start).Ticks * i / 4);
+                        <span style="left:@(i * 25)%">@tick.ToString(end - start > TimeSpan.FromDays(1) ? "MMM d HH:mm" : "HH:mm")</span>
+                    }
+                </div></div>
+                @foreach (var row in _rows)
+                {
+                    <div class="timeline-row @(_selectedVehicle == row.Route.Vehicle ? "selected" : "")">
+                        <button class="truck-label" @onclick="() => Select(row, null)"><strong>@row.Route.Vehicle</strong><span>@row.Driver</span><small>@row.Route.ManifestStops stops · @Duration(row.Route.EstimatedSeconds)</small>@if(row.Overtime > 0){<small class="row-overtime">+@row.Overtime min over shift</small>}</button>
+                        <div class="row-track">
+                            <div class="track-grid" aria-hidden="true"></div>
+                            @if (row.ShiftEnd is { } shift && row.Route.Return is { } returned && returned > shift)
+                            {
+                                <div class="overtime-zone" style="@Position(shift, returned)" title="Beyond planned return time"></div>
+                            }
+                            @foreach (var interval in row.Intervals)
+                            {
+                                <button class="timeline-block @interval.Kind @(_selected == interval && _selectedVehicle == row.Route.Vehicle ? "active" : "")" style="@Position(interval.Start, interval.End)" title="@Describe(interval)" aria-label="@(row.Route.Vehicle + ": " + Describe(interval))" @onclick="() => Select(row, interval)"><span>@(interval.Kind == "stop" ? interval.Label.Replace("Stop ", "") : "")</span></button>
+                            }
+                            @if (row.Intervals.Count == 0) { <span class="no-timing">Stop timing unavailable</span> }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        @if (_rows.FirstOrDefault(r => r.Route.Vehicle == _selectedVehicle) is { } selectedRow)
+        {
+            <section class="timeline-detail" aria-label="Selected schedule details">
+                <div class="detail-heading"><div><span class="eyebrow">@selectedRow.Route.Vehicle · @selectedRow.Driver</span><h3>@(_selected?.Label ?? "Route overview")</h3></div>@if(selectedRow.Overtime > 0){<span class="overtime-badge">@selectedRow.Overtime min over shift</span>}</div>
+                <div class="detail-metrics"><div><span>@(_selected is null ? "Departure" : "From")</span><strong>@Time(_selected?.Start ?? selectedRow.Route.Departure)</strong></div><div><span>@(_selected is null ? "Return" : "To")</span><strong>@Time(_selected?.End ?? selectedRow.Route.Return)</strong></div><div><span>@(_selected is null ? "Driving total" : "Duration")</span><strong>@Duration(_selected is null ? selectedRow.Route.DriveSeconds : (_selected.End - _selected.Start).TotalSeconds)</strong></div></div>
+                @if (_selected?.Stop is { } stop)
+                {
+                    @foreach (var pro in selectedRow.Route.Pros.Where(p => stop.OrderIds.Contains(p.ProNumber)))
+                    {
+                        <div class="timeline-order"><div><strong>@pro.ShipToName</strong><span>@pro.ProNumber · @(pro.WorkType ?? "Delivery") · @pro.City @pro.State</span><AppointmentDisplay Appointment="pro.Appointment" /></div><button class="map-link" @onclick="() => OnFocusOrder.InvokeAsync(new(pro.ProNumber, selectedRow.Route.Vehicle))">Show on map ↗</button></div>
+                    }
+                }
+            </section>
+        }
+    }
+    <p class="timeline-note">Select a truck or interval to inspect it. Customer time includes service and any waiting; between-stop time may include breaks. Separate waiting and break times are not supplied. Unfilled areas have no reported interval.</p>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<RouteSummaryDto> Routes { get; set; } = [];
+    [Parameter] public string? SourceJson { get; set; }
+    [Parameter] public EventCallback<FocusTarget> OnFocusOrder { get; set; }
+    public sealed record FocusTarget(string OrderId, string Vehicle);
+    private sealed record Row(RouteSummaryDto Route, IReadOnlyList<RouteTimelineInterval> Intervals, string Driver, DateTimeOffset? ShiftEnd, int Overtime);
+    private List<Row> _rows = [];
+    private IReadOnlyList<RouteSummaryDto>? _lastRoutes;
+    private string? _lastSource;
+    private DateTimeOffset? _start, _end;
+    private string? _selectedVehicle;
+    private RouteTimelineInterval? _selected;
+    private int _scale = 1;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_lastRoutes, Routes) && _lastSource == SourceJson) return;
+        _lastRoutes = Routes; _lastSource = SourceJson;
+        JsonObject? source = null;
+        if (SourceJson is not null) source = RoutingInput.Parse(SourceJson);
+        _rows = Routes.Select(route => {
+            var truck = source?["reporting"]?[PlannerOvertime.ShiftKey]?[route.Vehicle] as JsonObject
+                ?? RoutingInput.Items(source?["vehicles"]).FirstOrDefault(v => RoutingInput.Text(v["id"]) == route.Vehicle);
+            var driver = RoutingInput.Text(source?["reporting"]?["drivers"]?[route.Vehicle]?["name"]) ?? "Driver not supplied";
+            var limits = new List<DateTimeOffset>();
+            if (RoutingInput.Time(truck?["end"]?["latestEndTime"]) is {} shiftEnd) limits.Add(shiftEnd);
+            if (route.Departure is {} departure)
+            {
+                if (route.BudgetedSeconds is {} budget) limits.Add(departure.AddSeconds(budget));
+                if (truck?["constraints"]?["route"]?["maximumDuration"] is JsonValue duration && duration.TryGetValue<int>(out var maximum)) limits.Add(departure.AddSeconds(maximum));
+            }
+            return new Row(route, RouteTimelineSchedule.Read(route), driver, limits.Count > 0 ? limits.Min() : null, PlannerOvertime.OverShiftMinutes(SourceJson ?? "{}", route));
+        }).ToList();
+        var times = Routes.SelectMany(r => new[] {r.Departure, r.Return}.Concat(r.RouteStops.SelectMany(s => new[] {s.Arrival, s.Departure}))).OfType<DateTimeOffset>().Order().ToArray();
+        _start = times.Length == 0 ? null : times[0];
+        _end = times.Length == 0 ? null : times[^1].ToOffset(times[0].Offset);
+        if (_start == _end && _start is not null) _end = _start.Value.AddHours(1);
+        _selectedVehicle = Routes.Any(r => r.Vehicle == _selectedVehicle) ? _selectedVehicle : Routes.FirstOrDefault()?.Vehicle;
+        _selected = null;
+    }
+    private void Select(Row row, RouteTimelineInterval? interval) { _selectedVehicle = row.Route.Vehicle; _selected = interval; }
+    private string Position(DateTimeOffset start, DateTimeOffset end)
+    {
+        var total = (_end!.Value - _start!.Value).TotalSeconds;
+        var left = Math.Clamp((start - _start.Value).TotalSeconds / total * 100, 0, 100);
+        var right = Math.Clamp((end - _start.Value).TotalSeconds / total * 100, left, 100);
+        return FormattableString.Invariant($"left:{left:0.####}%;width:{right-left:0.####}%");
+    }
+    private string Time(DateTimeOffset? value) => value?.ToOffset(_start?.Offset ?? value.Value.Offset).ToString("MMM d, h:mm tt", CultureInfo.InvariantCulture) ?? "Not supplied";
+    private string Describe(RouteTimelineInterval interval) => $"{interval.Label} · {Time(interval.Start)} – {Time(interval.End)} · {Duration((interval.End - interval.Start).TotalSeconds)}";
+    private static string Duration(double seconds) { var minutes = (int)Math.Ceiling(Math.Max(0, seconds) / 60); return minutes >= 60 ? $"{minutes / 60}h {minutes % 60:00}m" : $"{minutes}m"; }
+}
+

@@ -1,3 +1,4 @@
+using Aurora.Integrations.Nova;
 using System.Text.Json;
 using Aurora.Contracts;
 using Aurora.Infrastructure.Data;
@@ -21,13 +22,27 @@ Check(DataRequirements.Depot("MHT",0,0).Single().Code=="depot-coordinates", "unl
 Check(DataRequirements.Depot("PWM",43,-70).Length==0, "corrected depots clear their issue");
 Check(DataRequirements.HasCoordinates(0,15) && DataRequirements.HasCoordinates(15,0), "equator and prime meridian coordinates remain valid");
 Check(!DataRequirements.HasCoordinates(double.NaN,10) && !DataRequirements.HasCoordinates(42,null), "nonfinite and incomplete coordinates are excluded");
-Check(DataRequirements.Fleet("MHT",true,null,null,null,20000,1700).Single().ActionUrl=="aurora/terminals", "fleet depot issue links to Transportation Nodes");
+Check(DataRequirements.Fleet("MHT",true,null,null,null,20000,1700).Single().ActionUrl=="aurora/terminals", "fleet depot issue links to Terminals");
 Check(DataRequirements.Fleet("",false,null,null,null,0,null).Select(i=>i.Code).SequenceEqual(new[]{"fleet-terminal","fleet-weight","fleet-cubes"}), "fleet shows each missing planning requirement without duplicate depot errors");
 Check(DataRequirements.Fleet("UNKNOWN",false,null,null,null,20000,1700).Single().Code=="unknown-terminal", "unknown fleet terminal is distinguished from missing coordinates");
 Check(DataRequirements.Fleet("MHT",true,"14 LIBERTY DRIVE","LONDONDERRY","03053",20000,1700).Length==0, "fleet with terminal address and capacities needs no stored coordinates for its issue indicator");
 Check(DataRequirements.Order(1,1,"MHT",true).Length==0, "missing delivery coordinates are resolved during planning instead of flagged as an order issue");
 Check(DataRequirements.Order(2,0,"MHT",true).Single().Code=="delivery-count", "unsupported multiple deliveries are identified");
 Check(DataRequirements.Order(1,0,"MHT",true).Length==0, "ready orders have no issues");
+
+var truckPlan=FirebirdRoutingSource.PlannedEquipment("329", [new(){NativeId=192,Unit="329",Kind="TRK",Description="Truck"}]);
+Check(truckPlan.Trailer==192 && truckPlan.Tractor is null,"straight truck uses internal ID in planned trailer");
+var trailerPlan=FirebirdRoutingSource.PlannedEquipment("4086923", [new(){NativeId=294,Unit="4086923",Kind="TRL",Description="Trailer"}]);
+Check(trailerPlan.Trailer==294 && trailerPlan.Tractor is null,"trailer uses internal ID in planned trailer");
+var tractorPlan=FirebirdRoutingSource.PlannedEquipment("31471", [new(){NativeId=265,Unit="31471",Kind="TRK",Description="Tractor"}]);
+Check(tractorPlan.Tractor==265 && tractorPlan.Trailer is null,"tractor never populates planned trailer");
+foreach(var invalid in new FirebirdRoutingSource.NovaFleetRow[][] {
+    [], [new(){NativeId=1,Unit="329",Kind="DRV"}],
+    [new(){NativeId=1,Unit="329"},new(){NativeId=2,Unit="329"}], [new(){NativeId=192,Unit="other"}] })
+{
+    try { FirebirdRoutingSource.PlannedEquipment("329",invalid); throw new Exception("Invalid equipment accepted"); }
+    catch(FormatException) { Check(true,"missing, driver, duplicate or mismatched equipment rejected"); }
+}
 
 // Explicit opt-in: refresh writes only the restored local Aurora database. Firebird's
 // business writes are always rolled back; its nontransactional generators can advance.
