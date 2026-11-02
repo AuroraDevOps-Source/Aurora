@@ -60,7 +60,17 @@ else
 
         if (string.IsNullOrWhiteSpace(product.Url))
         {
-            _error = $"No address is configured for {product.Name}.";
+            _error = ProductCode == ProductWorkspace.Nova
+                ? "Nova browser access is not configured yet."
+                : $"No address is configured for {product.Name}.";
+            return;
+        }
+
+        // GO-Global owns its Windows session. Embedding it does not exchange Aurora
+        // credentials or imply that GO-Global single sign-on has been configured.
+        if (ProductCode == ProductWorkspace.Nova)
+        {
+            _url = product.Url;
             return;
         }
 

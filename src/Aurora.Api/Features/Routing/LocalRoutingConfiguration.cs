@@ -15,7 +15,7 @@ public sealed class LocalRoutingConfiguration(NpgsqlConnectionFactory factory,IT
             SELECT c.source_identity AS Source,COALESCE(s.ready_statuses,ARRAY[110]) AS Ready,
               COALESCE(s.pickup_ready_statuses,ARRAY[]::integer[]) AS Pickups,c.metadata::text AS Metadata
             FROM aurora_sync_connection c LEFT JOIN aurora_routing_status_configuration s
-              ON s.tenant_id=c.tenant_id AND s.source_key=c.source_identity WHERE c.tenant_id=@TenantId
+              ON s.tenant_id=c.tenant_id AND s.source_key=c.source_identity WHERE c.tenant_id=@TenantId AND c.provider='nova'
             """,new{tenant.TenantId},cancellationToken:ct))??throw new FormatException("Assign a tenant source before changing planning statuses.");
         using var metadata=JsonDocument.Parse(row.Metadata);
         var available=metadata.RootElement.TryGetProperty("AvailableStatuses",out var list)?list.Deserialize<NovaManifestStatus[]>()??[]:[];
@@ -30,7 +30,7 @@ public sealed class LocalRoutingConfiguration(NpgsqlConnectionFactory factory,IT
         await using var db=await factory.OpenConnectionAsync(ct);
         await db.ExecuteAsync(new CommandDefinition("""
             INSERT INTO aurora_routing_status_configuration(tenant_id,source_key,ready_statuses,pickup_ready_statuses)
-            SELECT tenant_id,source_identity,@ready,@pickups FROM aurora_sync_connection WHERE tenant_id=@TenantId
+            SELECT tenant_id,source_identity,@ready,@pickups FROM aurora_sync_connection WHERE tenant_id=@TenantId AND provider='nova'
             ON CONFLICT(tenant_id,source_key) DO UPDATE SET ready_statuses=excluded.ready_statuses,pickup_ready_statuses=excluded.pickup_ready_statuses
             """,new{tenant.TenantId,ready=input.ReadyStatuses.Distinct().Order().ToArray(),pickups=input.PickupReadyStatuses.Distinct().Order().ToArray()},cancellationToken:ct));
     }

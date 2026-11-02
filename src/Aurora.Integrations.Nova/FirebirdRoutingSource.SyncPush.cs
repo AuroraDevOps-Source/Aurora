@@ -15,6 +15,9 @@ public sealed partial class FirebirdRoutingSource
         RequireEnabled();
         if(change.ConnectionId!=_syncConnection)throw new InvalidOperationException("Wrong synchronization connection.");
         var data=JsonNode.Parse(change.Payload)!.AsObject();
+        // Never acknowledge line changes through the legacy header-only writer.
+        LykesNovaMapping.RequireSupportedWrite(change.EntityType,data,Options.Lykes);
+        if(change.EntityType=="order"&&Options.Lykes.Enabled&&change.Operation=="delete")LykesNovaOrderWriter.RequireEnabled(Options.Lykes);
         var mapping=await Mapping(change.EntityType,change.LocalId,false,ct);
         var external=mapping?.ExternalId;
         var deleted=change.Operation=="delete";
@@ -37,9 +40,31 @@ public sealed partial class FirebirdRoutingSource
         }
         if(deleted)
         {
+            if(change.EntityType=="order"&&(Options.Lykes.Enabled||data.ContainsKey("Lykes")))
+            {
+                if(external is null)return new("local-"+change.Id.ToString("N"),SyncHash(data,true));
+                await using var pgConfig=await factory.OpenConnectionAsync(ct);
+                await LykesNovaOrderWriter.Cancel(db,tx,long.Parse(external,CultureInfo.InvariantCulture),data,JsonNode.Parse(mapping!.Baseline)!.AsObject(),
+                    Options.Lykes,await ReadyStatuses(pgConfig,null,ct),change.ConnectionId,change.Id,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId),ct);
+                return new(external,SyncHash(data,true));
+            }
             if(external is null) return new("local-"+change.Id.ToString("N"),SyncHash(data,true));
             await DeleteSyncRecord(change.EntityType,external,db,tx,ct);
             return new(external,SyncHash(data,true));
+        }
+        if(change.EntityType=="order"&&Options.Lykes.Enabled)
+        {
+            await using var pgConfig=await factory.OpenConnectionAsync(ct);
+            var readyStatuses=await ReadyStatuses(pgConfig,null,ct);
+            if(mapping is null||external is null)
+            {
+                var created=await LykesNovaOrderWriter.Create(db,tx,data,Options.Lykes,readyStatuses,change.ConnectionId,change.Id,
+                    TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId),ct);
+                return new(created.ToString(CultureInfo.InvariantCulture),SyncHash(data));
+            }
+            await LykesNovaLineWriter.Apply(db,tx,long.Parse(external,CultureInfo.InvariantCulture),data,
+                JsonNode.Parse(mapping.Baseline)!.AsObject(),Options.Lykes,readyStatuses,change.ConnectionId,ct);
+            return new(external,SyncHash(data));
         }
         switch(change.EntityType)
         {

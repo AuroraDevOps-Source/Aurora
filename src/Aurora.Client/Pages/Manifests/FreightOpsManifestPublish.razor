@@ -1,0 +1,28 @@
+@inject HttpClient Http
+<AuthorizeView Roles="aurora:Admin,aurora:PowerUser">
+<section class="planning-card">
+    <strong>FreightOps</strong>
+    <p>@StatusText</p>
+    @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+    <button class="primary-button" disabled="@(_busy || Disabled || Manifest.Status!="Planning")" @onclick="Publish">Publish to FreightOps</button>
+    <button class="text-button" disabled="@_busy" @onclick="Refresh">Refresh delivery status</button>
+    <small>Save or cancel edits before publishing. Once submitted, manage assignments and dispatch in FreightOps; this MVP locks local plan edits.</small>
+</section>
+</AuthorizeView>
+@code {
+    [Parameter,EditorRequired] public TmsManifest Manifest {get;set;}=default!;
+    [Parameter] public bool Disabled {get;set;}
+    Delivery? _delivery;bool _busy;string? _error;Guid _loaded;
+    string Url=>$"api/v1/aurora/manifests/{Manifest.Id}/freightops";
+    string StatusText=>_delivery?.State switch {
+        "synced"=>$"Published as {_delivery.ExternalId}."+(_delivery.Revision!=Manifest.Revision?" Aurora has newer changes to publish.":""),
+        "pending" or "working"=>"Waiting for FreightOps confirmation.",
+        "conflict"=>"Publishing needs review in Synchronization.",
+        _=>"Not published to FreightOps."
+    };
+    protected override async Task OnParametersSetAsync(){if(_loaded!=Manifest.Id){_loaded=Manifest.Id;await Refresh();}}
+    async Task Read(){_delivery=await Http.GetFromJsonAsync<Delivery>(Url);_error=_delivery?.Error;}
+    async Task Refresh(){if(_busy)return;_busy=true;_error=null;try{await Read();}catch(Exception e){_error=e.Message;}finally{_busy=false;}}
+    async Task Publish(){if(_busy||Disabled)return;_busy=true;_error=null;try{using var response=await Http.PostAsJsonAsync(Url,new{Manifest.Revision});await ApiResponse.Check(response);await Read();}catch(Exception e){_error=e.Message;}finally{_busy=false;}}
+    sealed record Delivery(string State,string? Error,string? ExternalId,long Revision);
+}

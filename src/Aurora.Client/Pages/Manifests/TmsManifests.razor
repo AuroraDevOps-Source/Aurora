@@ -80,6 +80,8 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
 </div>
 </section>}
 
+@if(_selected is {} publishManifest && !_new){<FreightOpsManifestPublish Manifest="publishManifest" Disabled="@(_busy || _editing || publishManifest.Details.SourceReadOnlyReason is not null)" />}
+
 @code {
  [Parameter] public Guid? ManifestId {get;set;}
  [Parameter] public bool NewManifest {get;set;}
@@ -156,7 +158,7 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
 
  void Cancel(){if(_new){Back();return;}_editing=false;_edit=null;_error=null;}
 
- async Task Save(){var wasNew=_new;Guid? id=null;await Run(async()=>{_edit!.Details.Driver=_drivers.FirstOrDefault(d=>d.Id==_edit.Details.DriverId)?.Name??"";_edit.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/manifests",_edit):await Http.PutAsJsonAsync("api/v1/tms/manifests",_edit);await Check(r);id=_new?(await r.Content.ReadFromJsonAsync<TmsManifest>())!.Id:_edit.Id;_editing=false;_new=false;_message="Manifest saved in Aurora. Background synchronization will update Nova.";});if(id is {} saved){await Load();var m=_manifests.First(x=>x.Id==saved);await Select(m);_message="Manifest saved in Aurora. Background synchronization will update Nova.";if(wasNew){_loadedScreen=saved.ToString();Navigation.NavigateTo($"/aurora/manifests/{saved}");}}}
+ async Task Save(){var wasNew=_new;Guid? id=null;await Run(async()=>{_edit!.Details.Driver=_drivers.FirstOrDefault(d=>d.Id==_edit.Details.DriverId)?.Name??"";_edit.Validate();using var r=_new?await Http.PostAsJsonAsync("api/v1/tms/manifests",_edit):await Http.PutAsJsonAsync("api/v1/tms/manifests",_edit);await Check(r);id=_new?(await r.Content.ReadFromJsonAsync<TmsManifest>())!.Id:_edit.Id;_editing=false;_new=false;_message="Manifest saved in Aurora. Use Publish to FreightOps to send the plan.";});if(id is {} saved){await Load();var m=_manifests.First(x=>x.Id==saved);await Select(m);_message="Manifest saved in Aurora. Use Publish to FreightOps to send the plan.";if(wasNew){_loadedScreen=saved.ToString();Navigation.NavigateTo($"/aurora/manifests/{saved}");}}}
 
  async Task Delete(){await Run(async()=>{using var r=await Http.DeleteAsync($"api/v1/tms/manifests/{_selected!.Id}?revision={_selected.Revision}");await Check(r);_selected=null;_delete=false;_message="Manifest deleted. Its orders are Ready to Route.";});if(_selected is null){if(IsScreen)Back();else await Load();}}
 
@@ -171,3 +173,4 @@ else {<div class="manifest-orders @(_route is not null ? "with-map" : null)"><di
  async Task Membership(TmsOrderKey[] keys,bool remove){var ok=false;await Run(async()=>{using var r=await Http.PostAsJsonAsync($"api/v1/tms/manifests/{_selected!.Id}/"+(remove?"remove-orders":"orders"),new TmsAssignmentChange(keys,_selected.Revision));await Check(r);_picker=false;_message=remove?"Order removed and returned to Ready to Route.":"Orders added and marked Routed.";ok=true;});if(ok){await Load();if(_edit is not null && _selected is not null)_edit.Revision=_selected.Revision;}}
 
 }
+

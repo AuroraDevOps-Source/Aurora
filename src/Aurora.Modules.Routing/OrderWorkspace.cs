@@ -280,6 +280,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         await using var db=await factory.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
         await OperationalOutbox.Lock(db,tx,tenant.TenantId,ct);
+        await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,id,db,tx,ct);
         var current=await db.QuerySingleOrDefaultAsync<ManifestEditRow>(new CommandDefinition("SELECT vehicle,status,manifest_date AS Date FROM aurora_manifest WHERE tenant_id=@TenantId AND id=@id AND draft_id IS NOT NULL AND deleted_at IS NULL FOR UPDATE",new{tenant.TenantId,id},tx,cancellationToken:ct)) ?? throw new KeyNotFoundException("Manifest not found.");
         var date=input.Details.ManifestDate??current.Date;
         if(firebird is ILocalPlanningDataSource) await ManifestReservations.Validate(tenant.TenantId,id,current.Vehicle,current.Status,date,input.Details,db,tx,ct);

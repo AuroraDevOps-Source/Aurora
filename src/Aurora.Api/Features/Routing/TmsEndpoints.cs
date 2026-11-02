@@ -7,6 +7,7 @@ public static class TmsEndpoints
 {
  public static void MapTmsEndpoints(this IEndpointRouteBuilder app) {
   var g=app.MapGroup("/api/v1/tms").RequireAuthorization();
+  g.MapOrderDocumentImport();
   g.MapPost("/orders/lookup-address",(Dictionary<string,string?> input,MasterAddressLookup lookup,CancellationToken ct)=>Guard(async()=>Results.Ok(await lookup.LookUpOrderAddress(input,ct))));
   g.MapGet("/drivers",(DriverStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.List(ct))));
   g.MapPost("/drivers",(NovaDriver input,DriverStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.Save(0,input,ct))));

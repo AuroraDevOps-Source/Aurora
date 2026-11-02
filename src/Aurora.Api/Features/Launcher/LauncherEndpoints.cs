@@ -25,12 +25,13 @@ public static class LauncherEndpoints
                    JOIN "AspNetRoles" r ON r."Id" = ur."RoleId"
                    WHERE ur."UserId"   = @UserId
                      AND ur."TenantId" = @TenantId
-                     AND r."Name" LIKE p.role_prefix || ':%'
+                     AND r."Name" LIKE (CASE WHEN p.code = 'nova' THEN 'aurora' ELSE p.role_prefix END) || ':%'
                )                                        AS "HasAccess"
         FROM tenant_product tp
         JOIN product p ON p.code = tp.product_code
         WHERE tp.tenant_id = @TenantId
           AND tp.is_active
+          AND p.code <> 'auroratms'
         ORDER BY p.sort_order;
         """;
 

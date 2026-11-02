@@ -20,7 +20,7 @@ public sealed class NovaUserConnections(IDataProtectionProvider protection,IOpti
     private IDataProtector Protector=>protection.CreateProtector("Aurora.NovaUserPassword.v1");
     public FirebirdRoutingOptions Default=>defaults.CurrentValue;
     public StoredNovaConnection? Read(string? json)=>json is null?null:JsonSerializer.Deserialize<StoredNovaConnection>(json);
-    public StoredNovaConnection Build(AdminDatabaseEdit input,StoredNovaConnection? existing)
+    public StoredNovaConnection Build(NovaConnectionSettings input,StoredNovaConnection? existing)
     {
         var host=input.Host.Trim();var database=input.Database.Trim();var user=input.UserName.Trim();
         if(host.Length is 0 or >255 || database.Length is 0 or >1000 || user.Length is 0 or >128 || input.Port is <1 or >65535)
@@ -40,7 +40,7 @@ public sealed class NovaUserConnections(IDataProtectionProvider protection,IOpti
     {
         if(saved is null)return new(){Enabled=false};
         var cs=new FbConnectionStringBuilder{DataSource=saved.Host,Port=saved.Port,Database=saved.Database,UserID=saved.UserName,Password=Protector.Unprotect(saved.ProtectedPassword),Charset="UTF8",ConnectionTimeout=10};
-        return new(){Enabled=true,TenantId=tenantId,ConnectionString=cs.ConnectionString,SourceKey=saved.SourceKey,ReadyStatus=Default.ReadyStatus,TimeZoneId=Default.TimeZoneId,ServiceSeconds=Default.ServiceSeconds};
+        return new(){Enabled=true,TenantId=tenantId,ConnectionString=cs.ConnectionString,SourceKey=saved.SourceKey,ReadyStatus=Default.ReadyStatus,TimeZoneId=Default.TimeZoneId,ServiceSeconds=Default.ServiceSeconds,Lykes=Default.LykesForSource(tenantId,saved.SourceKey)};
     }
 }
 
@@ -51,7 +51,7 @@ public sealed class UserAccessMiddleware(RequestDelegate next)
         if(context.Request.Path.StartsWithSegments("/api/v1") && context.User.Identity?.IsAuthenticated==true)
         {
             await using var db=await factory.OpenConnectionAsync(context.RequestAborted);
-            var membership=await db.QuerySingleOrDefaultAsync<Member>(new CommandDefinition("SELECT d.connection::text AS Json FROM user_tenant m LEFT JOIN nova_database d ON d.tenant_id=m.tenant_id AND d.id=m.nova_database_id WHERE m.tenant_id=@TenantId AND m.user_id=@UserId",new{tenant.TenantId,tenant.UserId},cancellationToken:context.RequestAborted));
+            var membership=await db.QuerySingleOrDefaultAsync<Member>(new CommandDefinition("SELECT public.aurora_tenant_nova_connection() AS Json FROM user_tenant m WHERE m.tenant_id=@TenantId AND m.user_id=@UserId",new{tenant.TenantId,tenant.UserId},cancellationToken:context.RequestAborted));
             if(membership is null){context.Response.StatusCode=401;return;}
             var roles=(await db.QueryAsync<string>(new CommandDefinition("""
                 SELECT r."Name" FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId"

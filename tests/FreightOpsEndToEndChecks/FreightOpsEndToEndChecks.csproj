@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+ <FreightOpsRoot Condition="'$(FreightOpsRoot)'==''">$(MSBuildThisFileDirectory)../../../FreightOps-All/FreightOps</FreightOpsRoot></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../../src/Aurora.Integrations.FreightOps/Aurora.Integrations.FreightOps.csproj" />
+ <ProjectReference Include="$(FreightOpsRoot)/FreightOps-Core/FreightOps-Core.csproj" />
+ <Compile Include="$(FreightOpsRoot)/FreightOps/Infrastructure/AuroraSyncEndpoints.cs" Link="AuroraSyncEndpoints.cs" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../../src/Aurora.Integrations.Nova/Aurora.Integrations.Nova.csproj" /></ItemGroup><ItemGroup><None Include="../../src/Aurora.Integrations.Nova/Sync/LineTombstones.sql" Link="LineTombstones.sql" CopyToOutputDirectory="PreserveNewest" /></ItemGroup><ItemGroup><None Include="../../src/Aurora.Integrations.Nova/Sync/OrderKeys.sql" Link="OrderKeys.sql" CopyToOutputDirectory="PreserveNewest" /></ItemGroup><ItemGroup><None Include="../../src/Aurora.Migrations/Scripts/*.sql" Link="migrations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" /></ItemGroup><ItemGroup><ProjectReference Include="../../src/Aurora.Api/Aurora.Api.csproj" /></ItemGroup></Project>

@@ -12,4 +12,9 @@ public sealed class FirebirdRoutingOptions
     public int ReadyStatus { get; set; } = 110;
     public string TimeZoneId { get; set; } = "America/New_York";
     public int ServiceSeconds { get; set; } = 900;
+    public Sync.LykesNovaOptions Lykes { get; set; } = new();
+    // Host defaults must never enable this tenant-specific profile on another database.
+    public Sync.LykesNovaOptions LykesForSource(Guid tenantId,string sourceKey) =>
+        TenantId!=Guid.Empty&&TenantId==tenantId&&!string.IsNullOrWhiteSpace(SourceKey)&&SourceKey==sourceKey
+            ? Lykes : new();
 }

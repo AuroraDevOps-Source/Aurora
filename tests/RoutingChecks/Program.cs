@@ -252,10 +252,10 @@ Check(submitted.Count == 2 && submitted.All(x => x["reporting"] is null), "full 
 Check(submitted[0]["routes"] is null && submitted[0]["settings"]!["duration"]!.GetValue<int>() == 1, "full optimization retains configured budget and fresh input");
 Check(submitted[1]["routes"]!.AsArray().Count == 1 && submitted[1]["settings"]!["duration"]!.GetValue<int>() == 10, "quick service submits reusable routes with the short budget");
 Check(quickResult.Status == "SUCCEEDED" && quickResult.Log.Any(x => x.StartsWith("Quick update:")), "quick results retain status and identify the seeded run");
-Check(Aurora.Client.ProductWorkspace.RouteFor("auroratms") == "/workspace/auroratms" &&
-    Aurora.Client.ProductWorkspace.CodeFor("/workspace/auroratms") == "auroratms" &&
-    Aurora.Client.ProductWorkspace.NameFor("auroratms") == "Nova 2.0", "TMS launcher opens and highlights its own workspace");
-var authorizeReturn = "/connect/authorize?client_id=auroratms-spa&state=original";
+Check(Aurora.Client.ProductWorkspace.RouteFor("nova") == "/workspace/nova" &&
+    Aurora.Client.ProductWorkspace.CodeFor("/workspace/nova") == "nova" &&
+    Aurora.Client.ProductWorkspace.NameFor("nova") == "Nova", "Nova launcher opens and highlights its own workspace");
+var authorizeReturn = "/connect/authorize?client_id=hub-spa&state=original";
 Check(Aurora.Client.AuthenticationNavigation.AuthorizationReturnPath(authorizeReturn) == authorizeReturn,
     "login resumes the original product authorization request");
 foreach (var unsafeReturn in new[] { "https://untrusted.example/connect/authorize", "//untrusted.example", "/\\untrusted.example", "/login", "/connect/authorize/../login" })

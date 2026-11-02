@@ -16,7 +16,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
     static string Role(string level)=>level switch {"Administrator"=>"aurora:Admin","Power User"=>"aurora:PowerUser","User"=>"aurora:User",_=>throw new FormatException("Choose Administrator, Power User, or User.")};
     const string UserSql="""
         SELECT u."Id",u."UserName",u."Email",u."ConcurrencyStamp" AS Revision,u."ManagementTenantId" AS Owner,
-            m.nova_database_id AS DatabaseId, (SELECT name FROM nova_database d WHERE d.tenant_id=m.tenant_id AND d.id=m.nova_database_id) AS DatabaseName,
+
             CASE WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:Admin') THEN 'Administrator'
             WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:PowerUser') THEN 'Power User' ELSE 'User' END AS Level,m.nova_user_id AS NovaUserId,m.nova_api_login AS NovaApiLogin
         FROM "AspNetUsers" u JOIN user_tenant m ON m.user_id=u."Id" WHERE m.tenant_id=@TenantId
@@ -25,7 +25,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
     {
         await using var connection=await factory.OpenConnectionAsync(ct);
         var rows=await connection.QueryAsync<Row>(new CommandDefinition(UserSql+" ORDER BY u.\"UserName\"",new{tenant.TenantId},cancellationToken:ct));
-        return rows.Select(row=>new AdminUserDto(row.Id,row.UserName,row.Email,row.Level,row.Revision,row.Owner==tenant.TenantId,row.DatabaseId,row.DatabaseName??"",row.NovaUserId,row.NovaApiLogin)).ToArray();
+        return rows.Select(row=>new AdminUserDto(row.Id,row.UserName,row.Email,row.Level,row.Revision,row.Owner==tenant.TenantId,row.NovaUserId,row.NovaApiLogin)).ToArray();
     }
     static void Check(IdentityResult result){if(!result.Succeeded)throw new FormatException(string.Join(" ",result.Errors.Select(e=>e.Description)));}
     public async Task<Guid> Save(Guid? id,AdminUserEdit input,CancellationToken ct)
@@ -49,9 +49,8 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
             if(id==tenant.UserId && input.Level!=row.Level)throw new FormatException("Another administrator must change your access level.");
             if(row.Level=="Administrator" && input.Level!="Administrator")await KeepAdministrator(connection,transaction,ct);
         }
-        if(input.DatabaseId is not {} databaseId)throw new FormatException("Select a database. Add one under Admin > Databases first.");
-        var selected=await connection.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM nova_database WHERE tenant_id=@TenantId AND id=@databaseId FOR SHARE",new{tenant.TenantId,databaseId},transaction,cancellationToken:ct));
-        if(selected is null)throw new FormatException("The selected database is unavailable. Choose a database from this company.");
+        if((input.NovaApiLogin || novaUserId is not null) && !await connection.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT public.aurora_tenant_nova_connection() IS NOT NULL",transaction:transaction,cancellationToken:ct)))
+            throw new FormatException("Configure the tenant Nova connection under Settings first.");
         var user=id is null?new ApplicationUser{Id=Guid.NewGuid()}:await users.FindByIdAsync(id.Value.ToString())??throw new KeyNotFoundException("User not found.");
         user.UserName=input.UserName.Trim();user.Email=input.Email.Trim();
         if(id is null)
@@ -68,10 +67,10 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
             if(!string.IsNullOrEmpty(input.LoginPassword))Check(await users.ResetPasswordAsync(user,await users.GeneratePasswordResetTokenAsync(user),input.LoginPassword));
         }
         await connection.ExecuteAsync(new CommandDefinition("""
-            UPDATE user_tenant SET nova_database_id=@databaseId,nova_user_id=@novaUserId,nova_api_login=@NovaApiLogin WHERE tenant_id=@TenantId AND user_id=@Id;
+            UPDATE user_tenant SET nova_user_id=@novaUserId,nova_api_login=@NovaApiLogin WHERE tenant_id=@TenantId AND user_id=@Id;
             DELETE FROM "AspNetUserRoles" ur USING "AspNetRoles" r WHERE ur."RoleId"=r."Id" AND ur."TenantId"=@TenantId AND ur."UserId"=@Id AND r."Name" LIKE 'aurora:%';
             INSERT INTO "AspNetUserRoles"("TenantId","UserId","RoleId") SELECT @TenantId,@Id,"Id" FROM "AspNetRoles" WHERE "Name"=@role;
-            """,new{tenant.TenantId,user.Id,databaseId,role,novaUserId,input.NovaApiLogin},transaction,cancellationToken:ct));
+            """,new{tenant.TenantId,user.Id,role,novaUserId,input.NovaApiLogin},transaction,cancellationToken:ct));
         await tx.CommitAsync(ct);return user.Id;
     }
     public async Task<InvitationEmailResult> SendInvitation(Guid id,IInvitationEmail email,CancellationToken ct)
@@ -101,7 +100,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         Check(await users.DeleteAsync(await users.FindByIdAsync(id.ToString())??throw new KeyNotFoundException("User not found.")));
         await tx.CommitAsync(ct);
     }
-    private sealed record Row(Guid Id,string UserName,string Email,string Revision,Guid? Owner,Guid? DatabaseId,string? DatabaseName,string Level,string? NovaUserId,bool NovaApiLogin);
+    private sealed record Row(Guid Id,string UserName,string Email,string Revision,Guid? Owner,string Level,string? NovaUserId,bool NovaApiLogin);
 }
 
 public static class AdminUserEndpoints
@@ -131,7 +130,7 @@ public static class AdminUserEndpoints
         catch(TimeoutException){return Results.Json(new ApiErrorDto("The database connection timed out. Check the server address, port, and network connection. For Firebird installed on this PC, use 127.0.0.1."),statusCode:503);}
         catch(NotSupportedException ex) when(ex.Message.StartsWith("Not supported plugin '",StringComparison.Ordinal)){return Results.BadRequest(new ApiErrorDto(Aurora.Modules.Routing.NovaConnectionErrors.UnsupportedPlugin(ex)));}
         catch(Npgsql.PostgresException ex) when(ex.SqlState=="23514"){return Results.BadRequest(new ApiErrorDto("Nova sign-in requires the user’s default company and an assigned database."));}
-        catch(Npgsql.PostgresException ex) when(ex.SqlState=="23503"){return Results.BadRequest(new ApiErrorDto("This database is assigned to users. Reassign them before deleting it."));}
+        catch(Npgsql.PostgresException ex) when(ex.SqlState=="23503"){return Results.BadRequest(new ApiErrorDto("The referenced record is no longer available."));}
         catch(Npgsql.PostgresException ex) when(ex.SqlState=="23505"){return Results.BadRequest(new ApiErrorDto("That name, email, or Nova user mapping is already in use."));}
         catch(System.Security.Cryptography.CryptographicException){return Results.BadRequest(new ApiErrorDto("Re-enter the Nova password to replace the saved credential."));}
     }

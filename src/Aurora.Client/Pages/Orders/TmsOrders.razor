@@ -1,4 +1,4 @@
-@inject HttpClient Http
+﻿@inject HttpClient Http
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject OrderPlanningSelection PlanningSelection
@@ -10,7 +10,7 @@
  <label class="field">Status<select @bind="_status" @bind:after="Load" disabled="@_busy"><option value="">All statuses</option>@foreach(var s in WorkspaceOrderStatus.All){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
  <label class="field">Terminal<select @bind="_terminalFilter" @bind:after="Load" disabled="@_busy"><option value="">All terminals</option>@foreach(var terminal in _terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
  <label class="field order-search">Search<input @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyDown" disabled="@_busy" placeholder="PRO, customer, city, reference" title="Press Enter to search" /></label>
- <button class="primary-button" disabled="@(_busy || _edit is not null || _selected.Count==0)" @onclick="OptimizeSelected">Optimize routes</button>@if(_selected.Count>0){<button class="text-button" disabled="@_busy" @onclick="ClearSelection">Clear selection</button>}<button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
+ <button class="primary-button" disabled="@(_busy || _edit is not null || _selected.Count==0)" @onclick="OptimizeSelected">Optimize routes</button><button class="outline-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_import=true">Import orders</button>@if(_selected.Count>0){<button class="text-button" disabled="@_busy" @onclick="ClearSelection">Clear selection</button>}<button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
  @foreach(var plan in _openPlans)
  {
   <div class="orders-open-plan" role="status">
@@ -97,7 +97,9 @@
 <label class="field manifest-notes">Notes<textarea @bind="e.Notes" maxlength="4000" rows="2"></textarea></label>
 </div></section><div class="manifest-edit-actions"><button class="outline-button" @onclick="()=>_edit=null">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div></fieldset>
 </section></EditPopup>}
+@if(_import){<OrderDocumentImportDialog Terminals="_terminals" OnClose="()=>_import=false" OnCreated="Load" />}
 @code {
+ bool _import;
  // Temporarily hide the entry point while retaining the workflow editor.
  bool ShowFreightWorkflow => false;
  OrderPlanningSelection.Selection? _planSelection;

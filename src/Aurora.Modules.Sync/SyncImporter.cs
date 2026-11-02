@@ -66,8 +66,14 @@ public sealed class SyncImporter(NpgsqlConnectionFactory factory,ITenantContext 
                     UPDATE aurora_sync_outbox SET state='superseded',lease_id=NULL,lease_until=NULL
                     WHERE tenant_id=@TenantId AND connection_id=@connectionId AND entity_type=@EntityType AND local_id=@Id AND state IN ('pending','conflict');
                     """,new{tenant.TenantId,connectionId,change.EntityType,saved.Id,change.ExternalId,change.Revision,change.Deleted,baseline=change.Data.ToJsonString()},tx,cancellationToken:ct));
-                if(saved.Deleted!=change.Deleted||!saved.Deleted&&!SyncJson.Equal(saved.Data,change.Data))
-                    await SyncStore.Enqueue(db,tx,tenant.TenantId,change.EntityType,saved.Id,saved.Revision,saved.Deleted?"delete":"upsert",saved.Data.ToJsonString(),ct);
+                // Forward accepted imports to other destinations in the same transaction.
+                // The origin only needs a correction when the merge differs from its snapshot.
+                var correctOrigin=saved.Deleted!=change.Deleted||!saved.Deleted&&!SyncJson.Equal(saved.Data,change.Data);
+                var changed=current is null || saved.Revision!=current.Revision;
+                if(changed || correctOrigin)
+                    await SyncStore.Enqueue(db,tx,tenant.TenantId,change.EntityType,saved.Id,saved.Revision,
+                        saved.Deleted?"delete":"upsert",saved.Data.ToJsonString(),ct,correctOrigin?null:connectionId,
+                        changed?null:connectionId);
             }
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_sync_inbox(tenant_id,connection_id,event_id,fingerprint) VALUES(@TenantId,@connectionId,@EventId,@fingerprint)",new{tenant.TenantId,connectionId,change.EventId,fingerprint},tx,cancellationToken:ct));
         }

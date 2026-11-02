@@ -71,6 +71,7 @@ public sealed partial class FirebirdRoutingSource : INovaSyncMapper
     {
         RequireEnabled();
         var kind=change.EntityType;
+        if(!Options.Lykes.IncludesEntity(kind,change.EntityId))return [];
         if(kind=="order-or-manifest")
         {
             var type=await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT PB_TYPE FROM OPS_HEADER WHERE PB_ID=@id",new{id=long.Parse(change.EntityId,CultureInfo.InvariantCulture)},tx,cancellationToken:ct));

@@ -1,0 +1,82 @@
+@inject HttpClient Http
+<EditPopup Title="Settings" OnClose="OnClose" Busy="_saving" Class="settings-dialog">
+ <div class="planner-tabs" role="tablist" aria-label="Settings">
+  <button role="tab" aria-selected="@(!_connections)" class="@(!_connections?"active":null)" @onclick="()=>_connections=false">General</button>
+  <button role="tab" aria-selected="@_connections" class="@(_connections?"active":null)" @onclick="()=>_connections=true">Connections</button>
+ </div>
+ @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+ @if(_message is not null){<p role="status">@_message</p>}
+ @if(_loading){<p role="status">Loading settings...</p>}
+ else if(_settings is {} settings)
+ {
+  <fieldset disabled="@_saving">
+  @if(!_connections)
+  {
+   <label class="field">Company<input readonly value="@settings.CompanyName" /></label>
+  }
+  else
+  {
+   <div class="settings-connections-grid">
+   <fieldset class="edit-group"><legend>Nova database</legend>
+    <label class="field">Server<input @bind="settings.Nova.Host" autocomplete="off" /></label>
+    <label class="field">Port<InputNumber @bind-Value="settings.Nova.Port" /></label>
+    <label class="field">Path<input @bind="settings.Nova.Database" autocomplete="off" /></label>
+    <label class="field">User ID<input @bind="settings.Nova.UserName" autocomplete="off" /></label>
+    <label class="field">Password<input type="password" @bind="settings.Nova.Password" autocomplete="new-password" placeholder="@(settings.Nova.HasPassword?"Saved - leave blank to keep":"Password")" /></label>
+   </fieldset>
+   <fieldset class="edit-group"><legend>FreightOps</legend>
+    <label class="field">API URL<input type="url" @bind="settings.FreightOps.ApiUrl" autocomplete="off" /></label>
+    <label class="field">User ID<input @bind="settings.FreightOps.UserName" autocomplete="off" /></label>
+    <label class="field">Password<input type="password" @bind="settings.FreightOps.Password" autocomplete="new-password" placeholder="@(settings.FreightOps.HasPassword?"Saved - leave blank to keep":"Password")" /></label>
+   </fieldset>
+   <fieldset class="edit-group"><legend>DispatchTrack</legend>
+    <label class="field">API URL<input @bind="settings.DispatchTrack.ApiUrl" /></label>
+    <label class="field">API code<input type="password" @bind="settings.DispatchTrack.ApiCode" autocomplete="new-password" placeholder="@(settings.DispatchTrack.HasApiCode?"Saved - leave blank to keep":"")" /></label>
+    <label class="field">API key<input type="password" @bind="settings.DispatchTrack.ApiKey" autocomplete="new-password" placeholder="@(settings.DispatchTrack.HasApiKey?"Saved - leave blank to keep":"")" /></label>
+    <details><summary>Endpoint overrides (optional)</summary>
+     <label class="field">Post order URL<input @bind="settings.DispatchTrack.PostOrderUrl" /></label>
+     <label class="field">Update order URL<input @bind="settings.DispatchTrack.UpdateOrderUrl" /></label>
+     <label class="field">Fetch order URL<input @bind="settings.DispatchTrack.FetchOrderUrl" /></label>
+     <label class="field">Export URL<input @bind="settings.DispatchTrack.ExportUrl" /></label>
+    </details>
+   </fieldset>
+   <fieldset class="edit-group"><legend>ZEnventory</legend>
+    <label class="field">REST API URL<input @bind="settings.Zenventory.BaseUrl" /></label>
+    <label class="field">API key<input type="password" @bind="settings.Zenventory.ApiKey" autocomplete="new-password" placeholder="@(settings.Zenventory.HasApiKey?"Saved - leave blank to keep":"")" /></label>
+    <label class="field">API secret<input type="password" @bind="settings.Zenventory.ApiSecret" autocomplete="new-password" placeholder="@(settings.Zenventory.HasApiSecret?"Saved - leave blank to keep":"")" /></label>
+    <details><summary>Legacy API (optional)</summary>
+     <label class="field">Legacy API URL<input @bind="settings.Zenventory.LegacyBaseUrl" /></label>
+     <label class="field">SecureKey<input type="password" @bind="settings.Zenventory.SecureKey" autocomplete="new-password" placeholder="@(settings.Zenventory.HasSecureKey?"Saved - leave blank to keep":"")" /></label>
+    </details>
+   </fieldset>
+   </div>
+  }
+  </fieldset>
+ }
+ else {<button class="outline-button" @onclick="Load">Retry</button>}
+ <div class="popup-actions">
+  <button class="outline-button" disabled="@_saving" @onclick="()=>OnClose.InvokeAsync()">Close</button>
+  @if(_settings is not null && _connections){<button class="primary-button" disabled="@_saving" @onclick="Save">@(_saving?"Saving...":"Save")</button>}
+ </div>
+</EditPopup>
+@code {
+ [Parameter] public EventCallback OnClose {get;set;}
+ TenantSettingsDto? _settings;
+ bool _loading=true,_saving,_connections;
+ string? _error,_message;
+ protected override Task OnInitializedAsync()=>Load();
+ async Task Load()
+ {
+  _loading=true;_error=null;
+  try{using var response=await Http.GetAsync("api/v1/admin/settings");await ApiResponse.Check(response);_settings=await response.Content.ReadFromJsonAsync<TenantSettingsDto>();}
+  catch(Exception){_error="Could not load settings.";}
+  finally{_loading=false;}
+ }
+ async Task Save()
+ {
+  if(_saving)return;_saving=true;_error=_message=null;
+  try{using var response=await Http.PutAsJsonAsync("api/v1/admin/settings",_settings);await ApiResponse.Check(response);await Load();if(_error is null)_message="Settings saved.";}
+  catch(Exception ex){_error=ex.Message;}
+  finally{_saving=false;}
+ }
+}

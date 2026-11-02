@@ -5,12 +5,17 @@
     <Project Path="src/Aurora.Contracts/Aurora.Contracts.csproj" />
     <Project Path="src/Aurora.Infrastructure/Aurora.Infrastructure.csproj" />
     <Project Path="src/Aurora.Integrations.Nova/Aurora.Integrations.Nova.csproj" />
+    <Project Path="src/Aurora.Integrations.FreightOps/Aurora.Integrations.FreightOps.csproj" />
     <Project Path="src/Aurora.Migrations/Aurora.Migrations.csproj" />
     <Project Path="src/Aurora.Modules.Routing/Aurora.Modules.Routing.csproj" />
     <Project Path="src/Aurora.Modules.Sync/Aurora.Modules.Sync.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/FreightOpsAdapterChecks/FreightOpsAdapterChecks.csproj" />
+    <Project Path="tests/SyncFoundationChecks/SyncFoundationChecks.csproj" />
     <Project Path="tests/NovaSyncChecks/NovaSyncChecks.csproj" />
+    <Project Path="tests/OrderDocumentImportChecks/OrderDocumentImportChecks.csproj" />
     <Project Path="tests/SyncChecks/SyncChecks.csproj" />
+    <Project Path="tests/TenantSettingsChecks/TenantSettingsChecks.csproj" />
   </Folder>
 </Solution>

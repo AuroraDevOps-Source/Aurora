@@ -1,0 +1,128 @@
+--- a/OrderEntry/OrderEntryDM.pas
++++ b/OrderEntry/OrderEntryDM.pas
+@@ -653,6 +653,8 @@
+         OPL_FEEDTAG_FILE_NAME: String;
+         OPL_UOM : String;
+         OPL_SKU : string;
++        OPL_SYNC_ID: string; // Optional persistent identity; never derived from sequence/SKU.
++        procedure EnsureSyncId;
+         constructor Create; overload;
+         constructor Create(oeDM: TOrderEntryData); overload;
+         procedure Assign(src: TOrderLineItem); reintroduce;
+@@ -3529,6 +3531,38 @@
+     ttlPallets: integer;
+     ttlPalletPosn: integer;
+ 
++    procedure ValidateRatedLineIdentities;
++    var
++        source: TOrderLineItem;
++        rated: TWebLineItem;
++        matches: integer;
++    begin
++        // Never recover identity by sequence, SKU, or array position. Older raters
++        // may omit the optional field; hold identified orders before any mutation.
++        for source in LineItemsList do
++            if source.Stop.OPS_RATE and (not source.IsDeleted) and
++               (not source.isEmpty) and (source.OPL_SYNC_ID <> '') then
++            begin
++                matches := 0;
++                for rated in rslt.Items do
++                    if SameText(rated.SyncLineId, source.OPL_SYNC_ID) then
++                        Inc(matches);
++                if matches <> 1 then
++                    raise Exception.Create('Rating did not preserve stable line IDs. Update the rating service or review the changed lines.');
++            end;
++        for rated in rslt.Items do
++            if rated.SyncLineId <> '' then
++            begin
++                matches := 0;
++                for source in LineItemsList do
++                    if source.Stop.OPS_RATE and (not source.IsDeleted) and
++                       (not source.isEmpty) and SameText(source.OPL_SYNC_ID, rated.SyncLineId) then
++                        Inc(matches);
++                if matches <> 1 then
++                    raise Exception.Create('Rating returned an unknown or ambiguous stable line ID.');
++            end;
++    end;
++
+     function FindInsertPoint(stopNum: integer): integer;
+     // Return the index of the first line item for any stop with a stop
+     // number greater than the one given
+@@ -3631,6 +3665,7 @@
+                         witem.kilos := li.OPL_KILOS;
+                         witem.itemNum := li.OPL_ITEM_NUM;
+                         witem.sku := li.OPL_SKU;
++                        witem.SyncLineId := li.OPL_SYNC_ID;
+                         witem.tons := li.OPL_TONS;
+                         witem.Dim_Wgt := li.OPL_DIM_WGT;
+                         witem.metTons := li.OPL_MET_TONS;
+@@ -3740,6 +3775,7 @@
+                 exit;
+             end;
+         end;
++        ValidateRatedLineIdentities;
+         // Update the order with the results
+         PB_COD_FEE := rslt.CodFee;
+         PBTARIF := rslt.Tariff;
+@@ -3824,6 +3860,7 @@
+             li.OPL_TRACE2 := witem.lineTrace2;
+             li.OPL_ITEM_NUM := witem.itemNum;
+             li.OPL_SKU := witem.sku;
++            li.OPL_SYNC_ID := witem.SyncLineId;
+             li.OPL_TONS := witem.tons;
+             li.OPL_MET_TONS := witem.metTons;
+             li.OPL_KEYWORD := witem.Keyword;
+@@ -5253,6 +5290,9 @@
+                     FieldByName('OPL_SEQUENCE').AsInteger := li.OPL_SEQUENCE;
+                 end;
+                 try
++                    // Old databases remain usable without the additive sync column.
++                    if Assigned(FindField('OPL_SYNC_ID')) then
++                        li.EnsureSyncId;
+                     SaveFields(li, FData.LineItemSrc);
+                     Post;
+                 except
+@@ -6121,6 +6161,17 @@
+ 
+ { TOrderLineItem }
+ 
++procedure TOrderLineItem.EnsureSyncId;
++var
++    id: TGUID;
++begin
++    if Trim(OPL_SYNC_ID) <> '' then
++        Exit;
++    if CreateGUID(id) <> 0 then
++        raise Exception.Create('Unable to allocate a stable line identity.');
++    OPL_SYNC_ID := LowerCase(Copy(GUIDToString(id), 2, 36));
++end;
++
+ procedure TOrderLineItem.Assign(src: TOrderLineItem);
+ begin
+     inherited Assign(src);
+@@ -6199,6 +6250,7 @@
+ begin
+     inherited Assign(src);
+     LoadFields(SELF, src);
++    OPL_SYNC_ID := ''; // A copied order owns new lines; Assign retains edit identity.
+     FStop := Stop;
+ end;
+ 
+--- a/AurRating/AurRatingIntf.pas
++++ b/AurRating/AurRatingIntf.pas
+@@ -69,6 +69,7 @@
+         FRate: Currency;
+         FRateType: String;
+         FSequence: Integer;
++        FSyncLineId: String;
+         FStackable: String;
+         FStopNumber: Integer;
+         FWeight: Currency;
+@@ -122,6 +123,7 @@
+         property Rate: Currency read FRate write FRate;
+         property RateType: String read FRateType write FRateType;
+         property Sequence: Integer read FSequence write FSequence;
++        property SyncLineId: String index IS_OPTN read FSyncLineId write FSyncLineId;
+         property Stackable: String read FStackable write FStackable;
+         property StopNumber: Integer read FStopNumber write FStopNumber;
+         property Weight: Currency read FWeight write FWeight;

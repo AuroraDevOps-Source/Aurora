@@ -13,14 +13,24 @@
             <MudAppBar Elevation="0" Fixed="true" Class="aurora-appbar">
                 <MudText Typo="Typo.h6" Class="aurora-brand"><span class="aurora-mark" aria-hidden="true"></span>Aurora</MudText>
 
+                <nav class="aurora-product-nav" aria-label="Applications">
+                    @foreach (var product in _products)
+                    {
+                        <MudButton Class="@HeaderClass(product)" Disabled="@(!product.HasAccess)"
+                                   OnClick="@(() => Navigation.NavigateTo(ProductWorkspace.RouteFor(product.Code)))">
+                            @ProductWorkspace.NameFor(product.Code)
+                        </MudButton>
+                    }
+                </nav>
+
                 <MudText Typo="Typo.body2" Class="aurora-user ml-auto">@context.User.Identity?.Name</MudText>
                 @if(_isAdmin || _canViewLog)
                 {
                 <MudMenu Icon="@Icons.Material.Filled.Settings" aria-label="Admin" Color="Color.Inherit" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                     @if (_isAdmin)
                     {
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Settings" OnClick="@(() => _showSettings=true)">Settings</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.People" OnClick="@(() => Navigation.NavigateTo("/aurora/users"))">Users</MudMenuItem>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.Storage" OnClick="@(() => Navigation.NavigateTo("/aurora/databases"))">Databases</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.LocalShipping" OnClick="@(() => Navigation.NavigateTo("/aurora/ship-status"))">Ship Status</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.RestartAlt" OnClick="@(() => Navigation.NavigateTo("/aurora/reset"))">Reset</MudMenuItem>
                     }
@@ -36,8 +46,15 @@
     </MudMainContent>
 </MudLayout>
 
+@if (_showSettings && _isAdmin) { <SettingsWindow OnClose="()=>_showSettings=false" /> }
+
 @code {
-    private bool _isAdmin, _canViewLog;
+    private bool _isAdmin, _canViewLog, _showSettings;
+    private List<ProductDto> _products = [];
+
+    private string HeaderClass(ProductDto product) =>
+        ProductWorkspace.CodeFor(new Uri(Navigation.Uri).AbsolutePath) == product.Code
+            ? "mud-inherit-text header-link active" : "mud-inherit-text header-link";
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
@@ -47,6 +64,7 @@
         if (user?.Identity?.IsAuthenticated != true)
         {
             _isAdmin = _canViewLog = false;
+            _products = [];
             return;
         }
 
@@ -55,6 +73,9 @@
         // Every destination/API continues to enforce its own authorization.
         _isAdmin = user.IsInRole("aurora:Admin");
         _canViewLog = _isAdmin || user.IsInRole("aurora:PowerUser");
+        try { _products = await Api.GetFromJsonAsync<List<ProductDto>>("api/v1/me/products") ?? []; }
+        catch (HttpRequestException) { _products = []; }
+        catch (TaskCanceledException) { _products = []; }
         try { _isAdmin = await Api.GetFromJsonAsync<bool>("api/v1/me/is-administrator"); }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { }

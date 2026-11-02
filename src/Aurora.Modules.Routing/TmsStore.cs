@@ -21,7 +21,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
           AND r.source_key=s.request#>>'{reporting,firebirdSource}' AND 'FB-' || r.order_id::text=o.id)),
       'Customer',o.customer,'City',o.city,'Status',o.status,'Revision',o.revision,'TerminalId',COALESCE(o.terminal_id,NULLIF(o.details->>'TerminalId','')::uuid),
       'TerminalCode',COALESCE((SELECT code FROM aurora_terminal t WHERE (t.tenant_id,t.id)=(o.tenant_id,o.terminal_id)),o.details->>'TerminalCode'),
-      'CustomerId',o.customer_id,'CustomerCode',(SELECT code FROM aurora_customer c WHERE (c.tenant_id,c.id)=(o.tenant_id,o.customer_id)),
+      'CustomerId',o.customer_id,'CustomerCode',COALESCE((SELECT code FROM aurora_customer c WHERE (c.tenant_id,c.id)=(o.tenant_id,o.customer_id)),o.details->>'CustomerCode'),
       'ManifestId',m.id,'ManifestNumber',m.number,'StopNumber',a.stop_number,'OptimizationDraftId',{{PlanningLock.DraftForOrder}}))::text
       FROM aurora_order o JOIN aurora_order_source s ON (s.tenant_id,s.id)=(o.tenant_id,o.source_id) LEFT JOIN aurora_manifest_order a ON (a.tenant_id,a.source_id,a.order_id)=(o.tenant_id,o.source_id,o.id)
       LEFT JOIN aurora_manifest m ON (m.tenant_id,m.id)=(a.tenant_id,a.manifest_id)
@@ -29,7 +29,10 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       """;
     const string ManifestSql = """
       SELECT jsonb_build_object('Id',m.id,'Number',m.number,'ManifestDate',m.manifest_date,'Status',m.status,
-      'Vehicle',m.vehicle,'Details',m.details,'Revision',m.revision,
+      'Vehicle',m.vehicle,'Details',m.details || CASE WHEN EXISTS(
+        SELECT 1 FROM aurora_sync_outbox x JOIN aurora_sync_connection c ON (c.tenant_id,c.id)=(x.tenant_id,x.connection_id)
+        WHERE x.tenant_id=m.tenant_id AND c.provider='freightops' AND x.entity_type='manifest' AND x.local_id=m.id::text)
+        THEN jsonb_build_object('SourceReadOnlyReason','Submitted to FreightOps. Manage assignments and dispatch there; local plan edits are locked.') ELSE '{}'::jsonb END,'Revision',m.revision,
       'OrderCount',(SELECT count(*) FROM aurora_manifest_order a WHERE a.tenant_id=m.tenant_id AND a.manifest_id=m.id))::text
       FROM aurora_manifest m WHERE m.tenant_id=@TenantId AND m.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM aurora_planning_draft d WHERE d.tenant_id=m.tenant_id AND d.id=m.draft_id AND NOT aurora_source_in_workspace(d.tenant_id,d.source_id))
       """;
@@ -88,7 +91,9 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
             var assigned=await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_manifest_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND order_id=@Id)",new{tenant.TenantId,item.SourceId,item.Id},tx,cancellationToken:ct));
             if(assigned && (mid is null || item.Status!=current)) throw new FormatException("Manifest assignment controls this order's status. Refresh and try again.");
             if(!assigned && new[]{"Routed","Dispatched","InTransit","OutForDelivery"}.Contains(item.Status)) throw new FormatException("Assign the order to a manifest to set that status.");
-            Check(await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order SET scheduled_at=@ScheduledAt,customer=@Customer,city=@City,status=@Status,terminal_id=@TerminalId,customer_id=@CustomerId,details=CAST(@json AS jsonb),revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@Id AND revision=@Revision AND deleted_at IS NULL",new{tenant.TenantId,item.SourceId,item.Id,item.ScheduledAt,item.Customer,item.City,item.Status,item.TerminalId,item.CustomerId,item.Revision,json=JsonSerializer.Serialize(item)},tx,cancellationToken:ct)));
+            // The editor owns TmsOrder fields; retain integration extensions (stable
+            // lines, native baselines and FreightOps metadata) absent from its DTO.
+            Check(await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_order SET scheduled_at=@ScheduledAt,customer=@Customer,city=@City,status=@Status,terminal_id=@TerminalId,customer_id=@CustomerId,details=details || CAST(@json AS jsonb),revision=revision+1 WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=@Id AND revision=@Revision AND deleted_at IS NULL",new{tenant.TenantId,item.SourceId,item.Id,item.ScheduledAt,item.Customer,item.City,item.Status,item.TerminalId,item.CustomerId,item.Revision,json=JsonSerializer.Serialize(item)},tx,cancellationToken:ct)));
         }
         await OperationalOutbox.Order(db,tx,tenant.TenantId,item.SourceId,item.Id,ct);
         await tx.CommitAsync(ct);
@@ -123,6 +128,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
             item.Id=Guid.NewGuid();
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_manifest(tenant_id,id,vehicle,data,number,manifest_date,status,details) VALUES(@TenantId,@Id,@Vehicle,'{}',@Number,@date,@Status,CAST(@json AS jsonb))",new{tenant.TenantId,item.Id,item.Vehicle,item.Number,date=item.ManifestDate.ToDateTime(TimeOnly.MinValue),item.Status,json=JsonSerializer.Serialize(item.Details)},tx,cancellationToken:ct));
         } else {
+            await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,item.Id,db,tx,ct);
             var current=await Lock(db,tx,item.Id,ct);
             if(current.Revision!=item.Revision) throw new FormatException("Manifest changed. Refresh and try again.");
             if(current.Details.SourceReadOnlyReason is {} reason)throw new FormatException(reason);
@@ -140,6 +146,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
     {
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
         await OperationalOutbox.Lock(db,tx,tenant.TenantId,ct);
+        await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,id,db,tx,ct);
         var m=await Lock(db,tx,id,ct);
         if(!m.Editable) throw new FormatException("Orders cannot be changed after dispatch.");
         if(m.Revision!=input.Revision) throw new FormatException("Manifest changed. Refresh and try again.");

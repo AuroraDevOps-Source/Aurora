@@ -26,4 +26,5 @@
   </ItemGroup>
 
   <ItemGroup><ProjectReference Include="../Aurora.Modules.Sync/Aurora.Modules.Sync.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../Aurora.Integrations.FreightOps/Aurora.Integrations.FreightOps.csproj" /></ItemGroup>
 </Project>

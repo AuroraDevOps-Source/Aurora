@@ -37,7 +37,7 @@ static class ApiChecks
         builder.Services.AddRateLimiter(o=>o.AddPolicy("nova-launch",_=>RateLimitPartition.GetNoLimiter("checks")));
         await using var app=builder.Build();app.UseRateLimiter();app.UseAuthentication();app.UseAuthorization();app.MapNovaApiLaunch();
         var uid=Guid.NewGuid();var database=Guid.NewGuid();
-        var tenant=await db.ExecuteScalarAsync<Guid>("SELECT tenant_id FROM tenant_product WHERE product_code='aurora' AND is_active LIMIT 1");
+        var tenant=Guid.NewGuid();
         var name="nova-api-check-"+uid.ToString("N");var password="Synthetic!"+Guid.NewGuid().ToString("N");
         var identity=new ApplicationUser{Id=uid,UserName=name,NormalizedUserName=name.ToUpperInvariant(),SecurityStamp=Guid.NewGuid().ToString("N"),LockoutEnabled=true};
         var hash=new PasswordHasher<ApplicationUser>().HashPassword(identity,password);
@@ -45,8 +45,10 @@ static class ApiChecks
         await db.ExecuteAsync("""
             INSERT INTO "AspNetUsers"("Id","UserName","NormalizedUserName","PasswordHash","SecurityStamp","EmailConfirmed","PhoneNumberConfirmed","TwoFactorEnabled","LockoutEnabled","AccessFailedCount")
             VALUES(@uid,@name,upper(@name),@hash,@stamp,false,false,false,true,0);
-            INSERT INTO nova_database(tenant_id,id,name,connection) VALUES(@tenant,@database,@name,'{}');
-            INSERT INTO user_tenant(tenant_id,user_id,is_default,nova_database_id,nova_api_login) VALUES(@tenant,@uid,true,@database,true);
+            INSERT INTO tenant(id,name,slug,is_active,created_utc) VALUES(@tenant,'Nova launch check',@tenant::text,true,now());
+            INSERT INTO tenant_product(tenant_id,product_code,is_active) VALUES(@tenant,'aurora',true);
+            INSERT INTO tenant_settings(tenant_id,nova_id,nova) VALUES(@tenant,@database,'{}');
+            INSERT INTO user_tenant(tenant_id,user_id,is_default,nova_api_login) VALUES(@tenant,@uid,true,true);
             INSERT INTO "AspNetUserRoles"("TenantId","UserId","RoleId") SELECT @tenant,@uid,"Id" FROM "AspNetRoles" WHERE "Name"='aurora:User';
             """,args);
         try
@@ -78,9 +80,9 @@ static class ApiChecks
             await db.ExecuteAsync("UPDATE \"AspNetUsers\" SET \"SecurityStamp\"='changed' WHERE \"Id\"=@uid",args);
             using(var changed=await Redeem(code))Check(changed.StatusCode==HttpStatusCode.Unauthorized,"password/security stamp change revokes pending code");
             code=await Issue();
-            await db.ExecuteAsync("UPDATE user_tenant SET nova_database_id=NULL,nova_api_login=false WHERE user_id=@uid",args);
+            await db.ExecuteAsync("UPDATE user_tenant SET nova_api_login=false WHERE user_id=@uid",args);
             using(var changed=await Redeem(code))Check(changed.StatusCode==HttpStatusCode.Unauthorized,"database access removal revokes code");
-            await db.ExecuteAsync("UPDATE user_tenant SET nova_database_id=@database,nova_api_login=true WHERE user_id=@uid; UPDATE \"AspNetUsers\" SET \"TwoFactorEnabled\"=true WHERE \"Id\"=@uid",args);
+            await db.ExecuteAsync("UPDATE user_tenant SET nova_api_login=true WHERE user_id=@uid; UPDATE \"AspNetUsers\" SET \"TwoFactorEnabled\"=true WHERE \"Id\"=@uid",args);
             using(var mfa=await Login())Check(mfa.StatusCode==HttpStatusCode.Unauthorized,"MFA accounts cannot bypass second factor");
             await db.ExecuteAsync("UPDATE \"AspNetUsers\" SET \"TwoFactorEnabled\"=false,\"LockoutEnd\"=clock_timestamp()+interval '1 hour' WHERE \"Id\"=@uid",args);
             using(var locked=await Login())Check(locked.StatusCode==HttpStatusCode.Unauthorized,"locked-out account rejected");
@@ -89,7 +91,7 @@ static class ApiChecks
         finally
         {
             await app.StopAsync();
-            await db.ExecuteAsync("DELETE FROM \"AspNetUsers\" WHERE \"Id\"=@uid; DELETE FROM nova_database WHERE id=@database AND tenant_id=@tenant",args);
+            await db.ExecuteAsync("DELETE FROM \"AspNetUsers\" WHERE \"Id\"=@uid; DELETE FROM tenant_settings WHERE nova_id=@database AND tenant_id=@tenant",args);
             Console.WriteLine("Synthetic API user, database, codes and memberships removed.");
         }
     }

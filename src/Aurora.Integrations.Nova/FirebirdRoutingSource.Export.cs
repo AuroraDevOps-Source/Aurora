@@ -356,7 +356,7 @@ public sealed partial class FirebirdRoutingSource
             throw new FormatException($"Order {id} has no verified Nova identity.");
         return new(order.Value, stop.Value,kind);
     }
-    private static async Task<long> NextId(FbConnection fb, FbTransaction tx, bool manifest, CancellationToken ct)
+    internal static async Task<long> NextId(FbConnection fb, FbTransaction tx, bool manifest, CancellationToken ct)
     {
         for (var attempt = 0; attempt < 100; attempt++)
         {

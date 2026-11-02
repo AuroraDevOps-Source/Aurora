@@ -64,6 +64,10 @@ try
  await db.ExecuteAsync("DELETE FROM AURORA_SYNC_EVENT");
  await db.ExecuteAsync("DELETE FROM OPS_STOP_REC WHERE OPS_STOP_ID=201");
  Check(await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AURORA_SYNC_EVENT WHERE CONSUMER_ID=@consumer AND ENTITY_ID='11'",new{consumer=consumer.ToString()})==1,"stop deletion captures its parent for later aggregate import");
- Console.WriteLine($"{count} Nova change capture checks passed.");
+ await StopEtaChecks.Run(db,Check);
+ await LineChecks.Run(db,consumer,Check);
+ await ReverseLineChecks.Run(cs,db,consumer,Check);
+ await OrderLifecycleChecks.Run(cs,db,consumer,Check);
+ Console.WriteLine($"{count} Nova change capture and mapping checks passed.");
 }
 finally{FbConnection.ClearAllPools();FbConnection.DropDatabase(cs);}

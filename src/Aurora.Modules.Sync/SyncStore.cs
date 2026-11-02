@@ -11,7 +11,7 @@ public sealed class SyncStore(NpgsqlConnectionFactory factory,ITenantContext ten
     // The caller MUST pass the business transaction. A rolled-back save cannot
     // leave a queued write, and a committed save cannot lose its queued write.
     public static async Task Enqueue(NpgsqlConnection db,NpgsqlTransaction tx,Guid tenantId,
-        string entityType,string localId,long revision,string operation,string payload,CancellationToken ct)
+        string entityType,string localId,long revision,string operation,string payload,CancellationToken ct,Guid? excludeConnectionId=null,Guid? onlyConnectionId=null)
     {
         if(tx.Connection!=db)throw new ArgumentException("Use the business save transaction.");
         if(string.IsNullOrWhiteSpace(entityType)||string.IsNullOrWhiteSpace(localId)||revision<0||operation is not ("upsert" or "delete"))throw new FormatException("Invalid sync change.");
@@ -20,13 +20,17 @@ public sealed class SyncStore(NpgsqlConnectionFactory factory,ITenantContext ten
         await db.ExecuteAsync(new CommandDefinition("""
             INSERT INTO aurora_sync_outbox(tenant_id,connection_id,entity_type,local_id,local_revision,operation,payload)
             SELECT @tenantId,id,@entityType,@localId,@revision,@operation,CAST(@payload AS jsonb)
-            FROM aurora_sync_connection WHERE tenant_id=@tenantId
-            ON CONFLICT(tenant_id,connection_id,entity_type,local_id,local_revision) DO NOTHING
-            """,new{tenantId,entityType,localId,revision,operation,payload},tx,cancellationToken:ct));
+            FROM aurora_sync_connection WHERE tenant_id=@tenantId AND (@excludeConnectionId IS NULL OR id<>@excludeConnectionId) AND (@onlyConnectionId IS NULL OR id=@onlyConnectionId)
+              AND (provider='nova' OR (provider='freightops' AND (@entityType='order' OR (@entityType='manifest' AND id=@onlyConnectionId))))
+            ON CONFLICT(tenant_id,connection_id,entity_type,local_id,local_revision) DO UPDATE
+              SET state='pending',available_at=now(),last_error=NULL
+              WHERE aurora_sync_outbox.state='superseded'
+                AND aurora_sync_outbox.payload=excluded.payload AND aurora_sync_outbox.operation=excluded.operation
+            """,new{tenantId,entityType,localId,revision,operation,payload,excludeConnectionId,onlyConnectionId},tx,cancellationToken:ct));
         var mismatch=await db.ExecuteScalarAsync<bool>(new CommandDefinition("""
             SELECT EXISTS(SELECT 1 FROM aurora_sync_outbox WHERE tenant_id=@tenantId AND entity_type=@entityType
               AND local_id=@localId AND local_revision=@revision AND (operation<>@operation OR payload<>CAST(@payload AS jsonb)))
-            """,new{tenantId,entityType,localId,revision,operation,payload},tx,cancellationToken:ct));
+            """,new{tenantId,entityType,localId,revision,operation,payload,excludeConnectionId,onlyConnectionId},tx,cancellationToken:ct));
         if(mismatch)throw new FormatException("The same record revision cannot contain different sync changes.");
     }
 
@@ -40,6 +44,7 @@ public sealed class SyncStore(NpgsqlConnectionFactory factory,ITenantContext ten
             WITH candidate AS (
               SELECT o.id FROM aurora_sync_outbox o JOIN aurora_sync_connection c ON c.tenant_id=o.tenant_id AND c.id=o.connection_id
               WHERE o.tenant_id=@TenantId AND o.connection_id=@connectionId AND c.enabled
+                AND (c.provider='nova' OR (c.provider='freightops' AND o.entity_type IN ('order','manifest')))
                 AND ((o.state='pending' AND o.available_at<=now()) OR (o.state='working' AND o.lease_until<now()))
                 AND NOT EXISTS(SELECT 1 FROM aurora_sync_outbox earlier WHERE earlier.tenant_id=o.tenant_id
                   AND earlier.connection_id=o.connection_id AND earlier.entity_type=o.entity_type AND earlier.local_id=o.local_id

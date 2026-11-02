@@ -10,7 +10,7 @@ public static class WorkspaceOrderSource
         // Keep newly synchronized orders in the same planning source as adopted
         // orders at that terminal, so a planner can select both in one route.
         var existing=await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("""
-            SELECT s.id FROM aurora_order_source s JOIN aurora_sync_connection c ON c.tenant_id=s.tenant_id
+            SELECT s.id FROM aurora_order_source s JOIN aurora_sync_connection c ON c.tenant_id=s.tenant_id AND c.provider='nova'
             WHERE s.tenant_id=@tenantId AND s.request#>>'{reporting,firebirdSource}'=c.source_identity
               AND EXISTS(SELECT 1 FROM aurora_order o WHERE o.tenant_id=s.tenant_id AND o.source_id=s.id
                 AND o.details->>'TerminalCode'=@terminal)

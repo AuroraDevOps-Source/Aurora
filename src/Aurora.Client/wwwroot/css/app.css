@@ -368,3 +368,8 @@ body:has(.map-popout) .tms-workspace { display:block; }
 .orders-open-plan > a,.orders-open-plan > button { flex:none; white-space:nowrap; }
 
 .order-coordinates { grid-column:1/-1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+
+.settings-dialog { width:min(960px,calc(100vw - 32px)); }
+.settings-connections-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.settings-dialog .field { margin-bottom:10px; }
+@media(max-width:600px) { .settings-connections-grid { grid-template-columns:minmax(0,1fr); } }

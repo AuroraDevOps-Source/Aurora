@@ -591,3 +591,49 @@ Backup: /opt/aurora-auth/backups/20261026-2 (database, environment, rollback ima
 - Release build and OrderPlanningSelectionChecks passed; authenticated deployment checks passed for login, local records, draft listing, styles and retained synchronization route. No browser testing.
 - API container remains 20261026-2; application data preserved. Backup: /opt/aurora-auth/backups/20261027-4.
 - Archive SHA256: b2451c7334ece4aa6037a60e0f9c0be9cbd4c58a88557ce5954e733640a609cd.
+
+## Client and API republish 2026-10-27 — 20261027-5
+- Published current-day Orders/Manifests filters, Enter-to-search, tab-title encoding fix, automatic address lookup on Save with coordinates in party sections, default equipment drivers, initial truck popup and removal of route explanatory paragraphs.
+- Release builds passed (API retained existing package vulnerability warnings); 31 driver checks passed before packaging. Public readiness and authenticated login, local data, styles, synchronization and default-driver contract checks passed after deployment. No browser testing.
+- Both client/API updated. No migrations or data resets. Database dump verified and rollback images retained at /opt/aurora-auth/backups/20261027-5.
+- Archive SHA256: bee02cda29acc4efc92ae9c17477854a442b9310b9a67f925a07b1c24c6a9633.
+
+## Aurora MVP publication 2026-10-28 - 20261028-1
+
+Published API/client and Aurora migrations 0040-0044 after a restored-database rehearsal and verified offline backup. Native-owned freight MVP has no Delphi dependency. Local Delphi edits reversed. New Lykes/FreightOps synchronization and Nova reverse-write flags remain disabled; existing WayTest sync retained and healthy. No FreightOps or Nova deployment, Firebird migration, seeding or data reset.
+
+273 Nova checks, 130 endpoint/database/host checks, 14 tenant-settings checks and order-selection regression suite passed. Release publishes and final authenticated live checks passed. One held outbox record was confirmed in the pre-release backup. Recovery backup: /opt/aurora-auth/backups/20261028-1-attempt2. Old binaries alone are not a safe rollback after tenant-settings schema conversion.
+
+See docs/LYKES-MAPPING-V2-2026-10-27.md, MVP revision and Publication result sections, for exact scope, archive/image hashes, rehearsal/verification corrections, evidence and the FreightOps test-server handoff. Live verification log: artifacts/mvp-live-verification.log. FreightOps publication remains Bryan's step.
+
+## Lykes Test workspace reset - 2026-10-29
+
+At Bryan's explicit request, replaced the existing Aurora Demo Co/WayTest workspace with an empty Lykes Test workspace under the same tenant ID, retaining application logins, memberships, roles and product access. No new backup was made, as requested. Stopped the API, transactionally deleted tenant-scoped orders, manifests, drafts, fleet/masters, routing settings and sync history, cleared stored integration settings with a new Nova reference, removed two tenant-owned saved planning sessions, and restarted the API. Native Nova and FreightOps databases were not modified. Existing prior backups were not deleted.
+
+Synchronization__Enabled=false and all FreightOps/Lykes write/enable switches remain false; NativeReadOnly=true. User must reopen Settings and enter the Lykes Nova and FreightOps connection credentials; the previously rejected form submission did not persist them. Authenticated login/PKCE, Lykes Test company name, empty orders/manifests/drafts, cleared connections and disabled sync verified. Evidence: artifacts/reset-lykes-workspace-result.log and artifacts/verify-lykes-reset-result.log. Do not run the old WayTest verification or enable old connection settings after this reset.
+
+2026-10-30: Published web-only release 20261030-1 for Settings Connections 2x2 grid (Nova/FreightOps, DispatchTrack/ZEnventory), responsive single column below 600px. Release build passed. Public HTML stylesheet version and grid CSS verified; API readiness 200. API container unchanged on 20261028-1. compose.yml web image now uses WEB_RELEASE_TAG with RELEASE_TAG fallback; .env WEB_RELEASE_TAG=20261030-1. No database or synchronization changes. Web image sha256:08853219e1372c6fe763c32a70386e9bfecf78edbb50a654ca528f3e800b07c4.
+
+2026-10-30 Lykes pilot: Aurora API 20261030-5; web remains 20261030-1. Lykes-only FreightOps image freightops-api-lykes:aurora-planning-20261030-v2. Nova -> Aurora -> FreightOps PRO 1862 verified; native FreightOps shipper edit returned to Aurora. Saved Monday manifest MAN-02221E40 with DEMO-TPA-01 / Demo Driver. Nova reverse business writes disabled and verified zero receipts; rating unchanged. Cooke unchanged. Full scope, setup data, image hashes, validation and walkthrough: docs/LYKES-MONDAY-DEMO-2026-11-02.md.
+
+## 2026-10-30 app navigation restoration (20261030-6)
+Published Aurora API and web 20261030-6. Restored licensed application header buttons. TenantSettingsService.Save updates the tenant's existing FreightOps launcher URL in the same transaction as Connections; entitlements remain unchanged. Applied the existing URL alignment only to Lykes. General backfill script 0045 is included for future migration runs, not applied globally here. Local API/client Release publishes and 17 tenant settings checks passed. Live authenticated product URL equals Lykes Connections URL; sync remains settled, Nova business writes off, saved Monday route intact. No FreightOps/Cooke deployment touched.
+
+## Aurora republished 2026-10-30 — release 20261030-7
+
+API and web published successfully. Local Release builds and 249 routing checks had passed. Archive SHA256: 1E3E254DB461086046939A947D7DDDE500B928D709C30885B10DC5F31995B8F8. Live readiness, administrator login and PKCE passed. Product API returns Aurora, FreightOps, Integration Hub and Nova; auroratms is absent. Lykes Nova has access but a null URL, intentionally leaving browser launch unavailable until certificate activation and embedding verification. FreightOps URL matches Connections. Database container was not recreated.
+
+Live Monday verification passed: PRO 1862 pilot, FreightOps queue settled, saved MAN-02221E40 route intact, Nova business writes disabled. No GoGlobal service restart or active certificate change; no Cooke configuration changes.
+
+## Lykes manifest publishing 2026-10-30
+Aurora API/web 20261030-9 adds explicit replay-safe FreightOps delivery-plan publishing and locks local edits after handoff. Both target and host feature switches are opt-in, enabled only for Lykes. Published MAN-02221E40 / PRO 1862 to native FreightOps Planning with truck, date, driver Tag reference, native membership and piece queue. Nova business writes remain disabled.
+
+Lykes API and daemon updated to aurora-manifests-20261030-v2; the daemon receives the additive planning event type and tolerant legacy event-actor reads. Native status subscriptions caught up without editing stored historical events. Cooke containers unchanged; GoGlobal untouched.
+
+Validation: 158 endpoint/database checks, 249 routing checks, 49 adapter HTTP checks, Release builds. Final Aurora archive SHA256 9993cb6f79ccb6d2da486c835fef31c891ab4f1ffd3985ae9be5993adc82ea06. See docs/LYKES-MONDAY-DEMO-2026-11-02.md for boundaries and deployment evidence. This is a planning handoff, not reverse manifest lifecycle sync.
+
+## 2026-11-02 — Lykes demo readiness
+
+Published Aurora API `20261102-1` (Docker image `sha256:699a253e0203daff826df994cb200354a5c546b4f976ec6edd019b8dc577b264`), web unchanged. Change excludes FreightOps-submitted manifests from automatic inclusion in fresh planning drafts; existing write/commit safeguards remain. No staging reset was run. Expanded Lykes import allowlist to native PB_ID 1862 and 1874–1885; created explicitly synthetic test shipments and demo fleet. Nova NativeReadOnly=true/WritesEnabled=false remain pending Steve's Delphi stable-identity implementation and mapping reconciliation.
+
+Applied nullable `OPS_STOP_REC.OPS_ETA_TIME TIMESTAMP` only to verified Lykes TEST Firebird database; no population rule, rating change or Delphi change. 285 Nova checks, 249 routing checks, Release publish, live eight-order/two-route publication and four-order/unbooked-truck planning rehearsal passed. Native FreightOps manifests MAN-119444A3 and MAN-F013760C verified; no API/daemon errors or restarts observed there. Final FreightOps queues empty and PRO 99002009 reverse edit received by Aurora. Detailed instructions and boundaries are in docs/LYKES-MONDAY-DEMO-2026-11-02.md; Steve email draft and requirements in docs/LYKES-STEVE-DELPHI-HANDOFF-2026-11-02.md.

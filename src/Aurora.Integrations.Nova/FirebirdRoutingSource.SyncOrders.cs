@@ -32,7 +32,26 @@ public sealed partial class FirebirdRoutingSource
         }
         if(header.Kind.Trim()!="O")throw new FormatException("Expected a Nova order.");
         var data=Baseline(mapping,SyncObject(new TmsOrder{Id=$"FB-{id}",ScheduledAt=LocalTime(header.Date??DateTime.Today)}));
+        LykesNovaMapping.RequireSupportedRead(data,Options.Lykes);
+        if(Options.Lykes.Enabled)
+        {
+            // PB_ID is a database key, never the business PRO used by FreightOps.
+            // Preserve established identities by holding mismatches for reconciliation.
+            var pro=await db.QuerySingleAsync<SyncPro>(new CommandDefinition(
+                "SELECT CAST(PBNUM AS BIGINT) AS Number,TRIM(PBSUFFIX) AS Suffix FROM OPS_HEADER WHERE PB_ID=@id",new{id},tx,cancellationToken:ct));
+            if(pro.Number is null or <1 or >999999999||!string.IsNullOrWhiteSpace(pro.Suffix))
+                throw new FormatException("Lykes requires a positive numeric Nova PRO without a suffix; reconcile unsupported identities before forwarding.");
+            var businessId=pro.Number.Value.ToString(CultureInfo.InvariantCulture);
+            if(await db.ExecuteScalarAsync<int>(new CommandDefinition(
+                "SELECT COUNT(*) FROM OPS_HEADER WHERE PB_TYPE='O' AND PBNUM=@number",new{number=pro.Number},tx,cancellationToken:ct))!=1)
+                throw new SyncConflictException("Nova PRO is not globally unique across locations/suffixes, including cancelled orders. Reconcile before forwarding.");
+            if(mapping is not null&&S(data,"Id")!=businessId)
+                throw new SyncConflictException("The mapped order identity differs from Nova's business PRO. Reconcile existing mappings; automatic renaming is not allowed.");
+            data["Id"]=businessId;
+        }
         data=await NativeProjection(db,tx,"OPS_HEADER","PB_ID",id,SyncOrderFields,data,ct)??throw new KeyNotFoundException("Order disappeared.");
+        if(Options.Lykes.Enabled)
+            await NativeProjection(db,tx,"OPS_HEADER","PB_ID",id,[("Notes","PB_NOTES")],data,ct);
         var stops=(await db.QueryAsync<SyncStop>(new CommandDefinition("""
             SELECT OPS_STOP_ID AS Id,TRIM(OPS_TYPE) AS Kind,OPS_APPT_LOW AS AppointmentFrom,OPS_APPT_HIGH AS AppointmentTo,
             OPS_DELIVERED_TIME AS Delivered,OPS_MANIFEST_NUMBER AS Manifest
@@ -64,9 +83,13 @@ public sealed partial class FirebirdRoutingSource
         data["AppointmentFrom"]=activeStop.AppointmentFrom is {} from?JsonValue.Create(LocalTime(from)):null;
         data["AppointmentTo"]=activeStop.AppointmentTo is {} to?JsonValue.Create(LocalTime(to)):null;
         data["Status"]=delivery.Delivered is not null?"Delivered":header.StatusCode switch{"DPCH"=>"Dispatched","ENR"=>"InTransit","CPLT"=>"Delivered","VOID"=>"Voided",_=>activeStop.Manifest is >0?"Routed":_syncReadyStatuses.Contains((int)header.Status)||pickupWork?WorkspaceOrderStatus.Ready:"Pending"};
+        if(Options.Lykes.Enabled)
+            data=LykesNovaMapping.Project(data,await LykesNovaMapping.ReadLines(db,tx,id,ct,Options.Lykes.NativeReadOnly),Options.Lykes);
         foreach(var key in new[]{"SourceId","Revision","TerminalId","CustomerId","ManifestId","ManifestNumber","StopNumber","OptimizationDraftId"})data.Remove(key);
         return [new("order",id.ToString(CultureInfo.InvariantCulture),SyncHash(data),data){BusinessDate=header.Date is {} date?DateOnly.FromDateTime(date):null,Open=S(data,"Status") is not ("Delivered" or "Voided")}];
     }
+
+    private sealed class SyncPro { public long? Number {get;set;} public string? Suffix {get;set;} }
 
     private sealed class SyncManifestHeader { public DateTime? Date {get;set;} public string Status {get;set;}=""; public string Origin {get;set;}=""; public string Destination {get;set;}=""; public string Truck {get;set;}=""; public long? Driver {get;set;} public string? Notes {get;set;} public int Deleted {get;set;} }
     private sealed class SyncManifestMember { public long OrderId {get;set;} public int StopNumber {get;set;} }
@@ -116,7 +139,7 @@ public sealed partial class FirebirdRoutingSource
             var orderMap=await Mapping("order",member.OrderId.ToString(),true,ct);
             var key=orderMap?.LocalId;var separator=key?.IndexOf('/')??-1;
             var source=separator>0?Guid.Parse(key![..separator]):await WorkspaceOrderSource.Get(pg,tenant.TenantId,changes.Single(s=>s.EntityType=="order"&&s.ExternalId==member.OrderId.ToString()).Data["TerminalCode"]?.GetValue<string>(),null,ct);
-            orders.Add(new JsonObject{["SourceId"]=separator>0?key![..separator]:source.ToString(),["Id"]=separator>0?key![(separator+1)..]:$"FB-{member.OrderId}",["StopNumber"]=orders.Count+1});
+            orders.Add(new JsonObject{["SourceId"]=separator>0?key![..separator]:source.ToString(),["Id"]=separator>0?key![(separator+1)..]:changes.Single(s=>s.EntityType=="order"&&s.ExternalId==member.OrderId.ToString()).Data["Id"]!.DeepClone(),["StopNumber"]=orders.Count+1});
         }
         data["Orders"]=orders;data["Route"]??=new JsonObject();
         foreach(var key in new[]{"OrderCount","Pieces","Weight","Editable"})data.Remove(key);

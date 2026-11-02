@@ -1,0 +1,93 @@
+@inject IHttpClientFactory Clients
+@inject IJSRuntime JS
+<EditPopup Title="Import orders" Busy="_busy" OnClose="Close" Class="order-dialog">
+ @if(_error is not null){<p class="alert" role="alert">@_error</p>}
+ @if(_saved>0){<p role="status">@_saved orders created in Aurora.</p>}
+ <p>Select a document, review the extracted orders, then create them in Aurora.</p>
+ <fieldset disabled="@_busy">
+  @if(_rows.Count==0){
+   <label class="field">Document (up to 10 MB)<InputFile OnChange="SelectFile" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpeg,.jpg,.png,.webp,.gif,.bmp" /></label>
+   <button class="primary-button" disabled="@(_file is null || _busy)" @onclick="Convert">Convert document</button>
+  }
+  else {
+   <p>Check addresses, dates and freight totals. Missing order numbers and consignee names must be filled in. Missing dates default to today. Dates without a time zone use your local time.</p>
+   <label class="field">Terminal<select @bind="_terminal"><option value="">Unassigned</option>@foreach(var terminal in Terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
+   @foreach(var row in _rows){
+    <details @key="row" open>
+     <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) · @row.Order.Customer</summary>
+     <div class="manifest-edit-grid">
+      @foreach(var field in TextFields){
+       <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>SetText(row.Order,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
+      }
+      <label class="field">Scheduled date/time<input type="datetime-local" @bind="row.Scheduled" /></label>
+      <label class="field">Work type<select @bind="row.Order.WorkType"><option>Delivery</option><option>Pickup</option></select></label>
+      <label class="field">Pieces<InputNumber @bind-Value="row.Order.Pieces" /></label>
+      <label class="field">Total weight (lb)<InputNumber @bind-Value="row.Order.Weight" /></label>
+      <label class="field">Total cube (ft³)<InputNumber @bind-Value="row.Order.Cube" /></label>
+      <label class="field">Notes<textarea @bind="row.Order.Notes" maxlength="4000"></textarea></label>
+     </div>
+     <button class="text-button" @onclick="()=>_rows.Remove(row)">Remove from import</button>
+    </details>
+   }
+   <button class="primary-button" disabled="@_busy" @onclick="Create">Create @_rows.Count orders</button>
+  }
+ </fieldset>
+ @if(_busy){<p role="status">@_progress</p>}
+ <div class="popup-actions"><button class="outline-button" disabled="@_busy" @onclick="Close">Close</button></div>
+</EditPopup>
+@code {
+ [Parameter] public List<TerminalDto> Terminals {get;set;}=[];
+ [Parameter] public EventCallback OnClose {get;set;}
+ [Parameter] public EventCallback OnCreated {get;set;}
+ IBrowserFile? _file;
+ bool _busy;
+ int _saved;
+ string? _error,_progress;
+ Guid? _terminal;
+ List<Row> _rows=[];
+ sealed class Row(TmsOrder order){public TmsOrder Order=order;public DateTime Scheduled=order.ScheduledAt.LocalDateTime;}
+ static readonly (string Name,string Label)[] TextFields=[
+  ("Id","PRO / Order"),("Reference","Reference"),("Customer","Consignee"),("Address","Consignee address"),("Address2","Consignee address 2"),("City","Consignee city"),("State","Consignee state"),("PostalCode","Consignee ZIP"),("Country","Consignee country"),
+  ("Shipper","Shipper"),("OriginAddress","Shipper address"),("OriginAddress2","Shipper address 2"),("OriginCity","Shipper city"),("OriginState","Shipper state"),("OriginPostalCode","Shipper ZIP"),("OriginCountry","Shipper country"),
+  ("BillTo","Bill to"),("BillToAddress","Bill-to address"),("BillToAddress2","Bill-to address 2"),("BillToCity","Bill-to city"),("BillToState","Bill-to state"),("BillToPostalCode","Bill-to ZIP"),("BillToCountry","Bill-to country")];
+ static string GetText(TmsOrder o,string name)=>(string?)typeof(TmsOrder).GetProperty(name)!.GetValue(o)??"";
+ static void SetText(TmsOrder o,string name,string value)=>typeof(TmsOrder).GetProperty(name)!.SetValue(o,value);
+ void SelectFile(InputFileChangeEventArgs e){_file=e.File;_error=null;}
+ async Task Close(){if(!_busy)await OnClose.InvokeAsync();}
+ async Task Convert()
+ {
+  if(_busy || _file is null)return;
+  _busy=true;_error=null;_progress="Converting document… This may take a few minutes.";
+  try{
+   using var http=Clients.CreateClient(ApiClients.Authorized);http.Timeout=TimeSpan.FromMinutes(6);
+   using var form=new MultipartFormDataContent();
+   await using var stream=_file.OpenReadStream(10*1024*1024);
+   form.Add(new StreamContent(stream),"file",_file.Name);
+   using var response=await http.PostAsync("api/v1/tms/orders/convert-document",form);
+   await ApiResponse.Check(response);
+   _rows=(await response.Content.ReadFromJsonAsync<List<TmsOrder>>()??[]).Select(o=>new Row(o)).ToList();
+   if(_rows.Count==0)_error="No orders were found in this document.";
+  }catch(Exception ex){_error=ex.Message;}finally{_busy=false;}
+ }
+ async Task Create()
+ {
+  if(_busy || _rows.Count==0)return;
+  _busy=true;_error=null;_progress="Creating orders…";
+  try{
+   foreach(var row in _rows){
+    row.Order.TerminalId=_terminal;
+    row.Order.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",row.Scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));
+    row.Order.Validate();
+   }
+   if(_rows.GroupBy(r=>r.Order.Id).Any(g=>g.Count()>1))throw new FormatException("Order numbers must be unique within the import.");
+   using var http=Clients.CreateClient(ApiClients.Authorized);
+   while(_rows.Count>0){
+    using var response=await http.PostAsJsonAsync("api/v1/tms/orders",_rows[0].Order);
+    await ApiResponse.Check(response);
+    _rows.RemoveAt(0);_saved++;
+   }
+   _file=null;
+  }catch(Exception ex){_error=$"{ex.Message} {_saved} orders created; {_rows.Count} remain. If a request lost its connection, check the orders list before retrying.";}
+  finally{_busy=false;if(_saved>0)await OnCreated.InvokeAsync();}
+ }
+}

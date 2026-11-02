@@ -1,0 +1,49 @@
+{
+  "Synchronization": {
+    "Enabled": false,
+    "IntervalSeconds": 30,
+    "FreightOps": {
+      "Enabled": false,
+      "Connections": [
+        {
+          "TenantId": "00000000-0000-0000-0000-000000000000",
+          "CredentialReference": "00000000-0000-0000-0000-000000000000",
+          "ApiUrl": "https://example.invalid",
+          "SourceIdentity": "REPLACE-WITH-TARGET-DATABASE-GENERATION",
+          "AccessToken": ""
+        }
+      ]
+    }
+  },
+  "FirebirdRouting": {
+    "TenantId": "00000000-0000-0000-0000-000000000000",
+    "SourceKey": "REPLACE-WITH-SAVED-NOVA-SOURCE-IDENTITY",
+    "Lykes": {
+      "Enabled": false,
+      "NativeReadOnly": true,
+      "WritesEnabled": false,
+      "OrderLifecycleEnabled": false,
+      "OperatorInitials": "",
+      "NewOrderReadyStatus": null,
+      "NewFreightKeyword": null,
+      "TerminalMappings": {},
+      "KeywordKinds": {},
+      "PackTypes": {},
+      "CubeBasis": "",
+      "ScalarCubeUnit": "",
+      "DimensionUnit": "",
+      "FreightStopKind": ""
+    }
+  },
+  "FreightOpsTargetExample": {
+    "AuroraSync": {
+      "Enabled": false,
+      "ConnectionId": "00000000-0000-0000-0000-000000000000",
+      "SourceIdentity": "REPLACE-WITH-TARGET-DATABASE-GENERATION",
+      "TokenSha256": "",
+      "TerminalMappings": {},
+      "NativeWeightUnit": "lb",
+      "NativeVolumeUnit": "ft3"
+    }
+  }
+}

@@ -11,13 +11,13 @@ public static class ProductWorkspace
     public const string Aurora = "aurora";
     public const string FreightOps = "freightops";
     public const string Hub = "hub";
-    public const string AuroraTms = "auroratms";
+    public const string Nova = "nova";
 
     public static string RouteFor(string productCode) => productCode switch
     {
         FreightOps => "/workspace/freightops",
         Hub => "/workspace/hub",
-        AuroraTms => "/workspace/auroratms",
+        Nova => "/workspace/nova",
         _ => "/aurora/orders"
     };
 
@@ -25,7 +25,7 @@ public static class ProductWorkspace
     {
         "/workspace/freightops" => FreightOps,
         "/workspace/hub" => Hub,
-        "/workspace/auroratms" => AuroraTms,
+        "/workspace/nova" => Nova,
         "/" or "/routing" or "/aurora/route-optimization" or "/aurora/orders" or "/aurora/manifests" or "/aurora/fleet" or "/aurora/planning" => Aurora,
         _ => null
     };
@@ -35,7 +35,7 @@ public static class ProductWorkspace
     {
         FreightOps => "FreightOps",
         Hub => "Integration Hub",
-        AuroraTms => "Nova 2.0",
+        Nova => "Nova",
         _ => "Aurora"
     };
 }

@@ -220,13 +220,14 @@ builder.Services.AddScoped<Aurora.Modules.Routing.IPlanningDataSource>(sp => bui
 builder.Services.AddScoped<Aurora.Modules.Sync.ISyncEntityStore,Aurora.Modules.Routing.OperationalSyncEntities>();
 builder.Services.AddScoped<Aurora.Modules.Sync.SyncReview>();
 builder.Services.AddScoped<ITenantSyncExecutor,TenantSyncExecutor>();
+builder.Services.Configure<Aurora.Integrations.FreightOps.FreightOpsRuntimeOptions>(builder.Configuration.GetSection("Synchronization:FreightOps"));
 builder.Services.AddScoped<LocalRoutingConfiguration>();
 builder.Services.AddHostedService<IntegrationSyncWorker>();
 builder.Services.AddScoped<Aurora.Modules.Routing.IExternalWorkspaceReset>(sp => sp.GetRequiredService<Aurora.Integrations.Nova.FirebirdRoutingSource>());
 builder.Services.AddScoped<NovaUserConnections>();
 builder.Services.AddScoped<AdminUsers>();
 builder.Services.AddHttpClient<IInvitationEmail, ResendInvitationEmail>(client => client.Timeout = TimeSpan.FromSeconds(15));
-builder.Services.AddScoped<AdminDatabases>();
+builder.Services.AddScoped<TenantSettingsService>();
 builder.Services.AddScoped<AppLog>();
 builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Integrations.Nova.FirebirdRoutingOptions>>(sp =>
 {
@@ -328,7 +329,7 @@ loggedApi.MapNovaLaunch();
 loggedApi.MapNovaApiLaunch();
 loggedApi.MapAccountPasswordEndpoints();
 loggedApi.MapAdminUserEndpoints();
-loggedApi.MapAdminDatabaseEndpoints();
+loggedApi.MapTenantSettingsEndpoints();
 loggedApi.MapAppLogEndpoints();
 loggedApi.MapLauncherEndpoints();
 loggedApi.MapRoutingEndpoints();
