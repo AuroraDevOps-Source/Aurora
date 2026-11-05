@@ -16,7 +16,7 @@ public sealed record FreightOpsReceipt(int ProtocolVersion,string SourceIdentity
 public sealed record FreightOpsPull(int ProtocolVersion,string SourceIdentity,Guid ConnectionId,int Limit);
 public sealed record FreightOpsEvent(string EventId,string EntityType,string ExternalId,string Revision,JsonObject Data,bool Deleted);
 public sealed record FreightOpsBatch(int ProtocolVersion,string SourceIdentity,Guid ConnectionId,FreightOpsEvent[] Events);
-public sealed record FreightOpsAck(int ProtocolVersion,string SourceIdentity,Guid ConnectionId,string[] EventIds);
+public sealed record FreightOpsAck(int ProtocolVersion,string SourceIdentity,Guid ConnectionId,string[] EventIds,Dictionary<string,string>? Bindings=null);
 public sealed record FreightOpsAckReceipt(int ProtocolVersion,string SourceIdentity,Guid ConnectionId,string[] EventIds);
 
 public interface IFreightOpsRequestStore
@@ -24,6 +24,7 @@ public interface IFreightOpsRequestStore
     // Must durably freeze the target baseline AND payload before the first network call.
     // A response-loss retry must not rebuild the request using a newer imported baseline.
     Task<FreightOpsWrite> Prepare(SyncChange change,string sourceIdentity,CancellationToken ct);
+    Task<string?> ImportedLocalId(Guid connectionId,string kind,string externalId,CancellationToken ct)=>Task.FromResult<string?>(null);
 }
 
 public static class FreightOpsProtocol

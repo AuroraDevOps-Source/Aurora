@@ -12,6 +12,30 @@ namespace Aurora.Integrations.Nova;
 
 public sealed partial class FirebirdRoutingSource
 {
+    internal static async Task<bool> RoutingStopAvailable(FbConnection fb,FbTransaction tx,long orderId,long stopId,string kind,string terminal,int[] readyStatuses,long[] existingOrders,CancellationToken ct)
+    {
+        var native=new {Order=orderId,Stop=stopId,Kind=kind};
+        // Lock the header and stop separately, then apply the same custody and
+        // assignment rules as refresh. Do not delete historical manifest links.
+        await fb.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
+            "SELECT PB_ID FROM OPS_HEADER WHERE PB_ID=@Order WITH LOCK",native,tx,cancellationToken:ct));
+        await fb.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
+            "SELECT OPS_STOP_ID FROM OPS_STOP_REC WHERE OPS_STOP_ID=@Stop AND OPS_ORDER_ID=@Order WITH LOCK",native,tx,cancellationToken:ct));
+        var ready = await fb.QuerySingleOrDefaultAsync<long?>(new CommandDefinition($"""
+            SELECT s.OPS_STOP_ID FROM OPS_HEADER h JOIN OPS_STOP_REC s ON s.OPS_ORDER_ID=h.PB_ID
+            WHERE h.PB_ID=@Order AND s.OPS_STOP_ID=@Stop AND s.OPS_TYPE=@Kind
+              AND ({NativeRoutingSql.Terminal()})=@terminal
+              AND h.PB_TYPE='O' AND h.PB_DT_CANC IS NULL
+              AND s.OPS_DELIVERED_TIME IS NULL AND s.OPS_TO_AGENT_TIME IS NULL
+              AND (s.OPS_TYPE<>'P' OR COALESCE(s.OPS_PICKED_UP,'N')<>'Y')
+              AND ({NativeRoutingSql.Status()} IN @readyStatuses OR {NativeRoutingSql.Dock()} OR h.PB_ID IN @existingOrders)
+              AND {NativeRoutingSql.Unassigned()}
+            """,new { native.Order,native.Stop,native.Kind,terminal,
+                readyStatuses,
+                existingOrders=existingOrders.Length==0?new long[]{-1}:existingOrders },tx,cancellationToken:ct));
+        return ready is not null;
+    }
+
     public bool IsExternal(string json) => RoutingInput.Text(RoutingInput.Parse(json)["reporting"]?["firebirdSource"]) is not null;
     public void ValidateSource(string json)
     {
@@ -234,18 +258,8 @@ public sealed partial class FirebirdRoutingSource
             throw new FormatException("The exported routes contain empty or repeated order stops.");
         foreach (var native in stops)
         {
-            var ready = await fb.QuerySingleOrDefaultAsync<long?>(new CommandDefinition("""
-                SELECT PB_ID FROM OPS_HEADER WHERE PB_ID=@Order AND PB_TYPE='O' AND (PB_STATUS IN @readyStatuses OR PB_ID IN @existingOrders)
-                    AND PB_LOCATION=@terminal AND PB_DT_CANC IS NULL WITH LOCK
-                """, new { native.Order, readyStatuses=native.Kind=="P"?pickupStatuses:readyStatuses, existingOrders=existingOrders.Length==0?new long[]{-1}:existingOrders, terminal }, tx, cancellationToken: ct));
-            var stop = await fb.QuerySingleOrDefaultAsync<long?>(new CommandDefinition("""
-                SELECT OPS_STOP_ID FROM OPS_STOP_REC WHERE OPS_STOP_ID=@Stop AND OPS_ORDER_ID=@Order
-                    AND OPS_TYPE=@Kind AND COALESCE(OPS_MANIFEST_NUMBER,0)=0 AND OPS_DELIVERED_TIME IS NULL
-                    AND (OPS_TYPE<>'P' OR COALESCE(OPS_PICKED_UP,'N')<>'Y') WITH LOCK
-                """, native, tx, cancellationToken: ct));
-            var linked = await fb.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM OPS_MANIFEST_STOPS WHERE OSM_PKUP_DELV_ID=@Stop", native, tx, cancellationToken: ct));
-            if (ready is null || stop is null || linked != 0)
+            if (!await RoutingStopAvailable(fb,tx,native.Order,native.Stop,native.Kind,terminal,
+                native.Kind=="P"?pickupStatuses:readyStatuses,existingOrders,ct))
                 throw new FormatException($"Nova order {native.Order} changed or is already manifested. Refresh its source before finishing.");
         }
         foreach (var route in routes)

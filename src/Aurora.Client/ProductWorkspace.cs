@@ -36,6 +36,6 @@ public static class ProductWorkspace
         FreightOps => "FreightOps",
         Hub => "Integration Hub",
         Nova => "Nova",
-        _ => "Aurora"
+        _ => "Optimization"
     };
 }

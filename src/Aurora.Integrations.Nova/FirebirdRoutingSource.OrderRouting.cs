@@ -41,7 +41,10 @@ public sealed partial class FirebirdRoutingSource
             WaitTimeout=TimeSpan.FromSeconds(10) });
         var current = await ReadRecord(fb, nativeTx, "orders", id, true, ct);
         if (input.OrderRevision != current.Revision) throw new FormatException("This order changed in Nova. Reopen it before changing routing.");
-        var origin = current.Parts[0].Fields.Single(f => f.Key == "PB_LOCATION").Value;
+        var origin = await fb.QuerySingleOrDefaultAsync<string>(new CommandDefinition($"""
+            SELECT FIRST 1 {NativeRoutingSql.Terminal()} FROM OPS_HEADER h JOIN OPS_STOP_REC s ON s.OPS_ORDER_ID=h.PB_ID
+            WHERE h.PB_ID=@id AND s.OPS_TYPE='D' ORDER BY s.OPS_STOP_NUMBER,s.OPS_STOP_ID
+            """,new{id},nativeTx,cancellationToken:ct));
         if (receiving is not null)
         {
             if (current.Parts.Count(p => p.Title.StartsWith("Consignee")) != 1)
@@ -51,17 +54,17 @@ public sealed partial class FirebirdRoutingSource
                 "SELECT EXISTS(SELECT 1 FROM LOCMAST WHERE LM_ID=@receiving) FROM RDB$DATABASE", new { receiving }, nativeTx, cancellationToken: ct)))
                 throw new FormatException("Choose a receiving terminal in this Nova database.");
         }
-        var source = SourceId(origin ?? "");
         var orderId = $"FB-{id}";
         if (await pg.ExecuteScalarAsync<bool>(new CommandDefinition("""
-            SELECT EXISTS(SELECT 1 FROM aurora_planning_draft WHERE tenant_id=@TenantId AND source_id=@source
-                AND (@orderId=ANY(order_ids) OR @pickupId=ANY(order_ids)) AND finished_session IS NULL AND cancelled_at IS NULL)
-            """, new { tenant.TenantId, source, orderId, pickupId=$"FB-P-{id}" }, tx, cancellationToken: ct)))
+            SELECT EXISTS(SELECT 1 FROM aurora_planning_draft d JOIN aurora_order_source ds
+                ON (ds.tenant_id,ds.id)=(d.tenant_id,d.source_id)
+                WHERE d.tenant_id=@TenantId AND ds.request#>>'{reporting,firebirdSource}'=@SourceKey
+                AND (@orderId=ANY(d.order_ids) OR @pickupId=ANY(d.order_ids)) AND d.finished_session IS NULL AND d.cancelled_at IS NULL)
+            """, new { tenant.TenantId, Options.SourceKey, orderId, pickupId=$"FB-P-{id}" }, tx, cancellationToken: ct)))
             throw new FormatException("Cancel the order's open plan before changing its routing.");
-        if (await fb.ExecuteScalarAsync<bool>(new CommandDefinition("""
-            SELECT EXISTS(SELECT 1 FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=@id AND s.OPS_TYPE='D'
-                AND (COALESCE(s.OPS_MANIFEST_NUMBER,0)<>0 OR s.OPS_DELIVERED_TIME IS NOT NULL
-                OR EXISTS(SELECT 1 FROM OPS_MANIFEST_STOPS m WHERE m.OSM_PKUP_DELV_ID=s.OPS_STOP_ID))) FROM RDB$DATABASE
+        if (await fb.ExecuteScalarAsync<bool>(new CommandDefinition($"""
+            SELECT EXISTS(SELECT 1 FROM OPS_STOP_REC s JOIN OPS_HEADER h ON h.PB_ID=s.OPS_ORDER_ID WHERE s.OPS_ORDER_ID=@id AND s.OPS_TYPE='D'
+                AND (s.OPS_DELIVERED_TIME IS NOT NULL OR s.OPS_TO_AGENT_TIME IS NOT NULL OR NOT {NativeRoutingSql.Unassigned()})) FROM RDB$DATABASE
             """, new { id }, nativeTx, cancellationToken: ct)))
             throw new FormatException("Routing cannot be changed while the delivery is manifested or completed.");
         var revision = await pg.QuerySingleOrDefaultAsync<int?>(new CommandDefinition("""

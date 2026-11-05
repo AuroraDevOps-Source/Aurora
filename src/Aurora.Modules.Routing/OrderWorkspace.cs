@@ -194,10 +194,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         selected = PlannerEdits.FleetDay(selected, planningDate, input.DepartAt ?? "06:00", input.ReturnBy ?? "18:00",input.ReturnDate);
         selected = MultiDayPlanning.Apply(selected,planningDate,input.ReturnDate??planningDate,input.ReturnBy??"18:00",input.RestRules);
         selected = await firebird.ExcludeBookedTrucks(selected,planningDate,ct);
-        var driverSetup=RoutingInput.Parse(selected);
-        driverSetup["reporting"]!["drivers"]=new JsonObject();
-        driverSetup["reporting"]!["driverCostBasis"]=DriverCostBasis.Separate;
-        selected=FleetPlanning.DefaultDrivers(driverSetup.ToJsonString(),fleet);
+        selected=OptimizationLabor.Apply(selected,await DriverCostPerHour(ct));
         var name = $"{PlanningBatch.Label(batch)} · {terminals[0]}" + (receiving is not null ? $" → {receiving.Code}" : "") + (input.ShipDate is { } day ? $" · {day:MMM d}" : "");
         // Lock the order rows so two planners cannot open plans on the same freight at once.
         var available = await db.QueryAsync<string>(new CommandDefinition("SELECT id FROM aurora_order WHERE tenant_id=@TenantId AND source_id=@SourceId AND id=ANY(@OrderIds) AND status='ReadyToRoute' AND deleted_at IS NULL FOR UPDATE",new{tenant.TenantId,input.SourceId,input.OrderIds},tx,cancellationToken:ct));
@@ -232,12 +229,15 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
             source.ValidateSource(draft.RequestJson);
             var terminal=RoutingInput.Text(RoutingInput.Parse(draft.RequestJson)["reporting"]?["terminal"]) ?? "";
             // Do not display the retired demo fleet when reopening a pre-migration draft.
-            FleetPlanning.ApplySavedFleet(draft.RequestJson,await source.ReadFleet(ct),terminal);
-            var setup=RoutingInput.Parse(draft.RequestJson);
-            setup["reporting"]!["driverCostBasis"]=DriverCostBasis.Separate;
-            draft=draft with {RequestJson=setup.ToJsonString()};
+            var rebuilt=FleetPlanning.ApplySavedFleet(draft.RequestJson,await source.ReadFleet(ct),terminal);
+            draft=draft with {RequestJson=OptimizationLabor.Apply(rebuilt,await DriverCostPerHour(ct))};
         }
         return draft;
+    }
+    private async Task<decimal> DriverCostPerHour(CancellationToken ct)
+    {
+        await using var db=await factory.OpenConnectionAsync(ct);
+        return await db.ExecuteScalarAsync<decimal?>(new CommandDefinition("SELECT public.aurora_driver_cost_per_hour()",cancellationToken:ct))??0;
     }
     public async Task<string> ValidateDraft(Guid id,string owner,string request,CancellationToken ct)
     {
@@ -253,11 +253,9 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         var root=RoutingInput.Parse(request);var saved=RoutingInput.Parse(draft.RequestJson);
         root["reporting"]!["tripRestRules"]=saved["reporting"]?["tripRestRules"]?.DeepClone();
 
-        root["reporting"]!["driverCostBasis"]=DriverCostBasis.Separate;
-        if(root["reporting"]?["drivers"] is JsonObject choices)
-            foreach(var choice in choices.Select(p=>p.Value).OfType<JsonObject>())choice.Remove("maximumWorkingSeconds");
+        OptimizationLabor.ClearDriverAssignments(root);
         var rebuilt=MultiDayPlanning.ApplyRest(PlannerEdits.FitTrafficMode(FleetPlanning.ApplySavedFleet(root.ToJsonString(),await firebird!.ReadFleet(ct),terminal)));
-        return await firebird.ApplyDrivers(rebuilt,DriverCostBasis.Separate,false,ct);
+        return OptimizationLabor.Apply(rebuilt,await DriverCostPerHour(ct));
     }
     public async Task<IReadOnlyList<SavedManifestDto>> Manifests(CancellationToken ct)
     {
@@ -280,7 +278,6 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
         await using var db=await factory.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
         await OperationalOutbox.Lock(db,tx,tenant.TenantId,ct);
-        await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,id,db,tx,ct);
         var current=await db.QuerySingleOrDefaultAsync<ManifestEditRow>(new CommandDefinition("SELECT vehicle,status,manifest_date AS Date FROM aurora_manifest WHERE tenant_id=@TenantId AND id=@id AND draft_id IS NOT NULL AND deleted_at IS NULL FOR UPDATE",new{tenant.TenantId,id},tx,cancellationToken:ct)) ?? throw new KeyNotFoundException("Manifest not found.");
         var date=input.Details.ManifestDate??current.Date;
         if(firebird is ILocalPlanningDataSource) await ManifestReservations.Validate(tenant.TenantId,id,current.Vehicle,current.Status,date,input.Details,db,tx,ct);
@@ -293,7 +290,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
             if(!await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_manifest WHERE tenant_id=@TenantId AND id=@id)",new{tenant.TenantId,id},tx,cancellationToken:ct))) throw new KeyNotFoundException("Manifest not found.");
             throw new FormatException("This manifest changed in another window. Cancel and refresh before editing again.");
         }
-        await OperationalOutbox.Manifest(db,tx,tenant.TenantId,id,ct);
+        if(firebird is ILocalPlanningDataSource)await OperationalOutbox.Manifest(db,tx,tenant.TenantId,id,ct);
         await tx.CommitAsync(ct);
         return (await Manifests(ct)).Single(m=>m.Id==id);
     }
@@ -346,6 +343,7 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
             var exportRoot=RoutingInput.Parse(exportRequest);var accepted=RoutingInput.Parse(acceptedRequest);
             exportRoot["reporting"]!["drivers"]=accepted["reporting"]?["drivers"]?.DeepClone();
             exportRoot["reporting"]!["driverCostBasis"]=accepted["reporting"]?["driverCostBasis"]?.DeepClone();
+            exportRoot["reporting"]!["driverCostPerHour"]=accepted["reporting"]?["driverCostPerHour"]?.DeepClone();
             if(firebird is ILocalPlanningDataSource)exportRoot["vehicles"]=accepted["vehicles"]?.DeepClone();
             exportRequest=exportRoot.ToJsonString();
         }
@@ -402,11 +400,11 @@ public sealed class OrderWorkspace(NpgsqlConnectionFactory factory, ITenantConte
             }
             if(firebird is ILocalPlanningDataSource)
             {
-                var root=RoutingInput.Parse(exportRequest);var choice=root["reporting"]!["drivers"]![route.Vehicle];
+                var root=RoutingInput.Parse(exportRequest);
                 var truck=RoutingInput.Items(root["vehicles"]).Single(v=>RoutingInput.Text(v["id"])==route.Vehicle);
                 var starts=RoutingInput.Time(truck["start"]?["earliestStartTime"])!.Value;
                 var ends=RoutingInput.Time(truck["end"]?["latestEndTime"])!.Value;
-                var details=new ManifestDetailsDto{OriginTerminal=route.Terminal,DestinationTerminal=transferTo??"",DriverId=long.Parse(RoutingInput.Text(choice?["id"])!,System.Globalization.CultureInfo.InvariantCulture),Driver=RoutingInput.Text(choice?["name"])??"",ManifestDate=DateOnly.FromDateTime(starts.DateTime),ReturnDate=DateOnly.FromDateTime(ends.DateTime)};
+                var details=new ManifestDetailsDto{OriginTerminal=route.Terminal,DestinationTerminal=transferTo??"",ManifestDate=DateOnly.FromDateTime(starts.DateTime),ReturnDate=DateOnly.FromDateTime(ends.DateTime)};
                 await db.ExecuteAsync(new CommandDefinition("UPDATE aurora_manifest SET manifest_date=@date,details=CAST(@details AS jsonb) WHERE tenant_id=@TenantId AND id=@id",new{tenant.TenantId,id,date=starts.Date,details=JsonSerializer.Serialize(details)},tx,cancellationToken:ct));
                 await OperationalOutbox.Manifest(db,tx,tenant.TenantId,id,ct);
             }

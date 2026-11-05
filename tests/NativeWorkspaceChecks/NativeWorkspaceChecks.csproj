@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Aurora.Api/Aurora.Api.csproj" /></ItemGroup>
+  <ItemGroup><None Include="../../src/Aurora.Migrations/Scripts/0047_integration_staging.sql" Link="0047_integration_staging.sql" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><None Include="../../src/Aurora.Migrations/Scripts/0030_integration_sync.sql;../../src/Aurora.Migrations/Scripts/0031_sync_import.sql;../../src/Aurora.Migrations/Scripts/0042_sync_connections.sql" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>

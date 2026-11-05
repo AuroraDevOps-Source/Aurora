@@ -7,15 +7,6 @@ namespace Aurora.Modules.Routing;
 
 public sealed class FreightOpsManifestPublishing(NpgsqlConnectionFactory factory,ITenantContext tenant)
 {
-    // A submitted plan may already exist remotely even when its reply was lost.
-    // MVP handoff freezes local edits instead of silently diverging membership/status.
-    internal static async Task RequireLocalPlan(Guid tenantId,Guid id,Npgsql.NpgsqlConnection db,Npgsql.NpgsqlTransaction tx,CancellationToken ct)
-    {
-        if(await db.ExecuteScalarAsync<bool>(new CommandDefinition("""
-            SELECT EXISTS(SELECT 1 FROM aurora_sync_outbox o JOIN aurora_sync_connection c ON (c.tenant_id,c.id)=(o.tenant_id,o.connection_id)
-            WHERE o.tenant_id=@tenantId AND c.provider='freightops' AND o.entity_type='manifest' AND o.local_id=@localId)
-            """,new{tenantId,localId=id.ToString()},tx,cancellationToken:ct)))throw new FormatException("This plan was submitted to FreightOps. Manage its assignments and execution there; local editing and reoptimization are locked for this MVP.");
-    }
     public async Task Publish(Guid id,int revision,Guid connectionId,CancellationToken ct)
     {
         await using var db=await factory.OpenConnectionAsync(ct);

@@ -8,7 +8,10 @@
         <div class="tms-filters"><label class="field">@(Kind=="fleet"?"Find vehicle":"Find order")<input @bind="_search" @bind:event="oninput" placeholder="@(Kind=="fleet"?"Unit, terminal, make":"PRO, order ID, BOL, customer, city")" @onkeydown="SearchKey" /></label>
         <label class="field">Terminal<select @bind="_terminal"><option value="">All terminals</option><option value="__unknown_terminal__">Unknown Terminal</option>@foreach(var t in _options.Terminals){<option value="@t">@TerminalLabel(t)</option>}</select></label>
         @if(Kind=="orders"){<label class="field">Status<select @bind="_status"><option value="ready">Ready to route</option><option value="">All statuses</option>@foreach(var s in _options.Statuses){<option value="@s.Id">@s.Name</option>}</select></label>}
-        <button class="outline-button" disabled="@_busy" @onclick="Search">Search / Refresh</button><button class="primary-button" disabled="@_busy" @onclick="New">@(Kind=="fleet"?"Add truck":"Add order")</button>
+        <button class="outline-button" disabled="@_busy" @onclick="Search">Search / Refresh</button>
+        @if(Kind=="orders"){
+            <button class="primary-button" disabled="@_busy" @onclick="New">Add</button>
+        }else{<button class="primary-button" disabled="@_busy" @onclick="New">Add truck</button>}
 @if(Kind=="orders"){            <div class="order-toolbar-actions">
                 <button class="primary-button" disabled="@(_busy || _selectedOrders.Count==0 || _planningError is not null)" @onclick="StartPlan">Plan routes (@_selectedOrders.Count)</button>
                 <button class="outline-button" disabled="@(_busy || _selectedOrders.Count==0)" @onclick="OpenBulkConsignee">Update consignee</button>
@@ -16,7 +19,7 @@
                 <span>@PageAvailable.Count() of @_rows.Length available for planning</span>
             </div>}
 </div>
-        @if(Kind=="fleet"){<p class="record-hint">Manage driver profiles, truck assignments and labor costs in Drivers.</p>}
+        @if(Kind=="fleet"){<p class="record-hint">Open a truck to set its default driver for dispatch. Set the optimization driver cost per hour in Settings.</p>}
         @if(Kind=="orders")
         {
 
@@ -46,7 +49,28 @@ else
         {
           @foreach(var group in FieldGroups(part))
           {
-            <fieldset disabled="@_busy" class="record-section @group.Css"><legend>@group.Title</legend><div class="record-fields">
+            <fieldset disabled="@_busy" class="record-section @group.Css"><legend>@group.Title</legend>
+            @if(Kind=="fleet" && group.Title=="Capacity")
+            {
+                <div class="equipment-type-selector">
+                <label class="field">Apply equipment defaults
+                    <select value="@(_equipmentTypeDetails?.Code??"")" @onchange="SelectEquipmentType">
+                        <option value="" disabled>Select a profile…</option>
+                        @foreach(var type in _equipmentTypes){<option value="@type.Code">@type.Code — @type.Description</option>}
+                    </select>
+                </label>
+                @if(_equipmentTypeDetails is {} selectedType)
+                {
+                    <div class="record-fields">
+                        <label class="field">Total length with cab (ft)<input type="number" min="0" step="any" @bind="selectedType.LengthWithPower" /></label>
+                        <label class="field">Vehicle class<input maxlength="200" @bind="selectedType.VehicleClass" /></label>
+                        <label class="field">Freight type<input maxlength="200" @bind="selectedType.FreightType" /></label>
+                        <label class="field">Loading access<input maxlength="200" @bind="selectedType.LoadingAccess" /></label>
+                    </div>
+                }
+                </div>
+            }
+            <div class="record-fields">
             @foreach(var field in group.Fields)
             {
                 @if(Kind=="orders" && field.Key is "PBBNAME" or "OPS_NAME")
@@ -56,7 +80,7 @@ else
                 }
                 else
                 {
-                <label class="field">@field.Label
+                <label class="field">@EquipmentFieldLabel(field)
                     @if(_new && field.Key=="EH_UNIT_TYPE")
                     { <select value="@_values[part.Key][field.Key]" @onchange="e=>Change(part.Key,field.Key,e.Value?.ToString())"><option value="">Select equipment type</option>@foreach(var type in _options.EquipmentTypes){<option value="@type.Id">@type.Name</option>}</select> }
                     else if(field.Key=="EH_DOMICILE" || (_new && field.Key=="PB_LOCATION"))
@@ -103,6 +127,7 @@ else
                 <label class="field">Routing profile<select @bind="_equipmentProfile" disabled="@(!_equipmentProfileLoaded)">
                     @foreach(var profile in EquipmentRoutingProfiles.Choices){<option value="@profile.Key">@profile.Value</option>}
                 </select></label>
+                <EquipmentDriverSelect @bind-Value="_defaultDriverId" Terminal="@(_values["header"].GetValueOrDefault("EH_DOMICILE") ?? "")" />
             </div></fieldset>
         }
           }
@@ -156,6 +181,7 @@ else
     string TerminalLabel(string code) => Kind=="orders" && _options.TerminalNames.TryGetValue(code,out var name) && !string.IsNullOrWhiteSpace(name) ? $"{code} - {name}" : code;
     int _page;
     [Parameter] public string? EditId {get;set;}
+    [Parameter] public string? EditPro {get;set;}
     RecordErrorLink? _errorLink;
     bool _busy,_hasMore,_new;
     NovaRecordSummary[] _rows=[];
@@ -163,7 +189,7 @@ else
     Dictionary<string,Dictionary<string,string?>> _values=[];
     HashSet<string> _coordinateParts=[];
     string BaseUrl=>$"api/v1/aurora/firebird/records/{Kind}";
-    protected override async Task OnParametersSetAsync(){if(_loadedKind==Kind)return;_loadedKind=Kind;_record=null;_search=_terminal="";_status=Kind=="orders"?"ready":"";ClearOrderSelection();_page=0;await Run(async()=>{using var r=await Http.GetAsync("api/v1/aurora/firebird/record-options");await Check(r);_options=(await r.Content.ReadFromJsonAsync<NovaRecordOptions>())!;});await Load();if(Kind=="orders" && long.TryParse(EditId,out var editId))await Open(editId);}
+    protected override async Task OnParametersSetAsync(){if(_loadedKind==Kind)return;_loadedKind=Kind;_record=null;_search=_terminal="";_status=Kind=="orders"?"ready":"";ClearOrderSelection();_page=0;await Run(async()=>{using var r=await Http.GetAsync("api/v1/aurora/firebird/record-options");await Check(r);_options=(await r.Content.ReadFromJsonAsync<NovaRecordOptions>())!;});await Load();if(Kind=="orders" && long.TryParse(EditId,out var editId))await Open(editId);else if(Kind=="orders" && !string.IsNullOrWhiteSpace(EditPro)){long? resolved=null;await Run(async()=>{using var r=await Http.GetAsync($"api/v1/aurora/firebird/orders/resolve-pro?pro={Uri.EscapeDataString(EditPro)}");await Check(r);resolved=await r.Content.ReadFromJsonAsync<long>();});if(resolved is {} id)await Open(id);}}
     static string InputType(NovaField f)=>f.Kind switch {"datetime-local"=>"datetime-local","number" or "integer" or "dimension" or "latitude" or "longitude"=>"number",_=>"text"};
     private sealed record FieldGroup(string Title,string Css,NovaField[] Fields);
     private IEnumerable<FieldGroup> FieldGroups(NovaRecordPart part)
@@ -191,23 +217,31 @@ else
             "EH_STD_START_TM" or "EH_STD_END_TM" or "EH_MAX_OPS_MINS_PER_DAY" or "EH_MAX_ROUTE_DURATION" or "EH_BREAK_DURATION" or "EH_START_BREAK_AFTER_MINS"=>"Schedule & breaks",
             _=>"Vehicle identification"
         };
-        foreach(var title in new[]{"Vehicle identification","Capacity","Operating costs"})
+        foreach(var title in new[]{"Vehicle identification","Capacity","Dimensions","Operating costs"})
         {
             var fields=part.Fields.Where(f=>Group(f)==title).ToArray();
             if(fields.Length>0)yield return new(title,title is "Capacity" or "Dimensions"?"record-section-half":"record-section-wide",fields);
         }
     }
     private string _equipmentProfile="USA_5_DELIVERY";
+    private long? _defaultDriverId;
     private int _equipmentProfileRevision;
     private bool _equipmentProfileLoaded;
     private async Task LoadEquipmentProfile()
     {
-        if(Kind!="fleet" || _new)return;
+        if(Kind!="fleet")return;
         _equipmentProfileLoaded=false;
+        _equipmentTypeDetails=null;
+        _defaultDriverId=null;
+        _equipmentTypes=await Http.GetFromJsonAsync<EquipmentTypeTemplate[]>("api/v1/aurora/firebird/equipment-types")??[];
+        if(_new){_equipmentProfileLoaded=true;return;}
         using var response=await Http.GetAsync($"api/v1/aurora/firebird/equipment/{_record!.Id}/routing-profile");
         await Check(response);
         var profile=(await response.Content.ReadFromJsonAsync<EquipmentRoutingProfile>())!;
         _equipmentProfile=profile.Profile;_equipmentProfileRevision=profile.Revision;_equipmentProfileLoaded=true;
+        _equipmentTypeDetails=profile.EquipmentType?.Copy();
+        _defaultDriverId=profile.DefaultDriverId;
+        _equipmentTypeDetails?.RestoreExactDimensions(_values["header"]);
     }
     void SetValues(){_values=_record!.Parts.ToDictionary(p=>p.Key,p=>p.Fields.ToDictionary(f=>f.Key,f=>f.Value));_coordinateParts.Clear();}
     void Change(string part,string key,string? value)
@@ -240,16 +274,21 @@ else
             throw new FormatException("Choose a receiving terminal different from the starting terminal.");
         if(Kind=="fleet" && !_equipmentProfileLoaded)throw new FormatException("Reopen this equipment; its routing profile could not be loaded.");
         var selectedProfile=_equipmentProfile;
-        var input=new NovaRecordEdit(_record!.Revision,_values){CoordinateParts=_coordinateParts.ToArray()};
+        var selectedEquipmentType=Kind=="fleet"?_equipmentTypeDetails?.WithFields(_values["header"]):null;
+        var nativeValues=_values.ToDictionary(p=>p.Key,p=>new Dictionary<string,string?>(p.Value));
+        if(selectedEquipmentType is not null)foreach(var key in EquipmentTypeTemplate.DimensionFields)nativeValues["header"][key]=selectedEquipmentType.Fields(true)[key];
+        var input=new NovaRecordEdit(_record!.Revision,nativeValues){CoordinateParts=_coordinateParts.ToArray()};
         using var r=_new?await Http.PostAsJsonAsync(BaseUrl,input):await Http.PutAsJsonAsync($"{BaseUrl}/{_record.Id}",input);
         await Check(r);var saved=(await r.Content.ReadFromJsonAsync<NovaRecordDocument>())!;
         if(_new){_search=_terminal=_status="";_page=0;}
         _record=saved;_new=false;SetValues();
         if(Kind=="fleet")
         {
-            using var profileResponse=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/equipment/{saved.Id}/routing-profile",new EquipmentRoutingProfileEdit(selectedProfile,_equipmentProfileRevision,saved.Revision));
+            _equipmentTypeDetails=selectedEquipmentType;
+            selectedEquipmentType?.RestoreExactDimensions(_values["header"]);
+            using var profileResponse=await Http.PutAsJsonAsync($"api/v1/aurora/firebird/equipment/{saved.Id}/routing-profile",new EquipmentRoutingProfileEdit(selectedProfile,_equipmentProfileRevision,saved.Revision){EquipmentType=selectedEquipmentType,DefaultDriverId=_defaultDriverId,SetDefaultDriver=true});
             try{await Check(profileResponse);}
-            catch(Exception ex){throw new FormatException("Equipment details were saved, but the routing profile was not: "+ex.Message);}
+            catch(Exception ex){throw new FormatException("Nova equipment details were saved, but Aurora profile details were not. Retry Save: "+ex.Message);}
             var profile=(await profileResponse.Content.ReadFromJsonAsync<EquipmentRoutingProfile>())!;
             _equipmentProfile=profile.Profile;_equipmentProfileRevision=profile.Revision;
         }

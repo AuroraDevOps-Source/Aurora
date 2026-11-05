@@ -63,6 +63,27 @@ Reject(()=>FleetPlanning.ApplySavedFleet(fleetInput,fleet,"OTHER"),"another term
 unit.Available=false;
 Reject(()=>FleetPlanning.ApplySavedFleet(fleetInput,fleet,terminal),"unavailable saved truck cannot optimize");
 unit.Available=true;
+// Global labor is applied only after authoritative equipment rates are restored.
+var withLabor=RoutingInput.Parse(OptimizationLabor.Apply(FleetPlanning.ApplySavedFleet(fleetInput,fleet,terminal),27.5m));
+Check(withLabor["vehicles"]![0]!["costs"]!["perHour"]!.GetValue<double>()==69.5,"global driver hourly cost adds to saved equipment rate without a driver");
+var retryLabor=RoutingInput.Parse(OptimizationLabor.Apply(FleetPlanning.ApplySavedFleet(withLabor.ToJsonString(),fleet,terminal),30m));
+Check(retryLabor["vehicles"]![0]!["costs"]!["perHour"]!.GetValue<double>()==72,"rerun uses updated global cost without compounding previous labor");
+var tampered=RoutingInput.Parse(withLabor.ToJsonString());
+tampered["vehicles"]![0]!["costs"]!["perHour"]=999;
+tampered["reporting"]!["driverCostPerHour"]=999;
+tampered["reporting"]!["driverCostBasis"]=DriverCostBasis.Separate;
+tampered["reporting"]!["drivers"]=new JsonObject{[truck]=new JsonObject{["id"]="missing",["maximumWorkingSeconds"]=1}};
+var trusted=RoutingInput.Parse(OptimizationLabor.Apply(FleetPlanning.ApplySavedFleet(tampered.ToJsonString(),fleet,terminal),27.5m));
+Check(trusted["vehicles"]![0]!["costs"]!["perHour"]!.GetValue<double>()==69.5 && trusted["reporting"]!["driverCostPerHour"]!.GetValue<decimal>()==27.5m,"client cannot override saved equipment or global labor costs");
+Check(trusted["reporting"]!["drivers"] is null && trusted["reporting"]!["driverCostBasis"] is null,"legacy driver assignments and shift limits removed");
+Check(JsonNode.DeepEquals(trusted["vehicles"]![0]!["start"],canonical["vehicles"]![0]!["start"]) && JsonNode.DeepEquals(trusted["vehicles"]![0]!["end"],canonical["vehicles"]![0]!["end"]),"labor cost does not restrict truck working hours");
+var noLabor=RoutingInput.Parse(OptimizationLabor.Apply(FleetPlanning.ApplySavedFleet(trusted.ToJsonString(),fleet,terminal),0));
+Check(noLabor["vehicles"]![0]!["costs"]!["perHour"]!.GetValue<double>()==42,"zero driver cost preserves equipment cost");
+var outbound=RoutingInput.Parse(ManifestReportExtractor.RemoveReportingSidecar(trusted.ToJsonString()));
+Check(outbound["reporting"] is null && outbound["vehicles"]![0]!["costs"]!["perHour"]!.GetValue<double>()==69.5,"optimizer payload retains combined hourly cost without internal metadata");
+Reject(()=>OptimizationLabor.Validate(-1),"negative global cost rejected");
+Reject(()=>OptimizationLabor.Validate(100000),"excessive global cost rejected");
+Reject(()=>OptimizationLabor.Validate(1.00001m),"excess cost precision rejected");
 Check(WorkspaceOrderStatus.Label(WorkspaceOrderStatus.Ready)=="Ready to Route" && WorkspaceOrderStatus.All.Contains("AwaitingAppointment"),"Nova lifecycle labels include requested ready state");
 var connection=Environment.GetEnvironmentVariable("WORKSPACE_CHECK_CONNECTION");
 if(connection is not null)

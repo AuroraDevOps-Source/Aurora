@@ -637,3 +637,169 @@ Validation: 158 endpoint/database checks, 249 routing checks, 49 adapter HTTP ch
 Published Aurora API `20261102-1` (Docker image `sha256:699a253e0203daff826df994cb200354a5c546b4f976ec6edd019b8dc577b264`), web unchanged. Change excludes FreightOps-submitted manifests from automatic inclusion in fresh planning drafts; existing write/commit safeguards remain. No staging reset was run. Expanded Lykes import allowlist to native PB_ID 1862 and 1874–1885; created explicitly synthetic test shipments and demo fleet. Nova NativeReadOnly=true/WritesEnabled=false remain pending Steve's Delphi stable-identity implementation and mapping reconciliation.
 
 Applied nullable `OPS_STOP_REC.OPS_ETA_TIME TIMESTAMP` only to verified Lykes TEST Firebird database; no population rule, rating change or Delphi change. 285 Nova checks, 249 routing checks, Release publish, live eight-order/two-route publication and four-order/unbooked-truck planning rehearsal passed. Native FreightOps manifests MAN-119444A3 and MAN-F013760C verified; no API/daemon errors or restarts observed there. Final FreightOps queues empty and PRO 99002009 reverse edit received by Aurora. Detailed instructions and boundaries are in docs/LYKES-MONDAY-DEMO-2026-11-02.md; Steve email draft and requirements in docs/LYKES-STEVE-DELPHI-HANDOFF-2026-11-02.md.
+
+## Aurora republished 2026-11-02 — release 20261102-2
+
+Published API and client from commit fe4dd6c56462d9c55bbc4736cbee7506860966ab, including Orders > Import orders beside Optimize routes and the Integration Hub conversion preview endpoint. No migrations, resets, sync-setting changes or other product deployments. Existing API environment matched exactly; database and FreightOps containers were not recreated.
+
+Release builds and document-import checks passed. Live readiness, administrator login/PKCE, orders, terminals, drafts, synchronization status, authenticated import empty-file validation and client release marker passed. No paid conversion or orders were created during verification. Tenant document conversion URL/credential environment settings are not configured; provision these before using conversion. Hub was not deployed.
+
+Backup: /opt/aurora-auth/backups/20261102-2. Archive SHA256: ab158998ed31b7369e60f8683c923fea743b87fbe2afa136a47cae4f190b650a. API image: sha256:02ad3230b65568de8f1039222c05daa12893debd660a6af01edc109300c0124b. Web image: sha256:51f0cc0ee9a80c39318deb3264d12d77c3cd5a9dfdf6a6e9f1a7aef9531f6f3b. Evidence: artifacts/publish-import-20261102-2.log.
+
+## Aurora republished 2026-11-02 — release 20261102-3
+
+Published Tag-to-PRO normalization and duplicate import checks. Alpha Tag prefix selects the row's terminal; numeric portion becomes canonical Nova PRO. BOL is extracted/reviewed separately from shipment Reference, HAWB and MAWB, with no fallback from another identifier. Non-BOL references are retained as labeled notes. Per-row terminal matching is required. Duplicate preflight queries all tenant Aurora sources (including deleted records) and the saved Nova source directly; import rechecks before save, and Aurora create repeats its local check under the existing transaction lock. Existing sync code/settings are unchanged.
+
+40 import checks passed, including seven manually reviewed sample identities, blank-BOL isolation, invalid Tag rejection and a disposable PostgreSQL duplicate/tenant-isolation test. API/client Release builds passed. Live readiness, login/PKCE, workspace reads, import validation, release marker and Aurora/Nova duplicate preflight passed. Sample PROs were checked read-only; no sample orders or paid AI conversions were created. Tenant document-conversion environment settings remain unconfigured. No migrations, resets or other product deployments; database/FreightOps containers and API settings retained.
+
+Backup: /opt/aurora-auth/backups/20261102-3. Archive SHA256: b0145ab94ea42e1783b4fdd647897861ba6488190b5f8c98c5181677f5b184f6. API image: sha256:426ad941ee97fa0d2342ab1a9edb3901aa3b8a4309ef263fcc74d11952701257. Web image: sha256:8f1221bfaeb640debe04e953b0ccbd12a31a41bf5d7105fa88a4ff010aa96bdf. Evidence: artifacts/publish-import-20261102-3.log.
+
+
+### 2026-11-02 - Aurora 20261102-4
+
+Published bidirectional FreightOps planning updates and removed the submitted-plan lock. Lykes FreightOps API/daemon now use aurora-bidirectional-20261102-v2, including a truck-event replay correction. Final live FreightOps queue has no pending/held records or conflicts. Nova native writes remain disabled. Validation: 170 endpoint checks, 50 adapter checks, 239 core tests. Added 50 requested synthetic TPA optimization orders, 99003001-99003050 (search TEST50). Details and release limitations are in docs/LYKES-MAPPING-V2-2026-10-27.md.
+
+
+### 2026-11-02 - Aurora 20261102-5
+
+Published freight-line description mapping with Lykes FreightOps image aurora-line-descriptions-20261102. Descriptions now populate native SKU details and return to Aurora; eligible description changes preserve line identity and barcodes. 177 endpoint/database checks and 285 Nova checks passed. Existing native write/handling guards remain unchanged; no historical mass-backfill. See docs/LYKES-MAPPING-V2-2026-10-27.md.
+
+## Nova freight defaults - 2026-11-02
+
+Published Aurora 20261102-6. Backup: /opt/aurora-auth/backups/20261102-6. Authenticated verification passed for orders, imports validation, duplicate preflight, release marker, all 50 test orders and unlocked planning manifests. Live FreightOps sync: no error, pending 0, working 0, held 0, field conflicts 0. Nova outbound pending 216 with writes disabled. Integration Hub conversion tenant environment settings remain absent; document conversion was not exercised by this release.
+
+## 2026-11-03 — Daily dispatch board, release 20261103-10
+
+Deployed the daily dispatch board at /aurora/dispatch for local and native workspaces: date/terminal/search filters, unassigned/planned/dispatched work, late/blocker alerts, resources, route maps, and existing editor links. Live read-only Nova validation against Lykes Test found and fixed VOID-label classification and unflagged unknown statuses. All 30 dispatch-board regression checks passed. Full loader: 766 native orders, 480 resources, 34 reads, 1.35 seconds, zero source warnings. Five open manifests verified. No business data was changed during validation.
+
+API and client Release publishes completed (existing Pkcs 9.0.0 NuGet advisories remain). API replaced 20261103-9; web replaced 20261103-4. Runtime environment matched the previous API exactly; database and FreightOps containers were not recreated. No migrations, seeding, resets, or sync-setting changes. First attempt rolled back after an external TLS connection reset during authenticated verification; the same release was retried successfully. Authenticated order pagination, dispatch documents, stop completion fields, planning reservations, resources, page assets and release marker passed in 4.95 seconds.
+
+Backup/rollback: /opt/aurora-auth/backups/20261103-10. Archive SHA256: ceb2b345fc0a681e298293eff2c6182483be0d48cd1734333510ace080439c1f. API image: sha256:55f00a903ecf3f60303f89e7711ba89998a36e4dfb8c258098ee516c8a155694. Web image: sha256:f6ec6b4300d48634a1fbbd841c379c0f97023509f445c1a1a389e8e07f37d733. Evidence: artifacts/dispatch-live-validation.log and artifacts/publish-dispatch-20261103-10-retry.log. The read-only verifier was subsequently given bounded transport retries; application binaries and archive are unchanged.
+
+## 2026-11-03 — Dispatch copy removal, web release 20261103-11
+
+Removed the Operations / Daily Dispatch eyebrow, Keep the day moving headline, and promotional description at user request. Retained the workspace page title and compact snapshot/Refresh controls. Client Release publish passed; deployed page, versioned stylesheet, release marker and readiness checks passed. Web-only deployment; API container remained unchanged at 20261103-10. Backup: /opt/aurora-auth/backups/20261103-11. Archive SHA256: 19ec5ba4c10969b37227486c2bdf5acca03a4361bca96c81b49d327003269210. Evidence: artifacts/publish-dispatch-20261103-11.log.
+
+## 2026-11-03 — Dispatch metrics and Orders toolbar, web releases 20261103-12/13
+
+Dispatch metrics now stack the number above the bold label and omit descriptions. Explicit column layout overrides shared button styling. Live DOM verification confirmed all six metric cards are 98px high, labels use font-weight 700, numbers are above labels, and there are no description elements.
+
+Orders toolbar buttons now share the 30px control height. The MudMenu Add activator uses matching geometry and its wrapper aligns to the toolbar bottom instead of centering beside field labels. Client Release publishes and deployed release-marker, stylesheet, page, readiness and unchanged-API checks passed. Final web release: 20261103-13; API remains unchanged. Backups: /opt/aurora-auth/backups/20261103-12 and /opt/aurora-auth/backups/20261103-13. Final archive SHA256: b7e993b46af7f3af52ea87f0fad7b3076f6ba3cf53d578c69e40f2e59d4b000d. Evidence: artifacts/publish-toolbar-20261103-13.log.
+Live browser verification for 20261103-13: Search / Refresh, Add, Plan routes, and Update consignee each measured exactly 30px high with identical top and bottom coordinates. Original user tab and its selected orders were preserved.
+
+## 2026-11-03 — Dispatch navigation label, web release 20261103-14
+
+Changed the sidebar label, tooltip and accessible name from Daily dispatch to Dispatch. Route and page heading are unchanged. Client Release publish and deployed release-marker, stylesheet, dispatch page and readiness checks passed; API container unchanged. Backup: /opt/aurora-auth/backups/20261103-14. Archive SHA256: c9024032bf142c6210aff584a411b3535a00cce640b658669b5e4debb436adaa. Evidence: artifacts/publish-dispatch-label-20261103-14.log.
+
+## 2026-11-03 invitation email configuration
+
+Deployed API-only release `20261103-invitation-2` with sender corrected to `alerts@aurorasoftware.com` and the user-provided Resend key installed in the private API environment. Public invitation origin is `https://user.aurorasoftware.com`. Only the API DLL/PDB differed from the prior published API; website and other service containers were preserved. No migrations or data resets.
+
+All 31 invitation/password checks passed. Live readiness, administrator login/PKCE, retained demo orders, planning, fleet, drivers, unchanged website marker, and runtime environment checks passed. No invitation was sent during deployment verification. Backup: `/opt/aurora-auth/backups/20261103-invitation-2`. First attempt automatically rolled back because the prior verifier hardcoded an older website marker; the successful attempt checked the captured current marker instead.
+
+## 2026-11-03 invitation success text
+
+Deployed client release `20261103-invitation-message-1`. Removed the Resend success message from Send invitation and from the user-created confirmation; invitation failures remain visible. Client Release publish and deployed marker, stylesheet, page, readiness, and unchanged-API checks passed. Backup: `/opt/aurora-auth/backups/20261103-invitation-message-1`.
+
+Republished the current client at user request as 20261103-invitation-message-2. Release publish and live release marker, page, stylesheet, readiness, and unchanged-API checks passed. Backup: /opt/aurora-auth/backups/20261103-invitation-message-2.
+
+## 2026-11-03 global optimization driver cost
+
+Published API and client release `20261103-global-driver-cost-1`. Optimization selects trucks without driver choices or driver shifts. Settings > General now saves an administrator-editable company-wide Driver cost per hour, initially zero. Every workspace optimization restores saved equipment rates and adds the current global labor rate once; browser overrides and legacy driver assignments cannot alter it. Newly created local manifests leave the driver unassigned for dispatch. Truck availability, route hours, and multi-day rest rules remain in use.
+
+Migration 0049 adds the rate and a member-only read function that does not expose connection credentials. Local migration and 27 settings persistence/access checks passed; 35 workspace checks passed, including optimizer payload cost, repeat runs, zero cost, validation, and legacy assignment removal. API/client Release publishes passed. Live readiness, administrator login/PKCE, settings, planning reads, 500 existing demo orders, fleet, drivers, release marker, unchanged runtime secrets, and other-service container checks passed. No paid optimization or operational records were created. Backup: `/opt/aurora-auth/backups/20261103-global-driver-cost-1`. Package SHA256: `e4c774e3716aa112b76dbb485ffb0db078d2c7809f4b6dda1f2f487edfe7cebf`.
+
+## 2026-11-03 Settings save and cost formatting
+
+Published client `20261103-settings-save-2`. Successful settings saves close the dialog; failed saves retain the form and error. The footer displays Cancel followed by Save. Driver cost per hour formats with two decimal places using MoneyInput. Client Release publish and deployed marker, stylesheet, page, readiness, and unchanged-API checks passed. Backups: `/opt/aurora-auth/backups/20261103-settings-save-1` and `/opt/aurora-auth/backups/20261103-settings-save-2`.
+
+## 2026-11-03 — Order import file and pasted text, web release 20261103-order-import-1
+
+Published Add > Import with Upload a file and Paste text choices, a large text area, input size validation and the existing extracted-order review flow. Pasted content uses the existing document conversion endpoint as UTF-8 text. Client Release publish and deployed release marker, page, import stylesheet and readiness checks passed; API container unchanged. Live AI conversion was not exercised. Backup: `/opt/aurora-auth/backups/20261103-order-import-1`. Archive SHA256: `22fa715962dc5f0f2eaaa38aff406727a79a139aad92a8c4b125bd6d010ae45c`. Evidence: `artifacts/publish-order-import-20261103.log`.
+
+## 2026-11-03 — Import help copy removal, web release 20261103-order-import-2
+
+Removed introductory, file/text guidance, pre-create help and review instructions from the import dialog, along with the instructional text-area placeholder and BOL helper caption. Retained controls, validation and progress/results. Client Release publish and live release marker, stylesheet, page and readiness checks passed. API unchanged. Backup: `/opt/aurora-auth/backups/20261103-order-import-2`. Evidence: `artifacts/publish-order-import-20261103-2.log`.
+
+
+## 2026-11-04 — Native terminal receipt, API release 20261104-terminal-receipt-1
+
+Republished the Aurora API with native current-terminal routing eligibility, terminal DOCK receipt recognition, completed manifest history handling, and stale-terminal export validation. Website remains 20261103-order-import-2. No migrations, resets, sync-setting changes, or other service deployments.
+
+Release publish passed with the existing Pkcs 9.0.0 advisories. Public readiness, administrator login/PKCE, authenticated native Orders (all, Ready to Route, TPA/MCO ready filters, unknown-terminal filter), settings, drafts, fleet and drivers passed. Runtime API environment matched exactly. Website, database and FreightOps containers were retained. Verification did not run a refresh or create operational records; the complete Nova receipt-to-next-manifest UI rehearsal remains outstanding.
+
+Backup: `/opt/aurora-auth/backups/20261104-terminal-receipt-1`. Package SHA256: `e0a1e7a51a29358c5bf09f632bc2bac7aebe95e5db2081fe5ef873da6b133297`. API image: `sha256:7cd8cb49ccc5e62a952cc081f691fad3c2b6e0dbf4cd620f63a4f6cae0585058`. Evidence: `artifacts/publish-terminal-receipt-20261104.log`.
+
+## 2026-11-04 — Optimization and Data Entry navigation
+
+Published web release `20261104-data-entry-1`. Renamed the Aurora product tab to Optimization, added Data Entry with the existing document conversion flow for local and native workspaces, and removed import from the Orders Add control. Client Release publish and live release marker, Data Entry page, stylesheet, readiness, and unchanged-API checks passed. Live document conversion was not exercised.
+
+Backup: `/opt/aurora-auth/backups/20261104-data-entry-1`. Archive SHA256: `3e0a4fbfa3c4a5fab7efca9e16c79f1a6de8e39a269b72ed245206f2bdd96905`. Evidence: `artifacts/publish-data-entry-20261104.log`.
+
+## 2026-11-04 — Tenant editor and direct Data Entry, release 20261104-tenant-editor-1
+
+Published API and client with Admin > Edit Tenant, editable company name, independent tenant-wide top-menu visibility switches, existing driver cost and integration settings. Data Entry now exposes upload/paste and Convert directly; extracted orders open in a review dialog with shaded reference, address, and shipment groups.
+
+Applied additive migration 0050 after a database backup. Release builds passed (existing Pkcs advisories remain); all 38 local tenant settings checks passed before publication. Live readiness, administrator login/PKCE, tenant settings/navigation consistency, company name, native order reads and terminal filters, planning, fleet/drivers, Data Entry page, grouped styles, and release marker passed. Runtime secrets and database/FreightOps containers were preserved. No operational records were created and no live conversion was run.
+
+Backup: `/opt/aurora-auth/backups/20261104-tenant-editor-1`. Archive SHA256: `abddd10e98277a70caf3998745ee1f72d8ad84cce264425c8113bbbdd7220e71`. Evidence: `artifacts/publish-tenant-editor-20261104.log`.
+
+## 2026-11-04 — Import duplicate feedback, web release 20261104-import-duplicate-1
+
+Published the shortened duplicate message (PRO [number] already exists), spacing below its alert, and disabled Create while a duplicate remains in the import. Client Release publish and live marker, Data Entry page, duplicate-alert stylesheet and readiness checks passed; API unchanged. No migration or operational data changes.
+
+Backup: `/opt/aurora-auth/backups/20261104-import-duplicate-1`. Archive SHA256: `6fcecfd1ac090ee042b987ef20e5a06762efbf563c594b2cf26177bfa499d784`. Evidence: `artifacts/publish-import-duplicate-20261104.log`.
+
+## 2026-11-04 — Data Entry redesign and import history, release 20261104-data-entry-redesign-1
+
+Published API/client with side-by-side upload and paste panels, a styled file drop zone, selected-source highlighting, file details/remove, text count/clear, conversion action bar/progress, responsive layout, and tenant-scoped Recent imports. Migration 0051 stores filename, conversion status, extracted counts, and distinct successfully created PROs; no source documents or pasted text are retained by history. History starts with this release.
+
+A database backup preceded the additive migration. Release builds passed with existing Pkcs advisories. Prior local validation passed 48 settings/history checks and 59 import checks; desktop/mobile and synthetic paste-to-review UI checks passed. Live readiness, administrator login/PKCE, settings/menu consistency, native Orders and terminal filters, planning, fleet/drivers, authenticated history, new stylesheet selectors and release marker passed. No live conversion or operational write was used for verification. Existing runtime secrets and database/FreightOps containers were preserved.
+
+Backup: `/opt/aurora-auth/backups/20261104-data-entry-redesign-1`. Archive SHA256: `e93c64e53f33b35105a2e7637379f6ba8d60f75403c105314f1ab3279e1d2ed4`. Evidence: `artifacts/publish-data-entry-redesign-20261104.log`.
+
+## 2026-11-04 — Import independent of optimization, release 20261104-independent-import-1
+
+Published API/client with import planning-status requirements removed, an editable Nova status using the ordinary new-order default, optional shipper/consignee and terminal fields, selected-terminal precedence over Tag prefix, and no automatic native address lookup. Import bypasses general routing/business validation; duplicate, tenancy, native field/storage and reference checks remain. Normal manual-entry validation is unchanged.
+
+Release publishes passed with existing Pkcs advisories. Prior 54 import checks passed. Live readiness, administrator login/PKCE, native order reads/terminal filters, settings, planning, fleet/drivers, history, published assets/release marker, and native status choices passed. Pickup, delivery, and mixed compatibility preflight requests all returned 204 without consulting optimization mappings. No live order creation or paid conversion was used for verification. No migration or operational resets; runtime settings and other services preserved.
+
+Backup: `/opt/aurora-auth/backups/20261104-independent-import-1`. Archive SHA256: `167528267532c7156948dc9569e3d058f746bdc4dcb638a202b7e8a95db47db9`. Evidence: `artifacts/publish-independent-import-20261104.log`.
+
+## 2026-11-04 - Recent import order editor, release 20261104-import-order-editor-2
+
+Published API/client with Order number links in Recent imports. Links open current saved values in the grouped import form; Save changes updates the existing order. Tenant import membership and revision checks protect access and concurrent changes. Native fields outside the form and unedited appointment windows are preserved. Editing remains independent of optimization.
+
+Validation: 64 import checks and 52 tenant/history checks passed. Browser preview verified opening, keyboard editing, saving and reopening. Release builds passed with existing dependency advisories. Live readiness, login/PKCE, native reads, settings/menu, assets, import history, opening an existing native imported order, unrelated-PRO rejection and unauthenticated rejection passed. No live orders were modified for verification; no migration or operational resets. Settings and other services preserved.
+
+The first candidate automatically rolled back after the live editor check exposed a missing tenant connection path in middleware. Release 2 corrected it and passed.
+
+Backup: /opt/aurora-auth/backups/20261104-import-order-editor-2. Archive SHA256: 6b59121853c63e06be97ac0a9f877b8006f4399da9bfc5ecda2dfeb99727f1b4. Evidence: artifacts/publish-import-order-editor-2-20261104.log. Preview: artifacts/import-order-editor-preview.png.
+
+## 2026-11-04 - Crown report import, final release 20261104-crown-import-4
+
+Published deterministic Crown XLSX conversion, full-Tag grouping, large-batch review navigation, chunked duplicate checks, and Nova account address reuse. Migration 0052 raises import-history capacity to 5,000. Original full Tags are preserved in notes when distinct terminal-prefixed Tags share a numeric suffix; the approved twelve shipments use their unique Crown Ship IDs. Repeated driver/charge rows do not multiply shipment pieces or weight. Full customer names remain in notes when the native name field must be shortened. ZIP+4 retains nine digits, omitting hyphens or spaces for Nova storage.
+
+User-authorized import target was verified through authenticated settings as Lykes Test, Nova host 172.23.0.5, database D:\db\lykestest\operations.fdb. The Desktop workbook test2report Crown.xlsx has 2,128 source rows and 1,797 shipments. Created 1,796 orders, preserving preexisting PRO 3696808. All 1,797 PROs verified present. New freight totals: 7,834 pieces and 1,223,632 lb; including the existing order, source totals reconcile to 7,843 pieces and 1,223,789 lb. Read back 67 representative saved orders including all twelve alternate IDs, eight RSW orders, and matched Nova addresses. Forty-five new orders reused a Nova master address.
+
+The missing RSW terminal reference was created with name/code RSW and no invented address or coordinates. Initial null-terminal rows and overlength ZIP formats failed without creating orders, then were retried successfully. Earlier requests rejected at the edge were retried with the same authenticated API client identification. Final import has no unresolved rows. Import batch: b4ae2f2a-1297-41d9-b86a-a51f2ee0c69c. The history created count is 1,796 of 1,797 because one order already existed.
+
+Validation: 80 import/address/Crown checks passed, including every shipment's native text-field lengths. Client build passed; API release publish passed with existing dependency advisories. Published readiness, login/PKCE, native reads, history, editor, assets and access checks passed. Backups for releases 20261104-crown-import-1 through -4 are under /opt/aurora-auth/backups/. Final archive SHA256: f2b6f7e500edc9161f9b5e2d7103228483037a8e4b48e18b995fe334beb77fa0. Evidence: artifacts/crown-final-verification.log, artifacts/crown-tests.log and artifacts/publish-crown-import-4-20261104.log. Private per-order ledger and verification summary are under /opt/aurora-auth/private/crown-import-results.jsonl and crown-import-verification.json. No existing orders were overwritten.
+
+## 2026-11-04 - Danielle TIFF conversion corrections, release 20261104-document-fields-1
+
+Published API/client corrections for independently printed terminal codes, local service dates and appointment windows, filename-derived Lykes PROs, and deterministic freight totals/cube. The user confirmed that single-order LYKES<digits>B_<page> filenames supply the Lykes PRO when no own Tag is printed, including the tester-added nopro prefix. Printed Lykes Tags take precedence; other carriers' identifiers remain in notes. The user also approved inches for unlabeled Pegasus dimensions. Other forms do not inherit that assumption.
+
+Validated both original Desktop/New folder (2) TIFFs through the live authenticated conversion endpoint. LYKES0003714580B_2.TIF returned PRO 3714580, terminal DFW, service November 2 2026 at 07:00 with window through 18:00, 1 piece, 453.2 lb, and 55.56 cubic feet. noproLYKES0003733336B_1.TIF returned PRO 3733336 and local service date November 2. Its source is only page 1 of 2; notes flag the missing second page. Visible line quantities are summed in code (28 pieces), rather than using the model's incorrect earlier sum. Carrier provider PRO remains in notes. No orders were created or overwritten by these tests.
+
+Ninety-six regression checks passed, including actual TIFF extraction results, native save mapping, date/DST/window handling, filename precedence, cube provenance, and Crown workbook regression. Release builds and live readiness, login, native reads, import history/editor/access checks and both full TIFF conversion tests passed. Existing dependency advisories remain. No migration or operational resets.
+
+Backup: /opt/aurora-auth/backups/20261104-document-fields-1. Archive SHA256: 0732097ca92ab3022f57c497452c1c2a0b4e7c7949fac4907aab39090d3d75ff. Evidence: artifacts/publish-document-fields-20261104.log and artifacts/danielle-regression-tests.log. Source images and conversion outputs are task artifacts/private verification files, not a new customer document-retention feature.
+
+## 2026-11-04 — User menu arrow removal, release 20261104-user-menu-1
+
+Published the web client with a text-only username button that opens the Logout menu. Removed the dropdown arrow; logout continues to clear the Identity cookie and OIDC browser session and return to sign-in. API remains 20261104-document-fields-1.
+
+Release publish passed. Live client assembly, HTML and stylesheet hashes match the package; readiness, administrator login/PKCE, logout and the subsequent redirect to sign-in passed. API, database and FreightOps container IDs and server settings were preserved. No migrations or operational data changes.
+
+Backup: /opt/aurora-auth/backups/20261104-user-menu-1. Archive SHA256: a4425dd13ef8ccc4a40f6dc9d6002dd5722c2d59b0ea53e0bafbd1d5fde3d294. Web image: sha256:b6c3c322a70ba7d7a3339e1228d0df5aec7a736321f33217aa5d683eb836ba0b. Evidence: artifacts/publish-user-menu-20261104.log.

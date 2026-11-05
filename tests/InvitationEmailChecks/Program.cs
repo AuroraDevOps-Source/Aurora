@@ -29,7 +29,7 @@ Check(handler.IdempotencyKey?.StartsWith($"user-invitation/{id}/") == true, "inv
 using (var payload = JsonDocument.Parse(handler.Body!))
 {
     var body = payload.RootElement;
-    Check(body.GetProperty("from").GetString() == "Aurora <alerts@aurorsoftware.com>" && body.GetProperty("to")[0].GetString() == "alice@example.invalid", "exact requested sender and recipient");
+    Check(body.GetProperty("from").GetString() == "Aurora <alerts@aurorasoftware.com>" && body.GetProperty("to")[0].GetString() == "alice@example.invalid", "exact requested sender and recipient");
     Check(body.GetProperty("html").GetString()!.Contains("&lt;Alice &amp; Bob&gt;") && !body.GetProperty("html").GetString()!.Contains("<Alice"), "username HTML is escaped");
     Check(body.GetProperty("text").GetString()!.Contains("https://client.example/login?changePassword=true") && body.GetProperty("text").GetString()!.Contains("provided by your administrator"), "invitation links to password-change login and explains initial password");
     Check(!handler.Body!.Contains("re_test_only"), "API key does not leak into email content");

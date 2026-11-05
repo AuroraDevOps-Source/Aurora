@@ -43,7 +43,7 @@ public sealed partial class FirebirdRoutingSource
     {
         RequireEnabled();RecordKind(kind);
         var fields=(kind=="fleet"?FleetFields:OrderFields).Select(NewField).ToArray();
-        if(kind=="orders")fields=fields.Select(f=>f.Key=="PB_STATUS"?f with{Value="110"}:f).ToArray();
+        if(kind=="orders")fields=fields.Select(f=>f.Key=="PB_STATUS"?f with{Value=NovaDocumentImport.DefaultStatus.ToString(System.Globalization.CultureInfo.InvariantCulture)}:f).ToArray();
         return new(0,kind=="fleet"?"Add truck":"Add order","",kind=="fleet"
             ? [new("header","Vehicle",fields)]
             : [new("header","Order & bill-to",fields),new("pickup","Shipper / pickup",StopFields.Select(NewField).ToArray()),new("delivery","Consignee / delivery",StopFields.Select(NewField).ToArray())]);
@@ -101,14 +101,18 @@ public sealed partial class FirebirdRoutingSource
                 if(input.Values[part.Key][field.Key]!=field.Value)throw new FormatException($"{field.Label} cannot be changed here.");
         }
     }
-    public async Task<NovaRecordDocument> CreateRecord(string kind,NovaRecordEdit input,CancellationToken ct,bool rollbackOnly=false)
+    public async Task<NovaRecordDocument> CreateRecord(string kind,NovaRecordEdit input,CancellationToken ct,bool rollbackOnly=false,OrderDocumentDraft? document=null)
     {
         var template=NewRecord(kind);
         ValidateRecordFields(template,input,false);
         string[] locationWarnings=[];
-        if(kind=="orders" && addressLookup is not null)
+        if(kind=="orders" && document is null && addressLookup is not null)
             (input,locationWarnings)=await addressLookup.ResolveOrder(input,null,ct);
         var parts=template.Parts.ToDictionary(p=>p.Key,p=>CreationValues(p.Fields,input.Values[p.Key]));var header=parts["header"];
+        // Serialize Aurora creates against the same tenant source before the final native duplicate check.
+        await using var pg=await factory.OpenConnectionAsync(ct);
+        await using var pgTx=await pg.BeginTransactionAsync(ct);
+        await Lock(pg,pgTx,ct);
         await using var db=await Open(ct);await using var tx=BeginCreate(db);
         long id;
         if(kind=="fleet")
@@ -128,18 +132,24 @@ public sealed partial class FirebirdRoutingSource
                     if(values.GetValueOrDefault(key) is string accountId && !string.IsNullOrWhiteSpace(accountId)
                         && !await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM ACCOUNT WHERE AC_CUST=@accountId) FROM RDB$DATABASE",new{accountId},tx,cancellationToken:ct)))
                         throw new FormatException("Choose an account in this Nova database or enter the name manually.");
-            Required(header,"PB_LOCATION","PB_STATUS");await ValidTerminal(db,tx,header["PB_LOCATION"],ct);
+            if(document is null)Required(header,"PB_LOCATION");
+            Required(header,"PB_STATUS");await ValidTerminal(db,tx,header["PB_LOCATION"],ct);
             if(await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM CT_STAT WHERE CTS_ID=@status AND (CTS_ORDER_VISIBLE='Y' OR CTS_ID=110)",new{status=header["PB_STATUS"]},tx,cancellationToken:ct))!=1)throw new FormatException("Choose a valid order status.");
             if(header["PBNUM"] is not decimal pro || pro<=0)throw new FormatException("Enter a positive PRO number.");
             if(await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM OPS_HEADER WHERE PB_TYPE='O' AND PBNUM=@pro",new{pro},tx,cancellationToken:ct))>0)throw new FormatException("That PRO number already exists.");
             foreach(var stop in parts.Where(p=>p.Key!="header").Select(p=>p.Value))
             {
-                Required(stop,"OPS_NAME");Coordinates(stop,"OPS_");
+                if(document is null)Required(stop,"OPS_NAME");
+                Coordinates(stop,"OPS_");
                 var from=(DateTime?)stop["OPS_APPT_LOW"];var to=(DateTime?)stop["OPS_APPT_HIGH"];
-                if((from is null)!=(to is null) || to<from)throw new FormatException("Provide both appointment times, with end at or after start.");
+                if(document is null && ((from is null)!=(to is null) || to<from))throw new FormatException("Provide both appointment times, with end at or after start.");
             }
             id=await NextId(db,tx,true,ct);header["PB_ID"]=id;header["PB_TYPE"]="O";header["PB_LOAD_TYPE"]="O";
             header["PB_DT_ENT"]=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId)).DateTime;
+            if(document is not null){
+                header["PB_NOTES"]=document.NotesWithReferences();
+                header["PB_EXTERNAL_REF"]=$"aurora-document:{tenant.TenantId:N}:{document.Order.Id}";
+            }
             await Insert(db,tx,"OPS_HEADER",header,ct);
             foreach(var key in new[]{"pickup","delivery"})
             {

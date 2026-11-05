@@ -1,0 +1,4 @@
+.tenant-menu-options { margin:16px 0; padding:16px; background:#f5f7fb; border:1px solid #dce4ee; border-radius:8px; }
+.tenant-menu-options p { margin:0 0 12px; color:#5b6b80; }
+.tenant-menu-options label { display:flex; align-items:center; gap:10px; padding:7px 0; }
+.tenant-menu-options input { width:16px; height:16px; margin:0; }

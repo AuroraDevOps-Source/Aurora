@@ -43,9 +43,9 @@ static class NovaReverseBridge
             var lineId=baseline["Lykes"]!["Lines"]![0]!["LineId"]!.GetValue<string>();
             await db.ExecuteAsync("""
                 INSERT INTO OPS_LINE_ITEMS(OPL_ORDER_ID,OPL_SEQUENCE,OPL_STOP_ID,OPL_SYNC_ID,OPL_KEYWORD,OPL_SKU,OPL_UOM,
-                  OPL_CUBE,OPL_PIECES,OPL_WEIGHT,OPL_PALLETS)
-                VALUES(1,1,1,@lineId,'FRT','NOVA-SKU','CTN','2.5',3,120,1)
-                """,new{lineId});
+                  OPL_CUBE,OPL_PIECES,OPL_WEIGHT,OPL_PALLETS,OPL_DESC)
+                VALUES(1,1,1,@lineId,'FRT','NOVA-SKU','CTN','2.5',3,120,1,@description)
+                """,new{lineId,description=baseline["Lykes"]!["Lines"]![0]!["Description"]!.GetValue<string>()});
             options.WritesEnabled=true;
             var provider=new NovaSyncProvider(consumer,cs,new Mapper(baseline,options));
             var change=new SyncChange(Guid.NewGuid(),consumer,"order","NOVA-BRIDGE",1,"upsert",freightOpsSnapshot.ToJsonString(),1,Guid.NewGuid());

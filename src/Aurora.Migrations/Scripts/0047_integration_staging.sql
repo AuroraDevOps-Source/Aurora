@@ -1,0 +1,14 @@
+-- Transport snapshots must never become editable or selectable planning orders.
+CREATE OR REPLACE FUNCTION aurora_source_in_workspace(p_tenant uuid,p_source uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+ SELECT NOT EXISTS(
+   SELECT 1 FROM aurora_order_source s
+   WHERE s.tenant_id=p_tenant AND s.id=p_source
+     AND (s.request#>>'{reporting,integrationStaging}'='true' OR EXISTS(
+       SELECT 1 FROM aurora_sync_connection c WHERE c.tenant_id=s.tenant_id AND c.provider='nova'
+         AND s.request#>>'{reporting,firebirdSource}' IS NOT NULL
+         AND s.request#>>'{reporting,firebirdSource}'<>c.source_identity))
+ )
+$$;
+REVOKE ALL ON FUNCTION aurora_source_in_workspace(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION aurora_source_in_workspace(uuid,uuid) TO aurora_app;

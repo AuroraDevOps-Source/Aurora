@@ -10,6 +10,9 @@ void Reject(Action action, string name) { try { action(); } catch (FormatExcepti
 Check(NovaOrderSearch.NativeId("FB-11404") == 11404, "displayed fallback order ID is searchable");
 Check(NovaOrderSearch.NativeId(" fb11404 ") == 11404, "fallback order search accepts case, spaces and omitted hyphen");
 Check(new string?[] { null, "", "FB-", "FB--1", "FB-0", "FB-999999999999999999999", "FB trucking", "11404" }.All(s => NovaOrderSearch.NativeId(s) is null), "ordinary text and invalid aliases do not become native IDs");
+Check(DataRequirements.Order(1,1,"MCO",true).Any(i=>i.Code=="order-coordinates"),"native readiness flags a missing or rejected map location");
+Check(DataRequirements.Order(1,0,"MCO",true).Length==0,"verified single-stop order passes basic readiness");
+Check(DataRequirements.Order(2,0,"MCO",true).Any(i=>i.Code=="delivery-count"),"multi-stop order stays held for review");
 var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "sample.json"));
 var original = RoutingInput.Parse(json);
 var preparedText = RoutingInput.Prepare(json);
@@ -614,4 +617,5 @@ Reject(()=>MultiDayPlanning.Apply(json,new(2030,1,1),new(2030,1,16),"18:00",null
 var metadata=ManifestNotes.WithTripUntil(ManifestNotes.SetPlanningLock(ManifestNotes.WithConsolidation("Dispatch note",new("STORE","ADDR","VAN",200,20,true,[])),true),new(2030,1,3));
 metadata=ManifestNotes.Write(metadata,"Changed note");
 Check(ManifestNotes.TripUntil(metadata)==new DateOnly(2030,1,3)&&ManifestNotes.Consolidation(metadata)?.Held==true&&ManifestNotes.OptimizationLocked(metadata)&&ManifestNotes.Read(metadata)=="Changed note","note edits preserve trip reservation and consolidation metadata");
-Console.WriteLine($"{count} routing checks passed including scoped manual additions.");
+EquipmentTypeChecks.Run(Check);
+Console.WriteLine($"{count} routing checks passed including scoped manual additions and equipment profiles.");

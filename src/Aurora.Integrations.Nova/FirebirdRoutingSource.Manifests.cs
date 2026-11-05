@@ -62,6 +62,7 @@ public sealed partial class FirebirdRoutingSource
         var rows = (await db.QueryAsync<NovaManifest>(new CommandDefinition("""
             SELECT h.PB_NOTES AS StoredNotes,h.PB_ID AS Id, h.PB_DT_ENT AS CreatedAt, h.PB_MFST_DATE AS ManifestDate,
                 CASE WHEN h.PB_NOTES STARTING WITH 'Aurora planning locked v1 ' THEN 1 ELSE 0 END AS OptimizationLocked,
+                COALESCE(TRIM(st.CTS_CODE),'') AS StatusCode,
                 h.PB_STATUS AS StatusId, CASE TRIM(st.CTS_CODE) WHEN 'DPCH' THEN 'Dispatched' WHEN 'ENR' THEN 'In transit' WHEN 'CPLT' THEN 'Closed' ELSE COALESCE(TRIM(st.CTS_DESC),'Unknown') END AS Status,
                 TRIM(h.PB_LOCATION) AS Terminal, COALESCE(TRIM(tr.EH_UNIT_ID),'') AS Truck,
                 COALESCE(TRIM(dr.EH_UNIT_ID),'') AS Driver,
@@ -94,6 +95,7 @@ public sealed partial class FirebirdRoutingSource
                 TRIM(s.OPS_ADDR1) AS Address, TRIM(s.OPS_CITY) AS City,
                 TRIM(s.OPS_STATE) AS State, TRIM(s.OPS_ZIP) AS PostalCode,
                 s.OPS_LATITUDE AS Latitude, s.OPS_LONGITUDE AS Longitude,
+                CASE WHEN s.OPS_DELIVERED_TIME IS NOT NULL OR (s.OPS_TYPE='P' AND s.OPS_PICKED_UP='Y') THEN TRUE ELSE FALSE END AS Completed,
                 COALESCE(TRIM(status.CTS_DESC),'Unknown') AS Status, TRIM(h.PBBOL) AS Reference,
                 h.PBTPIECE AS Pieces, h.PBTWEIGH AS Weight, h.PB_TTL_CUBE AS Cube,
                 s.OPS_APPT_LOW AS AppointmentFrom, s.OPS_APPT_HIGH AS AppointmentTo

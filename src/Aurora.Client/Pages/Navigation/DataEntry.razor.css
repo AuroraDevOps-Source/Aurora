@@ -1,0 +1,4 @@
+.data-entry-page { max-width:1240px; margin:0 auto; padding:24px 20px 40px; }
+.data-entry-page .planner-header { margin-bottom:18px; }
+.data-entry-content { min-width:0; }
+@media(max-width:600px) { .data-entry-page { padding:16px 12px 28px; } }

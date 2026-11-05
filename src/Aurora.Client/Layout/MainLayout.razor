@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
 @inject HttpClient Api
+@inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 
 <MudThemeProvider Theme="AuroraTheme.Hub" IsDarkMode="false" />
 <MudPopoverProvider />
@@ -16,20 +18,35 @@
                 <nav class="aurora-product-nav" aria-label="Applications">
                     @foreach (var product in _products)
                     {
+                        @if (_navigation.IsVisible(product.Code))
+                        {
                         <MudButton Class="@HeaderClass(product)" Disabled="@(!product.HasAccess)"
                                    OnClick="@(() => Navigation.NavigateTo(ProductWorkspace.RouteFor(product.Code)))">
                             @ProductWorkspace.NameFor(product.Code)
                         </MudButton>
+                        }
+                        @if (product.Code == ProductWorkspace.Aurora && _navigation.DataEntry)
+                        {
+                            <MudButton Class="@(new Uri(Navigation.Uri).AbsolutePath == "/data-entry" ? "mud-inherit-text header-link active" : "mud-inherit-text header-link")"
+                                       Disabled="@(!product.HasAccess)" Href="/data-entry">Data Entry</MudButton>
+                        }
                     }
                 </nav>
 
-                <MudText Typo="Typo.body2" Class="aurora-user ml-auto">@context.User.Identity?.Name</MudText>
+                <MudMenu Label="@(context.User.Identity?.Name ?? "Account")" Class="aurora-user-menu ml-auto"
+                         Color="Color.Inherit" Size="Size.Small"
+                         Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Logout" Disabled="@_loggingOut" OnClick="LogOutAsync">
+                        @(_loggingOut ? "Logging out…" : "Logout")
+                    </MudMenuItem>
+                </MudMenu>
                 @if(_isAdmin || _canViewLog)
                 {
                 <MudMenu Icon="@Icons.Material.Filled.Settings" aria-label="Admin" Color="Color.Inherit" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                     @if (_isAdmin)
                     {
                     <MudMenuItem Icon="@Icons.Material.Outlined.Settings" OnClick="@(() => _showSettings=true)">Settings</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Business" OnClick="@(() => _showTenant=true)">Edit Tenant</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.People" OnClick="@(() => Navigation.NavigateTo("/aurora/users"))">Users</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.LocalShipping" OnClick="@(() => Navigation.NavigateTo("/aurora/ship-status"))">Ship Status</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.RestartAlt" OnClick="@(() => Navigation.NavigateTo("/aurora/reset"))">Reset</MudMenuItem>
@@ -47,9 +64,14 @@
 </MudLayout>
 
 @if (_showSettings && _isAdmin) { <SettingsWindow OnClose="()=>_showSettings=false" /> }
+@if (_showTenant && _isAdmin) { <SettingsWindow EditTenant="true" OnClose="()=>_showTenant=false" OnSaved="TenantSaved" /> }
 
 @code {
     private bool _isAdmin, _canViewLog, _showSettings;
+    private bool _showTenant;
+    private bool _loggingOut;
+    private TenantNavigationSettings _navigation = new();
+    private void TenantSaved() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     private List<ProductDto> _products = [];
 
     private string HeaderClass(ProductDto product) =>
@@ -58,6 +80,35 @@
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
+    private async Task LogOutAsync()
+    {
+        if (_loggingOut) return;
+        _loggingOut = true;
+        try
+        {
+            // Clear the Identity cookie as well as the OIDC browser session so a
+            // later authorization request cannot silently sign this user back in.
+            using var client = HttpClientFactory.CreateClient(ApiClients.Anonymous);
+            using var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/logout");
+            request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+            using var response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            Navigation.NavigateToLogout("authentication/logout", Navigation.ToAbsoluteUri("login").AbsoluteUri);
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("Could not log out. Please try again.", Severity.Error);
+        }
+        catch (TaskCanceledException)
+        {
+            Snackbar.Add("Logout timed out. Please try again.", Severity.Error);
+        }
+        finally
+        {
+            _loggingOut = false;
+        }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         var user = AuthState is null ? null : (await AuthState).User;
@@ -65,6 +116,7 @@
         {
             _isAdmin = _canViewLog = false;
             _products = [];
+            _navigation = new();
             return;
         }
 
@@ -76,6 +128,9 @@
         try { _products = await Api.GetFromJsonAsync<List<ProductDto>>("api/v1/me/products") ?? []; }
         catch (HttpRequestException) { _products = []; }
         catch (TaskCanceledException) { _products = []; }
+        try { _navigation = await Api.GetFromJsonAsync<TenantNavigationSettings>("api/v1/me/navigation") ?? new(); }
+        catch (HttpRequestException) { }
+        catch (TaskCanceledException) { }
         try { _isAdmin = await Api.GetFromJsonAsync<bool>("api/v1/me/is-administrator"); }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { }

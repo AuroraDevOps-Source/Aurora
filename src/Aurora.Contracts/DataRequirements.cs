@@ -42,6 +42,7 @@ public static class DataRequirements
     {
         var issues = new List<DataRequirementIssue>();
         if (!terminalExists) issues.Add(new("order-terminal", $"This order needs a valid terminal assignment{(string.IsNullOrWhiteSpace(terminal) ? "." : $"; {terminal} is not defined.")} Correct the assignment in Nova.", "aurora/terminals", "Open Terminals"));
+        if (missingCoordinates > 0) issues.Add(new("order-coordinates", "Verify the stop address and map location before planning. Open the order, correct the address or coordinates, then save."));
         if (deliveries != 1) issues.Add(new("delivery-count", "Planning requires exactly one delivery stop. Review this order’s delivery stops in Nova."));
         return issues.ToArray();
     }

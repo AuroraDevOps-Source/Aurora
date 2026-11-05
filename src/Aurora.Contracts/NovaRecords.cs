@@ -2,6 +2,14 @@ namespace Aurora.Contracts;
 
 public sealed record NovaRecordSummary(long Id, string Number, string Description, string Terminal, string Status)
 {
+    // Nova wall-clock times in the identified source zone.
+    public DateTime? AppointmentFrom { get; init; }
+    public DateTime? AppointmentTo { get; init; }
+    public string TimeZone { get; init; } = "";
+    public bool Completed { get; init; }
+    public string StatusCode { get; init; } = "";
+    public double? Latitude { get; init; }
+    public double? Longitude { get; init; }
     public DataRequirementIssue[] Issues { get; init; } = [];
     public string WorkType {get;init;}="Delivery";
     public string? ReceivingTerminal { get; init; }

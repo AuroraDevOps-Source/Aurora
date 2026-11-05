@@ -113,6 +113,16 @@ handler=c=>Json(c,new FreightOpsBatch(2,source,connection,events));
 await Fails<FormatException>(()=>provider.Pull(null,default),"unknown protocol rejected");
 handler=c=>Json(c,new FreightOpsBatch(1,source,connection,[events[0] with{EntityType="terminal"}]));
 await Fails<FormatException>(()=>provider.Pull(null,default),"unsupported incoming entity is rejected before import");
+var manifestEvent=new FreightOpsEvent("manifest-event-1","manifest","MAN-123","9",new JsonObject
+{
+    ["Number"]="MAN-123",["Status"]="Planning",["Vehicle"]="TRUCK-2",
+    ["Details"]=new JsonObject{["Driver"]="Driver changed in FreightOps"},["Orders"]=new JsonArray()
+},false);
+handler=c=>Json(c,new FreightOpsBatch(1,source,connection,[manifestEvent]));
+var manifestBatch=await provider.Pull(null,default);
+Check(manifestBatch.Changes.Single().EntityType=="manifest" &&
+    JsonNode.DeepEquals(manifestBatch.Changes.Single().Data,manifestEvent.Data),
+    "reverse manifest feed retains native edits and membership");
 handler=c=>Json(c,new FreightOpsBatch(1,source,connection,[]));
 var empty=await provider.Pull(batch.Checkpoint,default);previous=requestCount;
 await provider.Acknowledge(empty,default);Check(previous==requestCount,"empty batch needs no acknowledgement request");

@@ -11,8 +11,9 @@ using Aurora.Integrations.FreightOps;
 
 namespace Aurora.Api.Features.Routing;
 
-public sealed class TenantSyncExecutor(NpgsqlDataSource dataSource,NovaUserConnections credentials,IOptions<FreightOpsRuntimeOptions>? freightOps=null) : ITenantSyncExecutor
+public sealed class TenantSyncExecutor(NpgsqlDataSource dataSource,NovaUserConnections credentials,IOptions<FreightOpsRuntimeOptions>? freightOps=null,IConfiguration? configuration=null) : ITenantSyncExecutor
 {
+    private bool IntegrationStaging => configuration is not null && !configuration.GetValue<bool>("Synchronization:LocalWorkspace");
     public async Task Run(Guid tenantId,CancellationToken ct)
     {
         Exception? failure=null;
@@ -20,7 +21,7 @@ public sealed class TenantSyncExecutor(NpgsqlDataSource dataSource,NovaUserConne
         catch(Exception ex) when(ex is not OperationCanceledException){failure=ex;}
         var tenant=new WorkerTenant(tenantId);
         var factory=new NpgsqlConnectionFactory(dataSource,tenant);
-        try{await FreightOpsSyncCycle.Run(factory,tenant,freightOps?.Value??new(),new OperationalSyncEntities(tenant,new DriverStore(factory,tenant)),ct);}
+        try{await FreightOpsSyncCycle.Run(factory,tenant,freightOps?.Value??new(),new OperationalSyncEntities(tenant,new DriverStore(factory,tenant),IntegrationStaging),ct);}
         catch(Exception ex) when(ex is not OperationCanceledException){failure??=ex;}
         if(failure is not null)throw new InvalidOperationException("One or more integration passes failed; inspect each connection's status.",failure);
     }
@@ -39,17 +40,18 @@ public sealed class TenantSyncExecutor(NpgsqlDataSource dataSource,NovaUserConne
             if(connection is null)return; // A tenant may have only FreightOps enabled.
             await lease.ExecuteAsync(new CommandDefinition("UPDATE aurora_sync_connection SET last_attempt_at=now() WHERE tenant_id=@tenantId AND provider='nova'",new{tenantId},cancellationToken:ct));
             var options=credentials.Resolve(credentials.Read(connection.Credentials),tenantId);
+            options.IntegrationStaging=IntegrationStaging;
             var source=new FirebirdRoutingSource(factory,tenant,Options.Create(options));
             var config=await source.RoutingConfiguration(ct);
-            var metadata=System.Text.Json.JsonSerializer.Serialize(new{config.AvailableStatuses,config.ReadyStatuses,config.PickupReadyStatuses,options.TimeZoneId,options.Lykes.PilotOrderIds});
+            var metadata=System.Text.Json.JsonSerializer.Serialize(new{config.AvailableStatuses,config.ReadyStatuses,config.PickupReadyStatuses,options.TimeZoneId,options.Lykes.PilotOrderIds,options.Lykes.ManifestSyncFromId,options.Lykes.OrderSyncFromId,options.Lykes.AllowHeaderTotals,options.Lykes.OperationalWritesEnabled,options.Lykes.OperationalOrderCreationEnabled,options.Lykes.DispatchSynchronizationEnabled});
             var mapper=source.ForSynchronization(connection.Id);
             var provider=new NovaSyncProvider(connection.Id,options.ConnectionString,mapper,timeZone:TimeZoneInfo.FindSystemTimeZoneById(options.TimeZoneId));
-            await NovaLegacyAdoption.Apply(factory,tenant,connection.Id,options.SourceKey,ct);
+            if(!IntegrationStaging)await NovaLegacyAdoption.Apply(factory,tenant,connection.Id,options.SourceKey,ct);
             await NovaSyncBootstrap.EnsureSeeded(options.ConnectionString,connection.Id,ct);
-            if(!System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(connection.Metadata),System.Text.Json.Nodes.JsonNode.Parse(metadata)))await NovaSyncBootstrap.ReclassifyOrders(options.ConnectionString,connection.Id,ct);
+            if(!System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(connection.Metadata),System.Text.Json.Nodes.JsonNode.Parse(metadata)))await NovaSyncBootstrap.ReclassifyOrders(options.ConnectionString,connection.Id,ct,options.Lykes.ManifestSyncFromId is >0);
             await lease.ExecuteAsync(new CommandDefinition("UPDATE aurora_sync_connection SET metadata=CAST(@metadata AS jsonb) WHERE tenant_id=@tenantId AND provider='nova'",new{tenantId,metadata},cancellationToken:ct));
-            var entities=new OperationalSyncEntities(tenant,new DriverStore(factory,tenant));
-            var importer=new SyncImporter(factory,tenant,entities);
+            var entities=new OperationalSyncEntities(tenant,new DriverStore(factory,tenant),IntegrationStaging);
+            var importer=new SyncImporter(factory,tenant,entities,externalAuthoritative:IntegrationStaging);
             var runner=new SyncRunner(new SyncStore(factory,tenant),provider,importer);
             // Pull first to detect native edits before pushing any queued local changes.
             var checkpoint=connection.Checkpoint;
@@ -60,7 +62,7 @@ public sealed class TenantSyncExecutor(NpgsqlDataSource dataSource,NovaUserConne
                 {
                     // Each outbound write still verifies its locked native baseline.
                     // Let pending dependencies finish instead of starving them forever.
-                    if(!(options.Lykes.Enabled&&options.Lykes.NativeReadOnly))await runner.PushPending(connection.Id,ct);
+                    if(!(options.Lykes.Enabled&&options.Lykes.NativeReadOnly&&!options.Lykes.OperationalWritesEnabled))await runner.PushPending(connection.Id,ct);
                     throw new FormatException("Incoming manifest membership is waiting for pending order changes or conflict review.");
                 }
                 if(await NovaSyncBootstrap.Pending(options.ConnectionString,connection.Id,ct)==0)
@@ -70,7 +72,7 @@ public sealed class TenantSyncExecutor(NpgsqlDataSource dataSource,NovaUserConne
                 }
                 checkpoint=await lease.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT checkpoint FROM aurora_sync_connection WHERE tenant_id=@tenantId AND provider='nova'",new{tenantId},cancellationToken:ct));
             }
-            if(!(options.Lykes.Enabled&&options.Lykes.NativeReadOnly))await runner.PushPending(connection.Id,ct);
+            if(!(options.Lykes.Enabled&&options.Lykes.NativeReadOnly&&!options.Lykes.OperationalWritesEnabled))await runner.PushPending(connection.Id,ct);
             await lease.ExecuteAsync(new CommandDefinition("UPDATE aurora_sync_connection SET last_error=NULL WHERE tenant_id=@tenantId AND provider='nova'",new{tenantId},cancellationToken:ct));
         }
         catch(Exception ex)

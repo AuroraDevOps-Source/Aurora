@@ -6,7 +6,7 @@ namespace Aurora.Api.Features.Routing;
 public static class TmsEndpoints
 {
  public static void MapTmsEndpoints(this IEndpointRouteBuilder app) {
-  var g=app.MapGroup("/api/v1/tms").RequireAuthorization();
+  var g=app.MapGroup("/api/v1/tms").RequireAuthorization().AddEndpointFilter<NativeWorkspaceFilter>();
   g.MapOrderDocumentImport();
   g.MapPost("/orders/lookup-address",(Dictionary<string,string?> input,MasterAddressLookup lookup,CancellationToken ct)=>Guard(async()=>Results.Ok(await lookup.LookUpOrderAddress(input,ct))));
   g.MapGet("/drivers",(DriverStore s,CancellationToken ct)=>Guard(async()=>Results.Ok(await s.List(ct))));

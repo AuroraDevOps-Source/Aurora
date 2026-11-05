@@ -29,7 +29,6 @@ internal static class ManifestSyncEntities
         var orders=data["Orders"]?.Deserialize<Assignment[]>()??throw new FormatException("Incoming manifest is missing its orders.");
         if(orders.Length>5000 || orders.Any(o=>o.SourceId==Guid.Empty||string.IsNullOrWhiteSpace(o.Id)||o.StopNumber<1) || orders.DistinctBy(o=>(o.SourceId,o.Id)).Count()!=orders.Length)
             throw new FormatException("Incoming manifest has invalid or duplicate orders.");
-        var previous=(await db.QueryAsync<Assignment>(new CommandDefinition("SELECT source_id AS SourceId,order_id AS Id,stop_number AS StopNumber FROM aurora_manifest_order WHERE tenant_id=@tenantId AND manifest_id=@id",new{tenantId,id},tx,cancellationToken:ct))).ToArray();
         foreach(var order in deleted?Array.Empty<Assignment>():orders)
         {
             if(!await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_order WHERE tenant_id=@tenantId AND source_id=@SourceId AND id=@Id AND deleted_at IS NULL)",new{tenantId,order.SourceId,order.Id},tx,cancellationToken:ct)))
@@ -37,12 +36,9 @@ internal static class ManifestSyncEntities
             if(await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_manifest_order WHERE tenant_id=@tenantId AND source_id=@SourceId AND order_id=@Id AND manifest_id<>@manifestId)",new{tenantId,order.SourceId,order.Id,manifestId=id},tx,cancellationToken:ct)))
                 throw new FormatException("An incoming manifest order is assigned to another manifest.");
         }
-        foreach(var order in previous.Concat(deleted?Array.Empty<Assignment>():orders).DistinctBy(o=>(o.SourceId,o.Id)))
-        {
-            var orderKey=$"{order.SourceId:D}/{order.Id}";
-            if(await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_sync_outbox WHERE tenant_id=@tenantId AND entity_type='order' AND local_id=@orderKey AND state IN ('pending','working','conflict'))",new{tenantId,orderKey},tx,cancellationToken:ct)))
-                throw new SyncBusyException();
-        }
+        // Order snapshots do not own membership. A reverse order update may have
+        // just queued its Nova forwarding write in this same import transaction;
+        // waiting for that write here would roll back both imports forever.
         var sql=localId is null?"""
             INSERT INTO aurora_manifest(tenant_id,id,number,manifest_date,status,vehicle,details,data,deleted_at)
             VALUES(@tenantId,@id,@Number,@date,@Status,@Vehicle,CAST(@details AS jsonb),CAST(@route AS jsonb),CASE WHEN @deleted THEN now() END) RETURNING revision

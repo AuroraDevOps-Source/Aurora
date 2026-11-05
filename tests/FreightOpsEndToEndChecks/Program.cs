@@ -57,12 +57,18 @@ JsonObject Data(string number="LYKES-TEST")=>new()
     {
         ["Version"]=1,["WeightUnit"]="kg",["VolumeUnit"]="m3",["Lines"]=new JsonArray
         {
-            new JsonObject{["LineId"]=lineId.ToString(),["Kind"]="freight",["Sku"]="SKU-1",["HandlingUnits"]=3,["PackType"]="PAL",["TotalWeight"]=30,["TotalCube"]=2,["PO"]="PO-1",["BOL"]="BOL-1",["Notes"]="line note"},
+            new JsonObject{["LineId"]=lineId.ToString(),["Kind"]="freight",["Sku"]="SKU-1",["Description"]="Original freight description",["HandlingUnits"]=3,["PackType"]="PAL",["TotalWeight"]=30,["TotalCube"]=2,["PO"]="PO-1",["BOL"]="BOL-1",["Notes"]="line note"},
             new JsonObject{["LineId"]=chargeId.ToString(),["Kind"]="charge",["Amount"]=125,["Keyword"]="FUEL"}
         }
     }
 };
 SyncChange Change(JsonObject data)=>new(Guid.NewGuid(),config.ConnectionId,"order",data["Id"]!.ToString(),1,"upsert",data.ToJsonString(),1,Guid.NewGuid());
+var plannedData=Data("PLANNED-IMPORT");plannedData["Status"]="Routed";
+var plannedPro=Pro.Factory("PLANNED-IMPORT",FreightOps_Core.Domain.Pros.Enums.BillType.Standard,FreightOps_Core.Domain.Pros.Enums.RouteVia.DIRECT);
+LykesOrderMapping.Apply(plannedPro,plannedData,null,config);
+Check(plannedPro.Status.Name=="Created"&&string.IsNullOrEmpty(plannedPro.CurrentOutboundManifest),"new routed Nova order creates unhandled freight; manifest command still owns assignment");
+plannedData["Status"]="Dispatched";
+await Fails<FormatException>(()=>Task.Run(()=>LykesOrderMapping.Apply(Pro.Factory("PLANNED-IMPORT",FreightOps_Core.Domain.Pros.Enums.BillType.Standard,FreightOps_Core.Domain.Pros.Enums.RouteVia.DIRECT),plannedData,null,config)),"new order import cannot manufacture a dispatched execution state");
 var original=Change(Data());var receipt=await provider.Push(original,default);var repeated=await provider.Push(original,default);
 Check(receipt==repeated,"real target returns original receipt after response-loss retry");
 await Fails<SyncConflictException>(()=>provider.Push(original with{Payload=Data("DIFFERENT").ToJsonString()},default),"same change ID cannot be reused for a different request");
@@ -70,6 +76,7 @@ string[] barcodes;
 await using(var query=store.QuerySession())
 {
     var pro=(await query.LoadAsync<Pro>(receipt.ExternalId))!;barcodes=pro.LineItems.Single().TrackingUnits.Select(x=>x.Barcode).ToArray();
+    Check(pro.LineItems.Single().Sku.Description=="Original freight description","freight description reaches native SKU");
     Check(pro.LineItems.Count==1&&barcodes.Length==3,"twelve commercial pieces and one charge create only three handling barcodes");
     Check(Math.Abs(pro.Weight-30*2.2046226218487757)<0.0001&&Math.Abs(pro.Cubes-2*35.31466672148859)<0.0001,"explicit kg/m3 totals convert to native per-unit lb/ft3");
     Check(pro.LineItems.Single().TrackingUnits.All(x=>x.PackType=="PAL"),"pack type reaches real tracking units");
@@ -83,12 +90,13 @@ var replay=await provider.Pull(null,default);Check(replay.Checkpoint==batch.Chec
 await provider.Acknowledge(batch,default);await provider.Acknowledge(batch,default);
 Check((await provider.Pull(null,default)).Changes.Count==0,"exact acknowledgement is idempotent");
 // The store supplies the native baseline for the test updates, as the production Aurora ledger does.
-var updated=(JsonObject)snapshot.Data.DeepClone();updated["Notes"]="";
+var updated=(JsonObject)snapshot.Data.DeepClone();updated["Notes"]="";updated["Lykes"]!["Lines"]![0]!["Description"]="Corrected freight description";
 using var updateProvider=new FreightOpsSyncProvider(config.ConnectionId,config.SourceIdentity,uri,new Requests(receipt.ExternalId,receipt.Revision),_=>Task.FromResult(token));
 var updatedReceipt=await updateProvider.Push(Change(updated),default);
 await using(var query=store.QuerySession())
 {
     var pro=(await query.LoadAsync<Pro>(receipt.ExternalId))!;
+    Check(pro.LineItems.Single().Sku.Description=="Corrected freight description","description-only line change is not skipped by SKU equality");
     Check(pro.Comment==""&&barcodes.SequenceEqual(pro.LineItems.Single().TrackingUnits.Select(x=>x.Barcode)),"explicit clear preserves physical barcodes");
 }
 await Fails<SyncConflictException>(()=>updateProvider.Push(Change(updated),default),"stale target revision rejected");
@@ -105,6 +113,39 @@ using(var grow=new FreightOpsSyncProvider(config.ConnectionId,config.SourceIdent
     Check(pro.LineItems.Single().TrackingUnits.Count==4&&pro.LineItems.Single().TrackingUnits.All(x=>x.PackType=="PAL")&&
         barcodes.SequenceEqual(pro.LineItems.Single().TrackingUnits.Take(3).Select(x=>x.Barcode)),"quantity growth preserves existing barcodes and assigns pack type to the new unit");
 }
+// Two freight lines must retain their own descriptions, identities and barcode sets.
+var multi=Data("DESCRIPTION-MULTI");
+var secondLine=(JsonObject)multi["Lykes"]!["Lines"]![0]!.DeepClone();
+secondLine["LineId"]=Guid.NewGuid().ToString();secondLine["Sku"]="SKU-2";secondLine["Description"]="Second distinct item";secondLine["HandlingUnits"]=2;
+multi["Lykes"]!["Lines"]!.AsArray().Add(secondLine);
+var multiReceipt=await provider.Push(Change(multi),default);
+await using(var q=store.QuerySession())
+{
+    var pro=(await q.LoadAsync<Pro>("DESCRIPTION-MULTI"))!;
+    Check(pro.LineItems.Count==2&&pro.LineItems.Single(x=>x.Sku.Sku=="SKU-1").TrackingUnits.Count==3&&
+        pro.LineItems.Single(x=>x.Sku.Sku=="SKU-2").TrackingUnits.Count==2&&
+        pro.LineItems.SelectMany(x=>x.TrackingUnits).Select(x=>x.Barcode).Distinct().Count()==5,
+        "multiple freight lines retain separate physical pieces and barcodes");
+}
+var descriptionReturn=(await provider.Pull(null,default)).Changes.Single(x=>x.ExternalId=="DESCRIPTION-MULTI");
+Check(descriptionReturn.Data["Lykes"]!["Lines"]!.AsArray().OfType<JsonObject>().Single(x=>x["Sku"]?.ToString()=="SKU-2")["Description"]!.ToString()=="Second distinct item",
+    "native description returns to Aurora on its original line");
+var clearDescription=(JsonObject)descriptionReturn.Data.DeepClone();clearDescription["Lykes"]!["Lines"]![0]!["Description"]="";
+string[] multiBarcodes;
+await using(var q=store.QuerySession())multiBarcodes=(await q.LoadAsync<Pro>("DESCRIPTION-MULTI"))!.LineItems.SelectMany(x=>x.TrackingUnits).Select(x=>x.Barcode).ToArray();
+using(var clear=new FreightOpsSyncProvider(config.ConnectionId,config.SourceIdentity,uri,new Requests("DESCRIPTION-MULTI",descriptionReturn.Revision),_=>Task.FromResult(token)))
+    await clear.Push(Change(clearDescription),default);
+await using(var q=store.QuerySession())
+{
+    var pro=(await q.LoadAsync<Pro>("DESCRIPTION-MULTI"))!;
+    Check(pro.LineItems.Single(x=>x.Sku.Sku=="SKU-1").Sku.Description==""&&pro.LineItems.Single(x=>x.Sku.Sku=="SKU-2").Sku.Description=="Second distinct item"&&
+        multiBarcodes.Order(StringComparer.Ordinal).SequenceEqual(pro.LineItems.SelectMany(x=>x.TrackingUnits).Select(x=>x.Barcode).Order(StringComparer.Ordinal)),
+        "explicit description clear preserves other lines and every existing barcode");
+}
+var legacyDescription=Data("DESCRIPTION-LEGACY");var legacyRow=legacyDescription["Lykes"]!["Lines"]![0]!.AsObject();
+legacyRow.Remove("Description");legacyRow["Nova"]=new JsonObject{["Description"]="Legacy Nova description"};
+await provider.Push(Change(legacyDescription),default);
+await using(var q=store.QuerySession())Check((await q.LoadAsync<Pro>("DESCRIPTION-LEGACY"))!.LineItems.Single().Sku.Description=="Legacy Nova description","legacy new-line payload uses retained Nova description");
 var duplicate=Data("DUPLICATE");duplicate["Lykes"]!["Lines"]!.AsArray().Add(duplicate["Lykes"]!["Lines"]![0]!.DeepClone());
 await Fails<FormatException>(()=>provider.Push(Change(duplicate),default),"duplicate identities rejected");
 var repeatedSku=Data("REPEAT-SKU");var extra=repeatedSku["Lykes"]!["Lines"]![0]!.DeepClone();extra["LineId"]=Guid.NewGuid().ToString();repeatedSku["Lykes"]!["Lines"]!.AsArray().Add(extra);
@@ -237,14 +278,43 @@ var novaSource=Data("NOVA-BRIDGE");novaSource.Remove("Lykes");novaSource["Termin
 novaSource["Status"]="Ready";novaSource["WorkType"]="Delivery";
 var novaLineId=Guid.NewGuid();
 var novaData=Aurora.Integrations.Nova.Sync.LykesNovaMapping.Project(novaSource,
-    [new(){LineId=novaLineId.ToString(),Sequence=1,StopId=1,StopKind="P",Keyword="FRT",Sku="NOVA-SKU",Uom="CTN",Cube="2.5",Pieces=3,Weight=120,Pallets=1}],novaOptions);
+    [new(){LineId=novaLineId.ToString(),Sequence=1,StopId=1,StopKind="P",Keyword="FRT",Sku="NOVA-SKU",Description="Nova source description",Uom="CTN",Cube="2.5",Pieces=3,Weight=120,Pallets=1}],novaOptions);
 await provider.Push(Change(novaData),default);
 await using(var query=store.QuerySession())
 {
     var pro=(await query.LoadAsync<Pro>("NOVA-BRIDGE"))!;var line=pro.LineItems.Single();
+    Check(line.Sku.Description=="Nova source description","Nova description crosses production projection and real FreightOps HTTP endpoint");
     Check(pro.OriginTerminal=="FO-AUS"&&line.LineId==novaLineId&&line.TrackingUnits.Count==3&&pro.Cubes==7.5,
         "Nova projection crosses real HTTP endpoint preserving identity, terminal, pieces and per-piece cube");
 }
+var snapshotOptions=JsonSerializer.Deserialize<Aurora.Integrations.Nova.Sync.LykesNovaOptions>(JsonSerializer.Serialize(novaOptions))!;
+snapshotOptions.NativeReadOnly=true;
+var snapshotSource=(JsonObject)novaSource.DeepClone();snapshotSource["Id"]="NOVA-NO-SKU";snapshotSource["NativeOrderId"]=991001;
+var snapshotData=Aurora.Integrations.Nova.Sync.LykesNovaMapping.Project(snapshotSource,
+    [new(){StopKind="P",Keyword="FRT",Sku="",Description="Shelving",Uom="CTN",Cube="1",Pieces=12,Weight=120,Pallets=1},
+     new(){StopKind="P",Keyword="FRT",Sku="",Description="Racking",Uom="CTN",Cube="2",Pieces=2,Weight=40}],snapshotOptions);
+var snapshotChange=Change(snapshotData);
+await provider.Push(snapshotChange,default);
+string[] snapshotBarcodes;
+await using(var query=store.QuerySession())
+{
+    var pro=(await query.LoadAsync<Pro>("NOVA-NO-SKU"))!;
+    Check(pro.LineItems.Count==2&&pro.LineItems.Sum(l=>l.TrackingUnits.Count)==14,
+        "blank Nova SKUs produce two native lines and fourteen pieces without an extra pallet barcode");
+    Check(pro.LineItems.Single(l=>l.Sku.Description=="Shelving").TrackingUnits.Count==12,
+        "one Nova freight line with twelve pieces remains one FreightOps line with twelve barcodes");
+    snapshotBarcodes=pro.LineItems.SelectMany(l=>l.TrackingUnits).Select(t=>t.Barcode).Order().ToArray();
+}
+await provider.Push(snapshotChange,default);
+await using(var query=store.QuerySession())
+{
+    var pro=(await query.LoadAsync<Pro>("NOVA-NO-SKU"))!;
+    Check(snapshotBarcodes.SequenceEqual(pro.LineItems.SelectMany(l=>l.TrackingUnits).Select(t=>t.Barcode).Order()),
+        "retry of generated-SKU snapshot preserves native tracking units");
+}
+var snapshotReturn=(await provider.Pull(null,default)).Changes.Single(x=>x.ExternalId=="NOVA-NO-SKU");
+Check(snapshotReturn.Data["Lykes"]!["Lines"]!.AsArray().OfType<JsonObject>().All(l=>l["SkuGenerated"]!.GetValue<bool>()&&l["Nova"]!["Sku"]!.GetValue<string>()==""),
+    "FreightOps return retains generated-code marker and original blank Nova SKU");
 var novaReturn=(await provider.Pull(null,default)).Changes.Single(x=>x.ExternalId=="NOVA-BRIDGE");
 Check(novaReturn.Data["Lykes"]!["Lines"]![0]!["Nova"]!["Pallets"]!.GetValue<int>()==1,
     "FreightOps reverse snapshot retains Nova-only metadata without turning pallets into barcodes");
@@ -273,6 +343,8 @@ var newOrder=V2("900008");newOrder["Status"]="Ready";newOrder["WorkType"]="Deliv
 newOrder["ScheduledAt"]="2026-10-28T10:00:00-04:00";
 newOrder["Lykes"]!["Lines"]=new JsonArray(newOrder["Lykes"]!["Lines"]![0]!.DeepClone());
 newOrder["Lykes"]!["Lines"]![0]!["LineId"]=Guid.NewGuid().ToString();
+// Reverse Nova description writes remain outside the enabled mapping policy.
+newOrder["Lykes"]!["Lines"]![0]!["Description"]="";
 var newOrderReceipt=await provider.Push(Change(newOrder),default);
 var newOrderSnapshot=(await provider.Pull(null,default)).Changes.Single(x=>x.ExternalId=="900008");
 async Task<JsonObject> CancelNewOrder(JsonObject normalized)

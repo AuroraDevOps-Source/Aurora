@@ -1,4 +1,6 @@
 using Aurora.Api.Features.Auth;
+using Aurora.Api.Features.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
 using Aurora.Contracts;
 using Aurora.Infrastructure.Data;
 using Aurora.Infrastructure.Tenancy;
@@ -26,6 +28,7 @@ using var provider=services.BuildServiceProvider();
 var protection=new EphemeralDataProtectionProvider();
 var nova=new NovaUserConnections(protection,provider.GetRequiredService<IOptionsMonitor<FirebirdRoutingOptions>>());
 var service=new TenantSettingsService(factory,context,nova,protection);
+var history=new OrderImportHistoryStore(factory,context,NullLogger<OrderImportHistoryStore>.Instance);
 int count=0;
 void Check(bool ok,string label){if(!ok)throw new Exception(label);count++;Console.WriteLine("PASS "+label);}
 async Task Reject(Func<Task> action,string label){try{await action();}catch(FormatException){Check(true,label);return;}throw new Exception(label);}
@@ -38,6 +41,11 @@ try
  INSERT INTO "AspNetUserRoles"("TenantId","UserId","RoleId") SELECT @id,@admin,"Id" FROM "AspNetRoles" WHERE "Name"='aurora:Admin';
  """,new{id,admin,slug="settings-check-"+id.ToString("N")});
  var input=await service.Read(default);
+ Check(input.DriverCostPerHour==0,"new tenant defaults to zero driver cost");
+ Check(input.Navigation is {Optimization:true,DataEntry:true,FreightOps:true,Hub:true,Nova:true},"new tenant shows all menu options by default");
+ input.CompanyName=" Updated company ";
+ input.Navigation=new(){Optimization=false,DataEntry=true,FreightOps=false,Hub=false,Nova=false};
+ input.DriverCostPerHour=27.5m;
  input.Nova=new(){Host="192.0.2.1",Database="test.fdb",UserName="test",Password="nova-test-secret"};
  input.FreightOps=new(){ApiUrl="https://freight.example.invalid/",UserName="test",Password="freight-test-secret"};
  input.DispatchTrack=new(){ApiUrl="https://dispatch.example.invalid/orders",ApiCode="dispatch-code",ApiKey="dispatch-key"};
@@ -46,6 +54,12 @@ try
  Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@a AND product_code='freightops'",new{a})==input.FreightOps.ApiUrl,"launcher uses saved FreightOps connection URL");
  Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@b AND product_code='freightops'",new{b})=="https://old.example.invalid/","saving launcher URL does not change another tenant");
  var saved=await service.Read(default);
+ Check(saved.CompanyName=="Updated company","company name saved and trimmed");
+ Check(saved.Navigation is {Optimization:false,DataEntry:true,FreightOps:false,Hub:false,Nova:false},"menu preferences persist independently");
+ Check(!saved.Navigation!.IsVisible("aurora") && saved.Navigation.DataEntry,"Data Entry can remain visible with Optimization hidden");
+ Check(await owner.ExecuteScalarAsync<string>("SELECT name FROM tenant WHERE id=@b",new{b})=="Settings check","company rename isolated to current tenant");
+ Check(saved.DriverCostPerHour==27.5m,"global hourly driver cost persists");
+ await using(var db=await factory.OpenConnectionAsync())Check(await db.ExecuteScalarAsync<decimal>("SELECT public.aurora_driver_cost_per_hour()") == 27.5m,"optimization reads saved hourly cost");
  Check(saved.Revision==1 && saved.Nova.HasPassword && saved.FreightOps.HasPassword && saved.DispatchTrack.HasApiCode && saved.DispatchTrack.HasApiKey && saved.Zenventory.HasApiSecret && saved.Zenventory.HasSecureKey,"all four connections saved with configured flags");
  Check(saved.Nova.Password is null && saved.FreightOps.Password is null && saved.DispatchTrack.ApiKey is null && saved.DispatchTrack.ApiCode is null && saved.Zenventory.ApiKey is null && saved.Zenventory.ApiSecret is null && saved.Zenventory.SecureKey is null,"read response excludes every secret");
  var stored=await owner.QuerySingleAsync<string>("SELECT row_to_json(s)::text FROM tenant_settings s WHERE tenant_id=@a",new{a});
@@ -53,6 +67,17 @@ try
  await service.Save(saved,default);
  var again=await service.Read(default);Check(again.Revision==2 && again.Zenventory.HasApiKey,"blank fields retain saved secrets");
  await Reject(()=>service.Save(saved,default),"stale edit rejected");
+ var badName=await service.Read(default);badName.CompanyName=" ";
+ await Reject(()=>service.Save(badName,default),"blank company name rejected");
+ badName.CompanyName=new string('x',201);await Reject(()=>service.Save(badName,default),"overlong company name rejected");
+ var compatibility=await service.Read(default);compatibility.Navigation=null;
+ await service.Save(compatibility,default);
+ Check((await service.Read(default)).Navigation!.Optimization==false,"settings clients omitting menu preferences preserve saved preferences");
+ var invalid=await service.Read(default);invalid.DriverCostPerHour=-1;
+ await Reject(()=>service.Save(invalid,default),"negative driver cost rejected");
+ invalid.DriverCostPerHour=1.00001m;await Reject(()=>service.Save(invalid,default),"excess driver cost precision rejected");
+ invalid.DriverCostPerHour=35.25m;await service.Save(invalid,default);
+ Check((await service.Read(default)).DriverCostPerHour==35.25m,"administrator can change hourly driver cost");
  var moved=await service.Read(default);moved.FreightOps.ApiUrl="https://new.example.invalid/";moved.FreightOps.Password="replacement-secret";
  await service.Save(moved,default);
  Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@a AND product_code='freightops'",new{a})==moved.FreightOps.ApiUrl,"changing Connections also changes launcher destination");
@@ -61,11 +86,48 @@ try
  changed=await service.Read(default);changed.Nova.Host="192.0.2.2";changed.Nova.Password="new-secret";
  await Reject(()=>service.Save(changed,default),"source swap cannot mix synchronized data");
  context.Company=b;var other=await service.Read(default);
+ Check(other.DriverCostPerHour==0,"global rate isolated per company");
+ Check(other.Navigation is {Optimization:true,DataEntry:true},"menu preferences isolated per tenant");
  Check(!other.Nova.HasPassword && !other.DispatchTrack.HasApiKey,"second tenant sees no first-tenant connections");
  await using(var db=await factory.OpenConnectionAsync())Check(await db.ExecuteScalarAsync<int>("SELECT count(*) FROM tenant_settings WHERE tenant_id=@a",new{a})==0,"database row security hides another tenant");
- context.Company=a;context.User=Guid.NewGuid();
+ context.Company=a;
+ var batch=await history.Start("C:\\fakepath\\shipping.pdf",default);
+ var entry=(await history.List(default)).Single();
+ Check(entry.FileName=="shipping.pdf" && entry.Status=="Converting","import history sanitizes filenames and records start");
+ await Reject(()=>history.Validate(batch,default),"unfinished conversion cannot receive order credits");
+ await history.Converted(batch,2,default);
+ await history.Validate(batch,default);
+ await history.RecordCreated(batch,"123");await history.RecordCreated(batch,"123");
+ entry=(await history.List(default)).Single();
+ Check(entry.CreatedCount==1 && entry.ExtractedCount==2 && entry.Status=="Orders created","history counts unique successful orders");
+ Check(entry.CreatedPros.SequenceEqual(new[]{"123"}),"history returns distinct created PROs for order links");
+ await history.RequireCreatedOrder(batch,"123",default);
+ Check(true,"created order link resolves within tenant history");
+ try{await history.RequireCreatedOrder(batch,"999",default);throw new Exception("Unrelated order link accepted");}catch(KeyNotFoundException){Check(true,"history link cannot address an unrelated PRO");}
+ var failed=await history.Start("pasted-orders.txt",default);await history.Failed(failed);
+ Check((await history.List(default)).First().Status=="Failed","failed conversion retained in recent imports");
+ context.Company=b;
+ Check(!(await history.List(default)).Any(),"history isolated by tenant");
+ try{await history.RequireCreatedOrder(batch,"123",default);throw new Exception("Cross-tenant order link accepted");}catch(KeyNotFoundException){Check(true,"order link cannot cross tenant boundaries");}
+ await Reject(()=>history.Validate(batch,default),"another tenant cannot attach to import");
+ await history.RecordCreated(batch,"999");context.Company=a;
+ Check((await history.List(default)).Single(x=>x.Id==batch).CreatedCount==1,"cross-tenant history update blocked");
+ await owner.ExecuteAsync("DELETE FROM \"AspNetUserRoles\" WHERE \"TenantId\"=@a AND \"UserId\"=@admin",new{a,admin});
  await using(var db=await factory.OpenConnectionAsync())
  {
+  Check(await db.ExecuteScalarAsync<int>("SELECT count(*) FROM tenant_settings")==0,"ordinary planner cannot read connection settings");
+  var menu=JsonSerializer.Deserialize<TenantNavigationSettings>((await db.ExecuteScalarAsync<string>("SELECT public.aurora_tenant_navigation()"))!);
+  Check(menu is {Optimization:false,DataEntry:true},"ordinary member can read menu preferences without secrets");
+  Check((await history.List(default)).Count()==2,"ordinary member can view company import history");
+  Check(await db.ExecuteScalarAsync<decimal>("SELECT public.aurora_driver_cost_per_hour()")==35.25m,"ordinary planner can use only the global labor rate");
+ }
+ context.User=Guid.NewGuid();
+ Check(!(await history.List(default)).Any(),"nonmember cannot read import history");
+ await Reject(()=>history.Validate(batch,default),"another user cannot attach to import");
+ await using(var db=await factory.OpenConnectionAsync())
+ {
+  Check(await db.ExecuteScalarAsync<decimal?>("SELECT public.aurora_driver_cost_per_hour()") is null,"nonmember cannot read driver rate");
+  Check(await db.ExecuteScalarAsync<string?>("SELECT public.aurora_tenant_navigation()") is null,"nonmember cannot read menu preferences");
   Check(await db.ExecuteScalarAsync<int>("SELECT count(*) FROM tenant_settings")==0,"non-admin cannot read settings");
   Check(await db.ExecuteAsync("UPDATE tenant_settings SET revision=revision+1")==0,"non-admin cannot change settings");
   Check(await db.ExecuteScalarAsync<string?>("SELECT public.aurora_tenant_nova_connection()") is null,"nonmember cannot resolve tenant Nova credentials");
@@ -81,6 +143,7 @@ try
 finally
 {
  foreach(var id in new[]{a,b})await owner.ExecuteAsync("""
+ DELETE FROM order_import_history WHERE tenant_id=@id;
  DELETE FROM aurora_sync_connection WHERE tenant_id=@id;
  DELETE FROM tenant_settings WHERE tenant_id=@id;
  DELETE FROM "AspNetUserRoles" WHERE "TenantId"=@id;

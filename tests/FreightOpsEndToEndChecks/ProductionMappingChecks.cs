@@ -13,6 +13,7 @@ using FirebirdSql.Data.FirebirdClient;
 using FreightOps_Core.Domain.Pros.Integration;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using Marten;
 
 // Real production mapper, operational order store, importer, outbox, durable
 // requests and HTTP endpoints. Only schema/data and runner scheduling are fixtures.
@@ -98,6 +99,15 @@ static class ProductionMappingChecks
         await novaRunner.Pull(nova,null,default);
         var local=await pg.QuerySingleAsync<string>("SELECT local_id FROM aurora_sync_mapping WHERE connection_id=@nova",new{nova});
         check(local.EndsWith("/910001")&&await pg.ExecuteScalarAsync<int>("SELECT count(*) FROM aurora_order WHERE id='910001'")==1,"production importer stores business PRO and native mapping separately");
+        options.Lykes.PilotOrderIds=[999999];
+        check((await ReadNative())["Id"]!.ToString()=="910001","previously enrolled manifest members remain readable outside the current pilot list");
+        options.Lykes.PilotOrderIds=[];
+        await using(var duplicateTx=await pg.BeginTransactionAsync())
+        {
+            try{await entities.Write("order",null,first,false,pg,duplicateTx,default);throw new Exception("Unbound duplicate PRO was accepted");}
+            catch(FormatException){check(true,"unbound duplicate PRO reports an identity conflict instead of overwriting the existing order");}
+            await duplicateTx.RollbackAsync();
+        }
         check(await freightRunner.PushPending(freight,default)==1,"production outbox and durable request deliver native PRO to real FreightOps endpoint");
         var remoteBatch=await remote.Pull(null,default);
         check(remoteBatch.Changes.Single().ExternalId=="910001"&&remoteBatch.Changes.Single().Data["Lykes"]!["Lines"]![0]!["LineId"]!.ToString()==lineId,"FreightOps receives business PRO and original stable line identity");
@@ -225,6 +235,32 @@ static class ProductionMappingChecks
         var mvpRemote=(await remote.Pull(null,default)).Changes.Single(x=>x.ExternalId=="910030");
         check(mvpRemote.Data["Lykes"]!["IdentityMode"]!.ToString()=="aurora-snapshot","FreightOps preserves the MVP ownership marker");
         var mvpLineId=mvpRemote.Data["Lykes"]!["Lines"]![0]!["LineId"]!.ToString();
+        await freightRunner.Pull(freight,null,default);
+        options.Lykes.OperationalWritesEnabled=true;
+        await novaRunner.PushPending(nova,default);
+        var dispatchEdit=(JsonObject)mvpRemote.Data.DeepClone();
+        dispatchEdit["Notes"]="Dispatcher reverse note";dispatchEdit["Address"]="25 Dispatch Street";
+        dispatchEdit["Latitude"]=30.2672;dispatchEdit["Longitude"]=-97.7431;
+        dispatchEdit["AppointmentFrom"]="2026-11-03T10:00:00-05:00";
+        dispatchEdit["AppointmentTo"]="2026-11-03T12:00:00-05:00";
+        dispatchEdit["ScheduledAt"]="2026-11-03T10:00:00-05:00";
+        using(var editing=new FreightOpsSyncProvider(freight,target.SourceIdentity,endpoint,new Requests("910030",mvpRemote.Revision),_=>Task.FromResult(token)))
+            await editing.Push(new(Guid.NewGuid(),freight,"order","operational",1,"upsert",dispatchEdit.ToJsonString(),1,Guid.NewGuid()),default);
+        await freightRunner.Pull(freight,null,default);
+        check(await novaRunner.PushPending(nova,default)==1,"operational reverse order edit reaches Nova without stable native line IDs");
+        check(await fb.ExecuteScalarAsync<string>("SELECT PB_NOTES FROM OPS_HEADER WHERE PB_ID=@mvpNative",new{mvpNative})=="Dispatcher reverse note"&&
+            await fb.ExecuteScalarAsync<string>("SELECT OPS_ADDR1 FROM OPS_STOP_REC WHERE OPS_ORDER_ID=@mvpNative AND OPS_TYPE='D'",new{mvpNative})=="25 Dispatch Street",
+            "reverse dispatcher notes and address persist in native fields");
+        check(await fb.ExecuteScalarAsync<DateTime>("SELECT OPS_APPT_LOW FROM OPS_STOP_REC WHERE OPS_ORDER_ID=@mvpNative AND OPS_TYPE='D'",new{mvpNative})==new DateTime(2026,11,3,10,0,0),
+            "reverse appointment uses the configured Nova local timezone");
+        check(await fb.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM OPS_LINE_ITEMS WHERE OPL_ORDER_ID=@mvpNative AND OPL_SYNC_ID IS NULL AND OPL_WEIGHT=20 AND OPL_PIECES=2",new{mvpNative})==1,
+            "operational write leaves native freight and its missing identity untouched");
+        var operationalMapping=await pg.QuerySingleAsync<TargetMapping>("SELECT external_revision AS Revision,baseline::text AS Json FROM aurora_sync_mapping WHERE connection_id=@freight AND external_id='910030'",new{freight});
+        mvpRemote=mvpRemote with{Data=JsonNode.Parse(operationalMapping.Json)!.AsObject(),Revision=operationalMapping.Revision};
+        var guarded=(JsonObject)mvpRemote.Data.DeepClone();guarded["Weight"]=21;
+        try{LykesNovaOperationalChanges.ValidateOrder(guarded,mvpRemote.Data);throw new Exception("Operational guard accepted freight edit");}
+        catch(FormatException){check(true,"operational permission does not enable freight totals edits");}
+        options.Lykes.OperationalWritesEnabled=false;
         await fb.ExecuteAsync("UPDATE OPS_LINE_ITEMS SET OPL_SEQUENCE=50,OPL_AMOUNT=75 WHERE OPL_ORDER_ID=@mvpNative",new{mvpNative});
         await using(var tx=fb.BeginTransaction())
         {
@@ -265,8 +301,112 @@ static class ProductionMappingChecks
         var planningReturn=(await remote.Pull(null,default)).Changes.Single(x=>x.ExternalId=="910030");
         check(planningReturn.Data["Latitude"]!.GetValue<double>()==editorOrder.Latitude&&planningReturn.Data["Lykes"]!["Lines"]![0]!["LineId"]!.ToString()==mvpLineId,"FreightOps roundtrip retains planning coordinates and stable line identity");
         await freightRunner.Pull(freight,null,default);
-        await ManifestPublishingChecks.Run(factory,tenant,pg,queue,remote,target,targetStore,check);
+        await ManifestPublishingChecks.Run(factory,tenant,pg,queue,importer,remote,target,targetStore,check);
+        options.Lykes.NativeReadOnly=true;options.Lykes.OperationalWritesEnabled=true;options.Lykes.OperationalOrderCreationEnabled=true;
+        target.AutoEnrollFromUtc=DateTime.UtcNow.AddSeconds(-1);
+        var automatic=(JsonObject)data.DeepClone();automatic["Id"]="910040";
+        automatic["Lykes"]!["Lines"]![0]!["LineId"]=Guid.NewGuid().ToString();
+        automatic["Lykes"]!["Lines"]![0]!["Description"]="Native automatically enrolled freight";
+        await using(var session=targetStore.LightweightSession())
+        {
+            var pro=FreightOps_Core.Domain.Pros.Pro.Factory("910040",FreightOps_Core.Domain.Pros.Enums.BillType.Standard,FreightOps_Core.Domain.Pros.Enums.RouteVia.DIRECT);
+            LykesOrderMapping.Apply(pro,automatic,null,target);
+            session.Events.StartStream<FreightOps_Core.Domain.Pros.Pro>(pro.Id,pro.GetUncommittedEvents());
+            await session.SaveChangesAsync();
+        }
+        await new AuroraAutomaticEnrollment(targetStore,target).Run(default);
+        await freightRunner.Pull(freight,null,default);
+        check(await pg.ExecuteScalarAsync<int>("SELECT count(*) FROM aurora_order WHERE id='910040'")==1,"new native FreightOps order enrolls automatically through the real pull endpoint");
+        await novaRunner.PushPending(nova,default);
+        var autoNative=await fb.ExecuteScalarAsync<long?>("SELECT PB_ID FROM OPS_HEADER WHERE PBNUM=910040");
+        if(autoNative is null)Console.WriteLine(JsonSerializer.Serialize(await pg.QueryAsync("SELECT state,last_error FROM aurora_sync_outbox WHERE connection_id=@nova AND payload->>'Id'='910040'",new{nova})));
+        check(autoNative is >0,"automatically enrolled FreightOps order creates a new Nova order without enabling existing freight edits");
+        await novaRunner.Pull(nova,null,default);await freightRunner.PushPending(freight,default);await freightRunner.Pull(freight,null,default);
+        var autoBaseline=await pg.QuerySingleAsync<string>("SELECT baseline::text FROM aurora_sync_mapping WHERE connection_id=@nova AND external_id=@id AND entity_type='order'",new{nova,id=autoNative!.Value.ToString()});
+        check(JsonNode.Parse(autoBaseline)!["Lykes"]!["Lines"]![0]!["LineId"]!.ToString()==automatic["Lykes"]!["Lines"]![0]!["LineId"]!.ToString(),"first native roundtrip retains FreightOps line identity instead of replacing barcodes");
+        await fb.ExecuteAsync("UPDATE OPS_LINE_ITEMS SET OPL_SYNC_ID=NULL WHERE OPL_ORDER_ID=@id",new{id=autoNative});
+        await using(var tx=fb.BeginTransaction())
+        {
+            var snapshot=(await mapper.Read(new(0,"order",autoNative.Value.ToString(),"U"),fb,tx,default)).Single().Data;
+            check(snapshot["Lykes"]!["Lines"]![0]!["LineId"]!.ToString()==automatic["Lykes"]!["Lines"]![0]!["LineId"]!.ToString(),"unchanged freight retains its original identity after an old native writer drops the optional ID");
+        }
+        target.ManifestPublishingEnabled=true;
+        const string autoManifest="FO-AUTOMATIC-PLAN";
+        await using(var session=targetStore.LightweightSession())
+        {
+            var proStream=await session.Events.FetchForWriting<FreightOps_Core.Domain.Pros.Pro>("910040");var pro=proStream.Aggregate!;pro.ClearUncommittedEvents();
+            var manifest=FreightOps_Core.Domain.Manifest.Manifest.Factory(autoManifest,FreightOps_Core.Domain.Manifest.Enums.ManifestTemplate.Delivery.Name);
+            manifest.UpdateOriginTerminal(target.NativeTerminal("AUS"));manifest.UpdateXref("native-user-reference");
+            var nativeQueue=pro.LineItems.SelectMany(l=>l.TrackingUnits.Select(t=>new FreightOps_Core.Domain.Manifest.LineitemQueue{
+                Barcode=t.Barcode,ProNumber=pro.Id,ManifestId=autoManifest,Shipper=pro.Shipper?.Name??"",ShipperConsignee=pro.ShipperConsignee?.Name??"",CarrierConsignee=pro.CarrierConsignee.Name,carrierConsigneePostalCode=pro.CarrierConsignee.Address.PostalCode,
+                Description=l.Sku.Description,Sku=l.Sku.Sku,Location=t.Location,DefaultLocation=pro.DefaultLocation,Status=FreightOps_Core.Domain.Manifest.Enums.ProcessingStatus.Planning})).ToList();
+            manifest.AssignPro(new FreightOps_Core.Domain.Manifest.ManPro(pro.Id,pro.Units,pro.Weight,pro.Cubes,pro.Seats,pro.Revenue,pro.CarrierConsignee.Address),nativeQueue);
+            manifest.RecordAuroraPlan(DateTime.UtcNow,"{}","Native auto plan");pro.AssignToManifest(autoManifest,true);
+            proStream.AppendMany(pro.GetUncommittedEvents());session.Events.StartStream<FreightOps_Core.Domain.Manifest.Manifest>(autoManifest,manifest.GetUncommittedEvents());await session.SaveChangesAsync();
+        }
+        await freightRunner.Pull(freight,null,default);
+        var automaticManifest=await pg.QuerySingleAsync<AutoManifest>("SELECT local_id AS LocalId,external_revision AS Revision,baseline::text AS Json FROM aurora_sync_mapping WHERE connection_id=@freight AND entity_type='manifest' AND external_id=@autoManifest",new{freight,autoManifest});
+        check(JsonNode.Parse(automaticManifest.Json)!["Orders"]!.AsArray().Count==1,"new native FreightOps manifest automatically enrolls after its order has a workspace binding");
+        var manifestEdit=JsonNode.Parse(automaticManifest.Json)!.AsObject();manifestEdit["Details"]!["Notes"]="Updated auto plan";
+        var member=manifestEdit["Orders"]![0]!;
+        await using(var query=targetStore.QuerySession())
+            manifestEdit["FreightOpsOrders"]=new JsonArray(new JsonObject{["LocalId"]=member["SourceId"]!.ToString()+"/"+member["Id"]!.ToString(),["ExternalId"]="910040",["ExpectedRevision"]=(await query.Events.FetchStreamStateAsync("910040"))!.Version.ToString()});
+        using(var editing=new FreightOpsSyncProvider(freight,target.SourceIdentity,endpoint,new Requests(autoManifest,automaticManifest.Revision),_=>Task.FromResult(token)))
+            await editing.Push(new(Guid.NewGuid(),freight,"manifest",automaticManifest.LocalId,1,"upsert",manifestEdit.ToJsonString(),1,Guid.NewGuid()),default);
+        await freightRunner.Pull(freight,null,default);
+        await using(var query=targetStore.QuerySession())
+            check((await query.LoadAsync<FreightOps_Core.Domain.Manifest.Manifest>(autoManifest))!.Xref=="native-user-reference","automatic manifest binding preserves the native user's reference");
+        // Real native loading commands establish prerequisites; execution sync never invents scans.
+        await using(var query=targetStore.QuerySession())
+        {
+            var pro=(await query.LoadAsync<FreightOps_Core.Domain.Pros.Pro>("910040"))!;
+            var link=(await query.LoadAsync<SyncLink>(target.ConnectionId.ToString("N")+"/910040"))!;
+            var incoming=JsonNode.Parse(link.Canonical)!.AsObject();incoming["NativeOrderId"]=autoNative.Value;
+            var unbound=(JsonObject)incoming.DeepClone();unbound.Remove("NativeOrderId");unbound.Remove("Country");incoming["Country"]="";
+            unbound["Lykes"]!.AsObject().Remove("IdentityMode");unbound["Lykes"]!.AsObject().Remove("FreightFingerprint");
+            foreach(var row in unbound["Lykes"]!["Lines"]!.AsArray()){row!.AsObject().Remove("Nova");row.AsObject().Remove("Keyword");}
+            var barcodes=pro.LineItems.SelectMany(x=>x.TrackingUnits).Select(x=>x.Barcode).ToArray();
+            LykesOrderMapping.Apply(pro,incoming,unbound,target);
+            check(barcodes.SequenceEqual(pro.LineItems.SelectMany(x=>x.TrackingUnits).Select(x=>x.Barcode)),"late first Nova identity binding preserves assigned physical freight and allows empty optional defaults");
+            incoming["Lykes"]!["Lines"]![0]!["Pieces"]=99;
+            try{LykesOrderMapping.Apply(pro,incoming,unbound,target);throw new Exception("Assigned physical change accepted");}catch(SyncTargetConflict){check(true,"first identity binding cannot bypass assigned freight protection");}
+        }
+        await using(var session=targetStore.LightweightSession())
+        {
+            var stream=await session.Events.FetchForWriting<FreightOps_Core.Domain.Manifest.Manifest>(autoManifest);var m=stream.Aggregate!;m.ClearUncommittedEvents();
+            var dispatched=(JsonObject)manifestEdit.DeepClone();dispatched["Status"]="Dispatched";dispatched["Details"]!["StatusOccurredAtUtc"]=DateTimeOffset.UtcNow.ToString("O");
+            try{AuroraManifestExecution.Apply(m,dispatched,manifestEdit);throw new Exception("Unloaded dispatch accepted");}catch(SyncTargetConflict){check(true,"execution synchronization holds dispatch until native loading finishes");}
+            m.ReleaseOutbound("TEST-DOOR","TEST-TRAILER");
+            foreach(var barcode in m.Queue.QueuedItems.Values.Select(x=>x.Barcode).ToArray())m.LoadItem(barcode,"","TEST-TRAILER","Integration test");
+            dispatched["Details"]!["StatusOccurredAtUtc"]=DateTimeOffset.UtcNow.ToString("O");
+            AuroraManifestExecution.Apply(m,dispatched,manifestEdit);
+            check(m.TransitStatus==FreightOps_Core.Domain.Manifest.Enums.ManifestStatus.Closed,"loaded manifest dispatch uses native close command");
+            var count=m.GetUncommittedEvents().Count();AuroraManifestExecution.Apply(m,dispatched,manifestEdit);
+            check(m.GetUncommittedEvents().Count()==count,"repeated dispatch does not duplicate native events");
+            var departed=(JsonObject)dispatched.DeepClone();departed["Status"]="En Route";departed["Details"]!["StatusOccurredAtUtc"]=DateTimeOffset.UtcNow.ToString("O");
+            AuroraManifestExecution.Apply(m,departed,dispatched);
+            check(m.TransitStatus==FreightOps_Core.Domain.Manifest.Enums.ManifestStatus.InTransit,"departure synchronization uses actual source event time and native transition");
+            var complete=(JsonObject)departed.DeepClone();complete["Status"]="Complete";complete["Details"]!["StatusOccurredAtUtc"]=DateTimeOffset.UtcNow.ToString("O");
+            try{AuroraManifestExecution.Apply(m,complete,departed);throw new Exception("Unprocessed completion accepted");}catch(SyncTargetConflict){check(true,"completion cannot skip native unloading and return processing");}
+            stream.AppendMany(m.GetUncommittedEvents());session.SetHeader("user","Integration test");await session.SaveChangesAsync();
+        }
+        target.DispatchSynchronizationEnabled=true;
+        await using(var query=targetStore.QuerySession())
+        {
+            var link=await query.Query<SyncManifestLink>().Where(x=>x.ManifestId==autoManifest).SingleOrDefaultAsync();
+            var status=(JsonObject)JsonNode.Parse(link.Canonical)!;status["Status"]="En Route";status["Details"]!["StatusOccurredAtUtc"]=DateTimeOffset.UtcNow.ToString("O");
+            var revision=(await query.Events.FetchStreamStateAsync(autoManifest))!.Version.ToString();
+            using var publishing=new FreightOpsSyncProvider(freight,target.SourceIdentity,endpoint,new Requests(autoManifest,revision),_=>Task.FromResult(token));
+            var change=new SyncChange(Guid.NewGuid(),freight,"manifest",automaticManifest.LocalId,2,"upsert",status.ToJsonString(),1,Guid.NewGuid());
+            var receipt=await publishing.Push(change,default);
+            check(receipt==await publishing.Push(change,default),"execution endpoint returns its original receipt on response-loss retry");
+        }
+        var executionBatch=await remote.Pull(null,default);var execution=executionBatch.Changes.Single(x=>x.EntityType=="manifest"&&x.ExternalId==autoManifest);
+        check(execution.Data["Status"]!.ToString()=="En Route"&&execution.Data["Details"]?["StatusOccurredAtUtc"] is not null,"native manifest execution and actual timestamp return through the real endpoint");
+        await remote.Acknowledge(executionBatch,default);target.DispatchSynchronizationEnabled=false;
+        target.AutoEnrollFromUtc=null;target.ManifestPublishingEnabled=false;
     }
     sealed record TargetMapping(string Revision,string Json);
+    sealed record AutoManifest(string LocalId,string Revision,string Json);
     sealed record Context(Guid TenantId):ITenantContext{public Guid? TenantIdOrNull=>TenantId;public Guid? UserIdOrNull=>null;}
 }

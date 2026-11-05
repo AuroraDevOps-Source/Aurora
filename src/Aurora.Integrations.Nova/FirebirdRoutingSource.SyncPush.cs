@@ -21,6 +21,9 @@ public sealed partial class FirebirdRoutingSource
         var mapping=await Mapping(change.EntityType,change.LocalId,false,ct);
         var external=mapping?.ExternalId;
         var deleted=change.Operation=="delete";
+        var operational=Options.Lykes.Enabled&&Options.Lykes.NativeReadOnly&&Options.Lykes.OperationalWritesEnabled;
+        if(operational&&change.EntityType=="order"&&(deleted||mapping is null&&!Options.Lykes.OperationalOrderCreationEnabled))
+            throw new FormatException("Operational synchronization updates existing orders only. New freight and cancellations require the native order lifecycle writer.");
         if(mapping is not null)
         {
             var(table,key,numeric)=change.EntityType switch{
@@ -54,6 +57,20 @@ public sealed partial class FirebirdRoutingSource
         }
         if(change.EntityType=="order"&&Options.Lykes.Enabled)
         {
+            if(operational)
+            {
+                if(mapping is null)
+                {
+                    var createOptions=JsonSerializer.Deserialize<LykesNovaOptions>(JsonSerializer.Serialize(Options.Lykes))!;
+                    createOptions.NativeReadOnly=false;createOptions.WritesEnabled=true;createOptions.OrderLifecycleEnabled=true;
+                    await using var configuration=await factory.OpenConnectionAsync(ct);
+                    var created=await LykesNovaOrderWriter.Create(db,tx,data,createOptions,await ReadyStatuses(configuration,null,ct),change.ConnectionId,change.Id,
+                        TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId),ct);
+                    return new(created.ToString(CultureInfo.InvariantCulture),SyncHash(data));
+                }
+                await WriteOperationalOrder(db,tx,long.Parse(external!,CultureInfo.InvariantCulture),data,JsonNode.Parse(mapping!.Baseline)!.AsObject(),ct);
+                return new(external!,SyncHash(data));
+            }
             await using var pgConfig=await factory.OpenConnectionAsync(ct);
             var readyStatuses=await ReadyStatuses(pgConfig,null,ct);
             if(mapping is null||external is null)
@@ -85,7 +102,17 @@ public sealed partial class FirebirdRoutingSource
             case "driver":external=await WriteSyncDriver(db,tx,external,data,ct);break;
             case "equipment":external=await WriteSyncEquipment(db,tx,external,data,ct);break;
             case "order":external=await WriteSyncOrder(db,tx,external,data,change,ct);break;
-            case "manifest":external=await WriteSyncManifest(db,tx,external,data,change,ct);break;
+            case "manifest":
+                var manifestData=(JsonObject)data.DeepClone();
+                if(Options.Lykes.Enabled)
+                    foreach(var key in new[]{"OriginTerminal","DestinationTerminal"})
+                    {
+                        var shared=S(manifestData["Details"]!.AsObject(),key);
+                        var nativeCodes=Options.Lykes.TerminalMappings.Where(p=>p.Value==shared).Select(p=>p.Key).ToArray();
+                        if(nativeCodes.Length!=1)throw new FormatException($"Manifest {key} needs an unambiguous Nova terminal mapping.");
+                        manifestData["Details"]![key]=nativeCodes[0];
+                    }
+                external=await WriteSyncManifest(db,tx,external,manifestData,change,ct);break;
             default:throw new FormatException("Unsupported synchronization entity.");
         }
         return new(external!,SyncHash(data));

@@ -228,6 +228,7 @@ builder.Services.AddScoped<NovaUserConnections>();
 builder.Services.AddScoped<AdminUsers>();
 builder.Services.AddHttpClient<IInvitationEmail, ResendInvitationEmail>(client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<TenantSettingsService>();
+builder.Services.AddScoped<OrderImportHistoryStore>();
 builder.Services.AddScoped<AppLog>();
 builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Integrations.Nova.FirebirdRoutingOptions>>(sp =>
 {
@@ -334,6 +335,7 @@ loggedApi.MapAppLogEndpoints();
 loggedApi.MapLauncherEndpoints();
 loggedApi.MapRoutingEndpoints();
 loggedApi.MapOrderWorkspaceEndpoints();
+loggedApi.MapImportedOrderEndpoints();
 loggedApi.MapTmsEndpoints();
 loggedApi.MapSynchronizationEndpoints();
 loggedApi.MapWorkspaceResetEndpoints();

@@ -91,12 +91,12 @@ public sealed partial class FirebirdRoutingSource
 
     private sealed class SyncPro { public long? Number {get;set;} public string? Suffix {get;set;} }
 
-    private sealed class SyncManifestHeader { public DateTime? Date {get;set;} public string Status {get;set;}=""; public string Origin {get;set;}=""; public string Destination {get;set;}=""; public string Truck {get;set;}=""; public long? Driver {get;set;} public string? Notes {get;set;} public int Deleted {get;set;} }
+    private sealed class SyncManifestHeader { public DateTime? Date {get;set;} public DateTime? StatusTime {get;set;} public string Status {get;set;}=""; public string Origin {get;set;}=""; public string Destination {get;set;}=""; public string Truck {get;set;}=""; public long? Driver {get;set;} public string? Notes {get;set;} public int Deleted {get;set;} }
     private sealed class SyncManifestMember { public long OrderId {get;set;} public int StopNumber {get;set;} }
     private async Task<IReadOnlyList<NovaSyncSnapshot>> ReadSyncManifest(FbConnection db,FbTransaction tx,long id,SyncMapping? mapping,CancellationToken ct)
     {
         var row=await db.QuerySingleOrDefaultAsync<SyncManifestHeader>(new CommandDefinition("""
-            SELECT COALESCE(CAST(h.PB_MFST_DATE AS TIMESTAMP),h.PB_DT_ENT) AS "Date",COALESCE(TRIM(s.CTS_CODE),'') AS Status,
+            SELECT COALESCE(CAST(h.PB_MFST_DATE AS TIMESTAMP),h.PB_DT_ENT) AS "Date",h.PB_STATUS_TIME AS StatusTime,COALESCE(TRIM(s.CTS_CODE),'') AS Status,
             COALESCE(NULLIF(TRIM(h.PBORIG),''),TRIM(h.PB_LOCATION),'') AS Origin,COALESCE(TRIM(h.PBDEST),'') AS Destination,
             COALESCE(TRIM(e.EH_UNIT_ID),'') AS Truck,COALESCE(h.PB_CURRENT_DRIVER,h.PB_PLANNED_DRIVER) AS Driver,
             h.PB_NOTES AS Notes,CASE WHEN h.PB_DT_CANC IS NOT NULL THEN 1 ELSE 0 END AS Deleted
@@ -121,8 +121,21 @@ public sealed partial class FirebirdRoutingSource
         await using var pg=await factory.OpenConnectionAsync(ct);
         var data=Baseline(mapping,SyncObject(new TmsManifest{Number=id.ToString(CultureInfo.InvariantCulture)}));data.Remove("Id");
         data["ManifestDate"]=(row.Date is {} date?DateOnly.FromDateTime(date):PlanningToday).ToString("yyyy-MM-dd");
+        var previousStatus=S(data,"Status");
         data["Status"]=row.Status switch{"DPCH"=>"Dispatched","ENR"=>"En Route","CPLT"=>"Complete",_=>"Planning"};data["Vehicle"]=row.Truck;
         var details=data["Details"]!.AsObject();details["OriginTerminal"]=row.Origin;details["DestinationTerminal"]=row.Destination;
+        if(Options.Lykes.DispatchSynchronizationEnabled)
+        {
+            details["NovaStatusOccurredAtUtc"]=row.StatusTime is {} at?LocalTime(at).ToUniversalTime().ToString("O"):null;
+            if(previousStatus!=S(data,"Status")||details["StatusOccurredAtUtc"] is null)details["StatusOccurredAtUtc"]=details["NovaStatusOccurredAtUtc"]?.DeepClone();
+        }
+        if(Options.Lykes.Enabled)
+            foreach(var key in new[]{"OriginTerminal","DestinationTerminal"})
+            {
+                if(!Options.Lykes.TerminalMappings.TryGetValue(S(details,key),out var shared))
+                    throw new FormatException($"Manifest {key} has an unmapped Nova terminal.");
+                details[key]=shared;
+            }
         // Keep Aurora's structured planning metadata out of editable human notes.
         details["Notes"]=ManifestNotes.Read(row.Notes);
         details["OptimizationLocked"]=ManifestNotes.OptimizationLocked(row.Notes);
@@ -132,13 +145,21 @@ public sealed partial class FirebirdRoutingSource
         details["SourceReadOnlyReason"]=!dispatchState.CanEdit && row.Status is not ("DPCH" or "ENR" or "CPLT")
             ? $"This manifest is {dispatchState.Status} in Nova and cannot be edited here." : null;
         var driverMap=row.Driver is >0?await Mapping("driver",row.Driver.Value.ToString(),true,ct):null;
+        if(row.Driver is >0&&driverMap is null)
+            throw new FormatException("The native manifest's driver must be synchronized before its assignment can be imported.");
         details["DriverId"]=driverMap is null?null:JsonValue.Create(long.Parse(driverMap.LocalId,CultureInfo.InvariantCulture));
+        if(driverMap is not null)
+        {
+            var profile=JsonNode.Parse(driverMap.Baseline)!.AsObject();
+            details["Driver"]=(S(profile,"FirstName")+" "+S(profile,"LastName")).Trim();
+        }
+        else details["Driver"]="";
         var orders=new JsonArray();
         foreach(var member in members)
         {
             var orderMap=await Mapping("order",member.OrderId.ToString(),true,ct);
             var key=orderMap?.LocalId;var separator=key?.IndexOf('/')??-1;
-            var source=separator>0?Guid.Parse(key![..separator]):await WorkspaceOrderSource.Get(pg,tenant.TenantId,changes.Single(s=>s.EntityType=="order"&&s.ExternalId==member.OrderId.ToString()).Data["TerminalCode"]?.GetValue<string>(),null,ct);
+            var source=separator>0?Guid.Parse(key![..separator]):await WorkspaceOrderSource.Get(pg,tenant.TenantId,changes.Single(s=>s.EntityType=="order"&&s.ExternalId==member.OrderId.ToString()).Data["TerminalCode"]?.GetValue<string>(),null,ct,Options.IntegrationStaging);
             orders.Add(new JsonObject{["SourceId"]=separator>0?key![..separator]:source.ToString(),["Id"]=separator>0?key![(separator+1)..]:changes.Single(s=>s.EntityType=="order"&&s.ExternalId==member.OrderId.ToString()).Data["Id"]!.DeepClone(),["StopNumber"]=orders.Count+1});
         }
         data["Orders"]=orders;data["Route"]??=new JsonObject();

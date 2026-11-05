@@ -14,6 +14,7 @@ public static class OrderWorkspaceEndpoints
             var result=await source.ReadManifests(null,null,null,true,ct,manifestId:id);
             return result.Manifests.SingleOrDefault() is {} manifest ? Results.Ok(manifest) : Results.NotFound(new ApiErrorDto("Manifest no longer exists."));
         }));
+        group.MapGet("/firebird/orders/resolve-pro", (string pro,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ResolveOrderPro(pro,ct))));
         group.MapPost("/firebird/records/orders/lookup-address", (Dictionary<string,string?> input,MasterAddressLookup lookup,CancellationToken ct)=>Guard(async()=>Results.Ok(await lookup.LookUpOrderAddress(input,ct))));
         group.MapPost("/firebird/masters/terminals/lookup-address", (NovaMasterEdit input,MasterAddressLookup lookup,CancellationToken ct)=>Guard(async()=>Results.Ok(await lookup.LookUpTerminal(input,ct))));
         group.MapGet("/firebird/customers/{code}/planning",(string code,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadCustomerPlanning(code,ct))));
@@ -38,12 +39,26 @@ public static class OrderWorkspaceEndpoints
             .RequireAuthorization(p=>p.RequireRole("aurora:Admin","aurora:PowerUser"));
         group.MapGet("/firebird/masters/{kind}/new", (string kind,FirebirdRoutingSource source)=>Guard(()=>Task.FromResult<IResult>(Results.Ok(source.NewMaster(kind)))));
         group.MapPost("/firebird/masters/{kind}", (string kind,NovaMasterEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.CreateMaster(kind,input,ct))));
+        // Compatibility for older clients: imports no longer depend on planning statuses.
+        group.MapPost("/firebird/orders/import/preflight", (string[] workTypes)=>Results.NoContent());
+        group.MapPost("/firebird/orders/import", (OrderDocumentDraft draft,FirebirdRoutingSource source,TmsStore store,
+            Aurora.Infrastructure.Data.NpgsqlConnectionFactory factory,Aurora.Infrastructure.Tenancy.ITenantContext tenant,
+            NovaUserConnections connections,OrderImportHistoryStore history,CancellationToken ct)=>Guard(async()=>{
+            await history.Validate(draft.ImportId,ct);
+            var pro=OrderDocumentDraft.SplitTag(string.IsNullOrWhiteSpace(draft.TagNumber)?draft.Order.Id:draft.TagNumber).Pro;
+            if((await OrderImportChecks.Existing([pro],store,factory,tenant,connections,ct)).Length>0)
+                return Results.Conflict(new ApiErrorDto($"PRO {pro} already exists in Aurora or Nova. No order was created."));
+            var saved=await source.ImportDocument(draft,ct);
+            await history.RecordCreated(draft.ImportId,pro);
+            return Results.Ok(saved);
+        }));
         group.MapGet("/firebird/records/{kind}/new", (string kind,FirebirdRoutingSource source)=>Guard(()=>Task.FromResult<IResult>(Results.Ok(source.NewRecord(kind)))));
         group.MapPost("/firebird/records/{kind}", (string kind,NovaRecordEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.CreateRecord(kind,input,ct))));
         group.MapGet("/firebird/masters/{kind}", (string kind,string? search,int? page,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadMasters(kind,search,page??0,ct))));
         group.MapGet("/firebird/masters/{kind}/{id}", (string kind,string id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadMaster(kind,id,ct))));
         group.MapPut("/firebird/masters/{kind}/{id}", (string kind,string id,NovaMasterEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveMaster(kind,id,input,ct))));
         group.MapGet("/firebird/equipment/{id:long}/routing-profile", (long id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadEquipmentProfile(id,ct))));
+        group.MapGet("/firebird/equipment-types", (FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadEquipmentTypes(ct))));
         group.MapPut("/firebird/equipment/{id:long}/routing-profile", (long id,EquipmentRoutingProfileEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.SaveEquipmentProfile(id,input,ct))));
         group.MapGet("/firebird/record-options", (FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.RecordOptions(ct))));
         group.MapGet("/firebird/orders/{id:long}/routing", (long id,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadOrderRouting(id,ct))));

@@ -1,7 +1,16 @@
 namespace Aurora.Contracts;
 
-public sealed record EquipmentRoutingProfile(string Profile = "USA_5_DELIVERY", int Revision = 0);
-public sealed record EquipmentRoutingProfileEdit(string Profile, int Revision, string EquipmentRevision);
+public sealed record EquipmentRoutingProfile(string Profile = "USA_5_DELIVERY", int Revision = 0)
+{
+    public long? DefaultDriverId {get;init;}
+    public EquipmentTypeTemplate? EquipmentType {get;init;}
+}
+public sealed record EquipmentRoutingProfileEdit(string Profile, int Revision, string EquipmentRevision)
+{
+    public long? DefaultDriverId {get;init;}
+    public bool SetDefaultDriver {get;init;}
+    public EquipmentTypeTemplate? EquipmentType {get;init;}
+}
 
 public static class EquipmentRoutingProfiles
 {

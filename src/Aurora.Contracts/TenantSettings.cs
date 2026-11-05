@@ -3,11 +3,26 @@ namespace Aurora.Contracts;
 public sealed class TenantSettingsDto
 {
     public int Revision {get;set;}
+    public decimal DriverCostPerHour {get;set;}
     public string CompanyName {get;set;}="";
+    public TenantNavigationSettings? Navigation {get;set;}
     public NovaConnectionSettings Nova {get;set;}=new();
     public FreightOpsConnectionSettings FreightOps {get;set;}=new();
     public DispatchTrackConnectionSettings DispatchTrack {get;set;}=new();
     public ZenventoryConnectionSettings Zenventory {get;set;}=new();
+}
+public sealed class TenantNavigationSettings
+{
+    public bool Optimization {get;set;}=true;
+    public bool DataEntry {get;set;}=true;
+    public bool FreightOps {get;set;}=true;
+    public bool Hub {get;set;}=true;
+    public bool Nova {get;set;}=true;
+
+    public bool IsVisible(string code)=>code switch
+    {
+        "aurora"=>Optimization,"freightops"=>FreightOps,"hub"=>Hub,"nova"=>Nova,_=>true
+    };
 }
 public sealed class NovaConnectionSettings
 {

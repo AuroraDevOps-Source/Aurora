@@ -11,10 +11,21 @@ public sealed class LykesNovaOptions
     public bool Enabled { get; set; }
     // Empty preserves the normal source-wide import; pilot IDs are native PB_IDs.
     public long[] PilotOrderIds { get; set; } = [];
+    // Explicit native PB_ID cutoff for dispatch rollout; older manifests remain outside pilot scope.
+    public long? ManifestSyncFromId { get; set; }
+    public long? OrderSyncFromId { get; set; }
+    public bool AllowHeaderTotals { get; set; }
+    public bool OperationalOrderCreationEnabled { get; set; }
+    public bool DispatchSynchronizationEnabled { get; set; }
     public bool IncludesEntity(string kind,string id) => !Enabled || PilotOrderIds.Length==0 ||
         (kind is "terminal" or "customer") ||
-        (kind is "order" or "order-or-manifest" && long.TryParse(id,out var native) && PilotOrderIds.Contains(native));
-    public bool NativeReadOnly { get; set; } // MVP: operational IDs live in Aurora; no native order/manifest writes.
+        (kind is "equipment" or "driver" && ManifestSyncFromId is >0) ||
+        (long.TryParse(id,out var native) &&
+            (kind is "order" or "order-or-manifest" && (PilotOrderIds.Contains(native)||OrderSyncFromId is >0&&native>=OrderSyncFromId) ||
+             kind is "manifest" or "order-or-manifest" && ManifestSyncFromId is >0 && native>=ManifestSyncFromId));
+    public bool NativeReadOnly { get; set; } // Operational line IDs live in Aurora; native freight-row writes remain disabled.
+    // Dispatch/header writes do not replace native freight rows. Separate from physical freight writes.
+    public bool OperationalWritesEnabled { get; set; }
     public bool WritesEnabled { get; set; } // Separate opt-in; never enabled by import alone.
     public bool OrderLifecycleEnabled { get; set; } // Creation/cancellation are a separate rollout capability.
     public int? NewOrderReadyStatus { get; set; }
@@ -60,6 +71,7 @@ public static class LykesNovaMapping
     }
     public static void RequireSupportedWrite(string entityType,JsonObject data,LykesNovaOptions options)
     {
+        if(options.Enabled&&options.NativeReadOnly&&options.OperationalWritesEnabled&&entityType is "order" or "manifest")return;
         if(options.Enabled&&options.NativeReadOnly)
             throw new FormatException("Nova business writes are disabled for this connection; Nova was not changed.");
         if(entityType is "order" or "manifest" && (options.Enabled&&options.NativeReadOnly || data["Lykes"]?["IdentityMode"]?.GetValue<string>()=="aurora-snapshot"))
@@ -70,12 +82,13 @@ public static class LykesNovaMapping
     }
     public static async Task<NovaSyncLine[]> ReadLines(FbConnection db,FbTransaction tx,long orderId,CancellationToken ct,bool nativeReadOnly=false)
     {
-        if(!nativeReadOnly && await db.ExecuteScalarAsync<int>(new CommandDefinition("""
+        var hasIdentity=await db.ExecuteScalarAsync<int>(new CommandDefinition("""
             SELECT COUNT(*) FROM RDB$RELATION_FIELDS
             WHERE RDB$RELATION_NAME='OPS_LINE_ITEMS' AND RDB$FIELD_NAME='OPL_SYNC_ID'
-            """,transaction:tx,cancellationToken:ct))!=1)
+            """,transaction:tx,cancellationToken:ct))==1;
+        if(!nativeReadOnly&&!hasIdentity)
             throw new FormatException("Nova stable line identity migration is required before Lykes import.");
-        var identity=nativeReadOnly ? "CAST(NULL AS VARCHAR(36))" : "l.OPL_SYNC_ID";
+        var identity=hasIdentity ? "l.OPL_SYNC_ID" : "CAST(NULL AS VARCHAR(36))";
         return (await db.QueryAsync<NovaSyncLine>(new CommandDefinition($"""
             SELECT {identity} AS LineId,l.OPL_SEQUENCE AS Sequence,l.OPL_STOP_ID AS StopId,
               COALESCE(TRIM(s.OPS_TYPE),'') AS StopKind,COALESCE(TRIM(l.OPL_KEYWORD),'') AS Keyword,
@@ -131,7 +144,7 @@ public static class LykesNovaMapping
                 var pounds=LykesNovaMeasurements.Pounds(line.Weight,line.Kilos);
                 var volume=LykesNovaMeasurements.CubicFeet(line.Cube,options.ScalarCubeUnit,options.DimensionUnit);
                 var perPiece=options.CubeBasis=="per-piece"?volume:volume/line.Pieces;
-                row["Sku"]=line.Sku;row["Pieces"]=(int)line.Pieces;row["TotalWeight"]=pounds;
+                row["Sku"]=line.Sku;row["Description"]=line.Description;row["Pieces"]=(int)line.Pieces;row["TotalWeight"]=pounds;
                 row["CubePerPiece"]=perPiece;row["PackType"]=pack;
                 if(row.ContainsKey("HandlingUnits"))row["HandlingUnits"]=(int)line.Pieces;
                 if(row.ContainsKey("TotalCube"))row["TotalCube"]=perPiece*line.Pieces;

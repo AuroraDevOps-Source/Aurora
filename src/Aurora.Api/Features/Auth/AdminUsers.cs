@@ -18,22 +18,19 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         SELECT u."Id",u."UserName",u."Email",u."ConcurrencyStamp" AS Revision,u."ManagementTenantId" AS Owner,
 
             CASE WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:Admin') THEN 'Administrator'
-            WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:PowerUser') THEN 'Power User' ELSE 'User' END AS Level,m.nova_user_id AS NovaUserId,m.nova_api_login AS NovaApiLogin
+            WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:PowerUser') THEN 'Power User' ELSE 'User' END AS Level
         FROM "AspNetUsers" u JOIN user_tenant m ON m.user_id=u."Id" WHERE m.tenant_id=@TenantId
         """;
     public async Task<AdminUserDto[]> List(CancellationToken ct)
     {
         await using var connection=await factory.OpenConnectionAsync(ct);
         var rows=await connection.QueryAsync<Row>(new CommandDefinition(UserSql+" ORDER BY u.\"UserName\"",new{tenant.TenantId},cancellationToken:ct));
-        return rows.Select(row=>new AdminUserDto(row.Id,row.UserName,row.Email,row.Level,row.Revision,row.Owner==tenant.TenantId,row.NovaUserId,row.NovaApiLogin)).ToArray();
+        return rows.Select(row=>new AdminUserDto(row.Id,row.UserName,row.Email,row.Level,row.Revision,row.Owner==tenant.TenantId)).ToArray();
     }
     static void Check(IdentityResult result){if(!result.Succeeded)throw new FormatException(string.Join(" ",result.Errors.Select(e=>e.Description)));}
     public async Task<Guid> Save(Guid? id,AdminUserEdit input,CancellationToken ct)
     {
         var role=Role(input.Level);
-        if(input.NovaApiLogin && input.Level!="User")throw new FormatException("Nova API sign-in is limited to the User access level.");
-        var novaUserId=string.IsNullOrWhiteSpace(input.NovaUserId)?null:input.NovaUserId.Trim().ToUpperInvariant();
-        if(novaUserId?.Length>128)throw new FormatException("Nova user ID must be 128 characters or fewer.");
         if(string.IsNullOrWhiteSpace(input.UserName) || input.UserName.Length>256 || string.IsNullOrWhiteSpace(input.Email) || input.Email.Length>256)
             throw new FormatException("Enter a username and email address.");
         if(id is null && string.IsNullOrEmpty(input.LoginPassword))throw new FormatException("Enter a login password for the new user.");
@@ -49,8 +46,6 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
             if(id==tenant.UserId && input.Level!=row.Level)throw new FormatException("Another administrator must change your access level.");
             if(row.Level=="Administrator" && input.Level!="Administrator")await KeepAdministrator(connection,transaction,ct);
         }
-        if((input.NovaApiLogin || novaUserId is not null) && !await connection.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT public.aurora_tenant_nova_connection() IS NOT NULL",transaction:transaction,cancellationToken:ct)))
-            throw new FormatException("Configure the tenant Nova connection under Settings first.");
         var user=id is null?new ApplicationUser{Id=Guid.NewGuid()}:await users.FindByIdAsync(id.Value.ToString())??throw new KeyNotFoundException("User not found.");
         user.UserName=input.UserName.Trim();user.Email=input.Email.Trim();
         if(id is null)
@@ -67,10 +62,9 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
             if(!string.IsNullOrEmpty(input.LoginPassword))Check(await users.ResetPasswordAsync(user,await users.GeneratePasswordResetTokenAsync(user),input.LoginPassword));
         }
         await connection.ExecuteAsync(new CommandDefinition("""
-            UPDATE user_tenant SET nova_user_id=@novaUserId,nova_api_login=@NovaApiLogin WHERE tenant_id=@TenantId AND user_id=@Id;
             DELETE FROM "AspNetUserRoles" ur USING "AspNetRoles" r WHERE ur."RoleId"=r."Id" AND ur."TenantId"=@TenantId AND ur."UserId"=@Id AND r."Name" LIKE 'aurora:%';
             INSERT INTO "AspNetUserRoles"("TenantId","UserId","RoleId") SELECT @TenantId,@Id,"Id" FROM "AspNetRoles" WHERE "Name"=@role;
-            """,new{tenant.TenantId,user.Id,role,novaUserId,input.NovaApiLogin},transaction,cancellationToken:ct));
+            """,new{tenant.TenantId,user.Id,role},transaction,cancellationToken:ct));
         await tx.CommitAsync(ct);return user.Id;
     }
     public async Task<InvitationEmailResult> SendInvitation(Guid id,IInvitationEmail email,CancellationToken ct)
@@ -100,7 +94,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         Check(await users.DeleteAsync(await users.FindByIdAsync(id.ToString())??throw new KeyNotFoundException("User not found.")));
         await tx.CommitAsync(ct);
     }
-    private sealed record Row(Guid Id,string UserName,string Email,string Revision,Guid? Owner,string Level,string? NovaUserId,bool NovaApiLogin);
+    private sealed record Row(Guid Id,string UserName,string Email,string Revision,Guid? Owner,string Level);
 }
 
 public static class AdminUserEndpoints

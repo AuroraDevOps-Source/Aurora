@@ -1,18 +1,30 @@
 @inject HttpClient Http
-<EditPopup Title="Settings" OnClose="OnClose" Busy="_saving" Class="settings-dialog">
+<EditPopup Title="@(EditTenant ? "Edit Tenant" : "Settings")" OnClose="OnClose" Busy="_saving" Class="settings-dialog">
  <div class="planner-tabs" role="tablist" aria-label="Settings">
   <button role="tab" aria-selected="@(!_connections)" class="@(!_connections?"active":null)" @onclick="()=>_connections=false">General</button>
   <button role="tab" aria-selected="@_connections" class="@(_connections?"active":null)" @onclick="()=>_connections=true">Connections</button>
  </div>
  @if(_error is not null){<p class="alert" role="alert">@_error</p>}
- @if(_message is not null){<p role="status">@_message</p>}
  @if(_loading){<p role="status">Loading settings...</p>}
  else if(_settings is {} settings)
  {
   <fieldset disabled="@_saving">
   @if(!_connections)
   {
-   <label class="field">Company<input readonly value="@settings.CompanyName" /></label>
+   <label class="field">Company name<input @bind="settings.CompanyName" readonly="@(!EditTenant)" maxlength="200" /></label>
+   @if(EditTenant && settings.Navigation is {} menu)
+   {
+    <fieldset class="edit-group tenant-menu-options"><legend>Top menu</legend>
+     <p>Show these tabs for this tenant. Each user's existing product access still applies.</p>
+     <label><input type="checkbox" @bind="menu.Optimization" /> Optimization</label>
+     <label><input type="checkbox" @bind="menu.DataEntry" /> Data Entry</label>
+     <label><input type="checkbox" @bind="menu.FreightOps" /> FreightOps</label>
+     <label><input type="checkbox" @bind="menu.Hub" /> Integration Hub</label>
+     <label><input type="checkbox" @bind="menu.Nova" /> Nova</label>
+    </fieldset>
+   }
+   <label class="field">Driver cost per hour<MoneyInput @bind-Value="settings.DriverCostPerHour" min="0" max="99999.9999" step="0.01" /></label>
+   <p class="preview-footnote">Added to the equipment cost of each truck during optimization.</p>
   }
   else
   {
@@ -55,15 +67,17 @@
  }
  else {<button class="outline-button" @onclick="Load">Retry</button>}
  <div class="popup-actions">
-  <button class="outline-button" disabled="@_saving" @onclick="()=>OnClose.InvokeAsync()">Close</button>
-  @if(_settings is not null && _connections){<button class="primary-button" disabled="@_saving" @onclick="Save">@(_saving?"Saving...":"Save")</button>}
+  <button class="outline-button" disabled="@_saving" @onclick="()=>OnClose.InvokeAsync()">Cancel</button>
+  @if(_settings is not null){<button class="primary-button" disabled="@_saving" @onclick="Save">@(_saving?"Saving...":"Save")</button>}
  </div>
 </EditPopup>
 @code {
  [Parameter] public EventCallback OnClose {get;set;}
+ [Parameter] public EventCallback OnSaved {get;set;}
+ [Parameter] public bool EditTenant {get;set;}
  TenantSettingsDto? _settings;
  bool _loading=true,_saving,_connections;
- string? _error,_message;
+ string? _error;
  protected override Task OnInitializedAsync()=>Load();
  async Task Load()
  {
@@ -74,8 +88,8 @@
  }
  async Task Save()
  {
-  if(_saving)return;_saving=true;_error=_message=null;
-  try{using var response=await Http.PutAsJsonAsync("api/v1/admin/settings",_settings);await ApiResponse.Check(response);await Load();if(_error is null)_message="Settings saved.";}
+  if(_saving)return;_saving=true;_error=null;
+  try{using var response=await Http.PutAsJsonAsync("api/v1/admin/settings",_settings);await ApiResponse.Check(response);await OnSaved.InvokeAsync();await OnClose.InvokeAsync();}
   catch(Exception ex){_error=ex.Message;}
   finally{_saving=false;}
  }

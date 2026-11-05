@@ -29,11 +29,18 @@ public sealed partial class FirebirdRoutingSource
             {warnings.Add($"Order {order.Pro} exceeds the customer's consolidation capacity and needs review.");continue;}
             // Recheck the source values under native locks before assigning freight.
             var header=await db.QuerySingleOrDefaultAsync<ConsolidationOrder>(new CommandDefinition("SELECT PB_STATUS AS StatusId,PB_ID AS Id,PBTWEIGH AS Weight,PB_TTL_CUBE AS Cubes,PBTPIECE AS Pieces,TRIM(PB_LOCATION) AS Terminal,PB_DT_CANC AS Cancelled FROM OPS_HEADER WHERE PB_ID=@id AND PB_TYPE='O' WITH LOCK",new{id=order.NativeId},tx,cancellationToken:ct));
-            var stop=await db.QuerySingleOrDefaultAsync<ConsolidationStop>(new CommandDefinition("SELECT OPS_MANIFEST_NUMBER AS Manifest,OPS_DELIVERED_TIME AS Delivered,TRIM(OPS_ACCTID) AS Customer,OPS_ADDR1 AS Address,OPS_CITY AS City,OPS_STATE AS State,OPS_ZIP AS Zip FROM OPS_STOP_REC WHERE OPS_STOP_ID=@id AND OPS_ORDER_ID=@orderId AND OPS_TYPE='D' AND OPS_DISPATCH_TIME IS NULL AND OPS_DEPART_TIME IS NULL WITH LOCK",new{id=order.StopId,orderId=order.NativeId},tx,cancellationToken:ct));
+            var stop=await db.QuerySingleOrDefaultAsync<ConsolidationStop>(new CommandDefinition("SELECT OPS_MANIFEST_NUMBER AS Manifest,OPS_DELIVERED_TIME AS Delivered,TRIM(OPS_ACCTID) AS Customer,OPS_ADDR1 AS Address,OPS_CITY AS City,OPS_STATE AS State,OPS_ZIP AS Zip FROM OPS_STOP_REC WHERE OPS_STOP_ID=@id AND OPS_ORDER_ID=@orderId AND OPS_TYPE='D' WITH LOCK",new{id=order.StopId,orderId=order.NativeId},tx,cancellationToken:ct));
             var key=ConsolidationCapacity.AddressKey(order.Address,order.City,order.State,order.PostalCode);
-            if(header is null||stop is null||header.Cancelled is not null||header.StatusId!=order.StatusId||stop.Delivered is not null||stop.Manifest is >0||header.Terminal!=order.Terminal||header.Weight!=order.Weight||header.Cubes!=order.Cube||header.Pieces!=order.Pieces||stop.Customer!=order.CustomerCode||ConsolidationCapacity.AddressKey(stop.Address,stop.City,stop.State,stop.Zip)!=key)
+            if(header is null||stop is null||header.Cancelled is not null||stop.Delivered is not null||header.Weight!=order.Weight||header.Cubes!=order.Cube||header.Pieces!=order.Pieces||stop.Customer!=order.CustomerCode||ConsolidationCapacity.AddressKey(stop.Address,stop.City,stop.State,stop.Zip)!=key)
                 throw new FormatException("A consolidation order changed while loading. Refresh Orders to retry.");
-            if(await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM OPS_MANIFEST_STOPS WHERE OSM_PKUP_DELV_ID=@id",new{id=order.StopId},tx,cancellationToken:ct))>0)continue;
+            if(await db.ExecuteScalarAsync<int>(new CommandDefinition($"""
+                SELECT COUNT(*) FROM OPS_HEADER h JOIN OPS_STOP_REC s ON s.OPS_ORDER_ID=h.PB_ID
+                WHERE h.PB_ID=@orderId AND s.OPS_STOP_ID=@stopId AND ({NativeRoutingSql.Terminal()})=@terminal
+                    AND {NativeRoutingSql.Status()}=@status AND {NativeRoutingSql.Unassigned()}
+                    AND s.OPS_TO_AGENT_TIME IS NULL
+                    AND ((s.OPS_DISPATCH_TIME IS NULL AND s.OPS_DEPART_TIME IS NULL) OR {NativeRoutingSql.Dock()})
+                """,new{orderId=order.NativeId,stopId=order.StopId,terminal=order.Terminal,status=order.StatusId},tx,cancellationToken:ct))!=1)
+                throw new FormatException("A consolidation order changed terminal, status or assignment. Refresh Orders to retry.");
             var prefix="aurora-cc:"+StableId($"{tenant.TenantId}:{Options.SourceKey}:{order.Terminal}:{order.CustomerCode}:{key}").ToString("N")+":";
             var candidates=await db.QueryAsync<long>(new CommandDefinition("SELECT PB_ID FROM OPS_HEADER WHERE PB_TYPE='M' AND PB_DT_CANC IS NULL AND PB_EXTERNAL_REF STARTING WITH @prefix ORDER BY PB_ID",new{prefix},tx,cancellationToken:ct));
             long manifest=0;CustomerConsolidation? metadata=null;string? stored=null;

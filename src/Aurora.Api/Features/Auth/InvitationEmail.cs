@@ -32,7 +32,7 @@ public sealed class ResendInvitationEmail(HttpClient http, IConfiguration config
         request.Headers.Add("Idempotency-Key", $"user-invitation/{userId}/{Guid.NewGuid():N}");
         request.Content = JsonContent.Create(new
         {
-            from = "Aurora <alerts@aurorsoftware.com>",
+            from = "Aurora <alerts@aurorasoftware.com>",
             to = new[] { email },
             subject = "Your Aurora account is ready — sign in and change your password",
             text = $"Your Aurora account has been created.\n\nUsername: {userName}\n\nSign in and change your password: {loginUrl}\n\nUse the initial password provided by your administrator. You need to change it to your own password after signing in. If you have not received your initial password, contact your administrator.",

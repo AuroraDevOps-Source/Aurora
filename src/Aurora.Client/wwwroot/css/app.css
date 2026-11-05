@@ -76,7 +76,11 @@ code { color: var(--ink); }
 .aurora-product-nav .header-link.active { color: white; background: rgba(255, 255, 255, .08); border-bottom-color: white; }
 .aurora-product-nav .header-link:disabled { color: rgba(255, 255, 255, .35); }
 .aurora-product-nav .header-link:focus-visible { outline: 2px solid #93c5fd; outline-offset: -4px; }
-.aurora-user { color: rgba(255, 255, 255, .7); font-size: 12px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aurora-user-menu { flex-shrink: 0; max-width: 200px; }
+.aurora-user-menu > .mud-button-root { max-width: 100%; color: rgba(255, 255, 255, .7); font-size: 12px; text-transform: none; letter-spacing: 0; }
+.aurora-user-menu .mud-button-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aurora-user-menu > .mud-button-root:hover { color: white; background: rgba(255, 255, 255, .08); }
+.aurora-user-menu > .mud-button-root:focus-visible { outline: 2px solid #93c5fd; outline-offset: -2px; }
 
 .aurora-login { padding-top: 48px; padding-bottom: 48px; }
 .aurora-login-card { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--card-shadow); }
@@ -95,7 +99,8 @@ code { color: var(--ink); }
 .aurora-login-field input:focus { outline: none; border-color: #2563eb; box-shadow: var(--focus-ring); }
 
 @media (max-width: 900px) {
-    .aurora-user, .aurora-appbar .mud-spacer { display: none; }
+    .aurora-appbar .mud-spacer { display: none; }
+    .aurora-user-menu { max-width: 140px; }
     .aurora-appbar .mud-toolbar { gap: 16px; }
     .aurora-product-nav { flex: 1; }
 }
@@ -103,6 +108,7 @@ code { color: var(--ink); }
     .aurora-appbar .mud-toolbar { gap: 10px; padding-inline: 12px; }
     .aurora-brand { font-size: 1.1rem; }
     .aurora-product-nav .header-link { padding-inline: 12px; font-size: .85rem; }
+    .aurora-user-menu { max-width: 100px; }
     .aurora-login { padding-top: 24px; }
     .aurora-login-body { padding: 20px; }
 }

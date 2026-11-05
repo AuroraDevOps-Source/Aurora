@@ -92,7 +92,7 @@
         @if (_sourceJson is not null)
         {
             <fieldset disabled="@(IsWorking || _workspaceFinished || _planCancelled)">
-                <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="OpenTruckSettings">Trucks &amp; drivers</button>
+                <button class="outline-button" disabled="@(!CanEditSettings)" @onclick="OpenTruckSettings">Trucks</button>
                 <details class="planning-advanced"><summary>Selected orders (@_draft?.Orders)</summary>
                     <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>PRO / Order</th><th>Customer / destination</th></tr></thead><tbody>
                         @foreach (var order in _draft?.Deliveries ?? []) { <tr><td>@order.Id</td><td>@order.Name</td></tr> }

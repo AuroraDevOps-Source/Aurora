@@ -80,8 +80,6 @@ public sealed class LocalPlanningDataSource(NpgsqlConnectionFactory factory,ITen
               AND m.manifest_date=@date AND m.details->>'OriginTerminal'=@origin
               AND COALESCE(m.details->>'DestinationTerminal','')=@destination
               AND COALESCE(m.details->>'OptimizationLocked','false')<>'true'
-              AND NOT EXISTS(SELECT 1 FROM aurora_sync_outbox o JOIN aurora_sync_connection c ON (c.tenant_id,c.id)=(o.tenant_id,o.connection_id)
-                WHERE o.tenant_id=m.tenant_id AND c.provider='freightops' AND o.entity_type='manifest' AND o.local_id=m.id::text)
               AND NOT EXISTS(SELECT 1 FROM aurora_manifest_order a WHERE a.tenant_id=m.tenant_id AND a.manifest_id=m.id AND a.source_id<>@sourceId)
             ORDER BY m.planning_id
             """,new{tenant.TenantId,date=date.ToDateTime(TimeOnly.MinValue),origin=origin.Code,destination=destination?.Code??"",sourceId},cancellationToken:ct))).ToArray();
@@ -137,7 +135,6 @@ public sealed class LocalPlanningDataSource(NpgsqlConnectionFactory factory,ITen
         if(ids.Any(id=>!revisions.TryGetValue(id,out var row)||reports[id]?["localRevision"]?.GetValue<int>()!=row.Revision))throw new FormatException("An order changed after this plan was started. Start a new plan using its current data.");
         foreach(var manifest in ManifestReplanning.Included(request))
         {
-            if(manifest.LocalId is {} publishedId)await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,publishedId,db,tx,ct);
             var revision=await db.QuerySingleOrDefaultAsync<int?>(new CommandDefinition("SELECT revision FROM aurora_manifest WHERE tenant_id=@TenantId AND id=@id AND deleted_at IS NULL AND status='Planning' AND COALESCE(details->>'OptimizationLocked','false')<>'true' FOR UPDATE",new{tenant.TenantId,id=manifest.LocalId},tx,cancellationToken:ct));
             if(revision?.ToString(CultureInfo.InvariantCulture)!=manifest.Revision)throw new FormatException("An included manifest changed. Start a new plan.");
         }
@@ -146,18 +143,10 @@ public sealed class LocalPlanningDataSource(NpgsqlConnectionFactory factory,ITen
         var currentTerminals=(await terminals.List(ct)).ToDictionary(t=>t.Code);
         foreach(var code in new[]{RoutingInput.Text(root["reporting"]?["terminal"]),RoutingInput.Text(root["reporting"]?["lineHaulTo"])}.OfType<string>())
             if(!currentTerminals.TryGetValue(code,out var currentTerminal)||savedTerminals[code]?.GetValue<int>()!=currentTerminal.Revision)throw new FormatException("A route terminal changed after planning. Start a new plan with its current address and routing rules.");
-        var choices=root["reporting"]?["drivers"]?.AsObject()??throw new FormatException("Choose drivers before creating manifests.");
-        var savedDrivers=(await drivers.List(ct)).ToDictionary(d=>d.Id.ToString(CultureInfo.InvariantCulture));
-        foreach(var route in routes)
-        {
-            var choice=choices[route.Vehicle];
-            if(!savedDrivers.TryGetValue(RoutingInput.Text(choice?["id"])??"",out var driver)||driver.Revision!=RoutingInput.Text(choice?["revision"]))throw new FormatException("A driver changed after optimization. Run optimization again before creating manifests.");
-        }
         root["vehicles"]=new JsonArray(RoutingInput.Items(root["vehicles"]).Where(v=>routes.Any(r=>r.Vehicle==RoutingInput.Text(v["id"]))).Select(v=>v.DeepClone()).ToArray());
         var selectedRequest=root.ToJsonString();
         var booked=await Bookings(selectedRequest,ct);
         if(routes.Any(r=>booked.Any(b=>b.Vehicle==r.Vehicle)))throw new FormatException("A selected truck is now reserved by another manifest.");
-        await ApplyDrivers(selectedRequest,DriverCostBasis.Separate,false,ct);
     }
     public Task<Dictionary<string,long>> Export(Guid draftId,Guid sessionId,string draftJson,IReadOnlyList<RouteSummaryDto> routes,CancellationToken ct,bool rollbackOnly=false)=>throw new InvalidOperationException("Local manifests are committed in Aurora and exported through the outbox.");
     sealed class ReplanRow {public Guid Id{get;set;} public long PlanningId{get;set;} public int Revision{get;set;} public string[] Orders{get;set;}=[];}

@@ -8,7 +8,7 @@ using Npgsql;
 
 namespace Aurora.Modules.Routing;
 
-public sealed class OperationalSyncEntities(ITenantContext tenant,DriverStore drivers):ISyncEntityStore
+public sealed class OperationalSyncEntities(ITenantContext tenant,DriverStore drivers,bool integrationStaging=false):ISyncEntityStore
 {
     public async Task<SyncEntity?> Read(string entityType,string localId,NpgsqlConnection db,NpgsqlTransaction tx,CancellationToken ct)
     {
@@ -31,7 +31,7 @@ public sealed class OperationalSyncEntities(ITenantContext tenant,DriverStore dr
         if(entityType=="driver")return await drivers.Write(localId,data,deleted,db,tx,ct);
         if(entityType=="equipment")return await EquipmentSyncEntities.Write(tenant.TenantId,localId,data,deleted,db,tx,ct);
         if(entityType=="manifest")return await ManifestSyncEntities.Write(tenant.TenantId,localId,data,deleted,db,tx,ct);
-        if(entityType=="order")return await OrderSyncEntities.Write(tenant.TenantId,localId,data,deleted,db,tx,ct);
+        if(entityType=="order")return await OrderSyncEntities.Write(tenant.TenantId,localId,data,deleted,db,tx,ct,integrationStaging);
         var id=localId is null?Guid.NewGuid():Guid.Parse(localId);
         var normalized=(JsonObject)data.DeepClone();normalized.Remove("Id");normalized.Remove("Revision");
         int revision;

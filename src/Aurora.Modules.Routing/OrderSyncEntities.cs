@@ -34,7 +34,7 @@ internal static class OrderSyncEntities
         return row is null?null:new(localId,row.Revision,JsonNode.Parse(row.Json)!.AsObject(),row.Deleted);
     }
 
-    public static async Task<SyncEntity> Write(Guid tenantId,string? localId,JsonObject data,bool deleted,NpgsqlConnection db,NpgsqlTransaction tx,CancellationToken ct)
+    public static async Task<SyncEntity> Write(Guid tenantId,string? localId,JsonObject data,bool deleted,NpgsqlConnection db,NpgsqlTransaction tx,CancellationToken ct,bool integrationStaging=false)
     {
         var normalized=(JsonObject)data.DeepClone();
         foreach(var key in new[]{"SourceId","Revision","TerminalId","CustomerId","OptimizationDraftId","ManifestId","ManifestNumber","StopNumber"}) normalized.Remove(key);
@@ -42,7 +42,7 @@ internal static class OrderSyncEntities
         item.Validate();
         Guid sourceId;
         if(localId is null)
-            sourceId=await WorkspaceOrderSource.Get(db,tenantId,item.TerminalCode,tx,ct);
+            sourceId=await WorkspaceOrderSource.Get(db,tenantId,item.TerminalCode,tx,ct,integrationStaging);
         else
         {
             var key=Key(localId);sourceId=key.SourceId;
@@ -50,6 +50,8 @@ internal static class OrderSyncEntities
         }
         var terminalId=await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_terminal WHERE tenant_id=@tenantId AND code=@TerminalCode AND deleted_at IS NULL",new{tenantId,item.TerminalCode},tx,cancellationToken:ct));
         var customerId=await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_customer WHERE tenant_id=@tenantId AND code=@CustomerCode AND deleted_at IS NULL",new{tenantId,item.CustomerCode},tx,cancellationToken:ct));
+        if(localId is null&&await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_order WHERE tenant_id=@tenantId AND source_id=@sourceId AND id=@Id AND deleted_at IS NULL)",new{tenantId,sourceId,item.Id},tx,cancellationToken:ct)))
+            throw new FormatException("This PRO already exists in the integration workspace under a different source identity. Reconcile its Nova/FreightOps binding before importing; the existing order was not overwritten.");
         if(deleted && await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_manifest_order WHERE tenant_id=@tenantId AND source_id=@sourceId AND order_id=@Id)",new{tenantId,sourceId,item.Id},tx,cancellationToken:ct)))
             throw new FormatException("Remove the order from its manifest before synchronizing its deletion.");
         var sql=localId is null?"""

@@ -1,5 +1,7 @@
 .tms-filters { margin-bottom:16px; }
 .record-groups { display:grid; gap:16px; }
+.equipment-type-selector { margin-bottom:16px; }
+.equipment-type-selector > .field { max-width:680px; }
 .fleet-groups { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .record-section { min-width:0; margin:0; padding:12px 16px 16px; border:1px solid #dce4ee; border-radius:8px; background:#f7f9fc; }
 .record-section legend { float:none; width:auto; padding:0 7px; margin:0 0 4px -7px; font-size:13px; font-weight:650; color:#344c6b; }
@@ -28,6 +30,28 @@
 .order-toolbar-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 .order-toolbar-actions span { white-space:nowrap; font-size:12px; color:#64748b; }
 .nova-orders-list > .tms-filters button { white-space:nowrap; flex-shrink:0; }
+.nova-orders-list > .tms-filters button,
+.nova-orders-list > .tms-filters ::deep .mud-menu-button-activator {
+    height:var(--control-h,30px);
+    min-height:var(--control-h,30px);
+    box-sizing:border-box;
+    margin:0;
+    padding:0 12px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+}
+.nova-orders-list > .tms-filters ::deep .mud-menu {
+    align-self:flex-end;
+    height:var(--control-h,30px);
+    flex-shrink:0;
+}
+.nova-orders-list > .tms-filters ::deep .mud-menu-button-activator {
+    font:600 var(--fs,13px) / 1 var(--app-font);
+    border-radius:var(--control-radius,6px);
+    text-transform:none;
+}
 .address-lookup { display:flex; align-items:end; }
 .address-lookup .mdi { font-size:18px; }
 .order-manifest-link + .order-manifest-link { margin-left:8px; }

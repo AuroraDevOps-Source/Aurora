@@ -4,3 +4,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("ManifestReplanningChecks")]
 
 [assembly: InternalsVisibleTo("NovaDeleteChecks")]
+
+[assembly: InternalsVisibleTo("TerminalReceiptChecks")]

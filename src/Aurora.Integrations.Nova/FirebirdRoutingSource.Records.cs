@@ -18,7 +18,7 @@ public sealed partial class FirebirdRoutingSource
         new("EH_DOMICILE","Terminal code",Length:12),new("EH_MAKE","Make",Length:50),new("EH_MODEL","Model",Length:50),new("EH_YEAR","Year","integer"),
         new("EH_VIN","VIN",Length:50),new("EH_TAG_NUMBER","License plate",Length:15),new("EH_TAG_STATE","Plate state",Length:2),
         new("EH_TOT_FIXED_COST_HR","Per Hour","number"),new("EH_TOT_VAR_COST_MI","Per Mile","number"),
-        new("EH_EMPTY_WEIGHT","Empty weight","number"),new("EH_MAX_WEIGHT","Maximum weight","number"),new("EH_MAX_CUBE","Cubic Capacity","integer"),
+        new("EH_EMPTY_WEIGHT","Empty weight","number"),new("EH_MAX_WEIGHT","Maximum weight","number"),new("EH_MAX_CUBE","Cubic Planning Capacity","integer"),
         new("EH_LENGTH","Exterior length","dimension"),new("EH_WIDTH","Exterior width","dimension"),new("EH_HEIGHT","Exterior height","dimension"),
         new("EH_INT_LENGTH","Interior length","dimension"),new("EH_INT_WIDTH","Interior width","dimension"),new("EH_INT_HEIGHT","Interior height","dimension"),
         new("EH_AXLES","Axles","integer"),new("EH_STD_START_TM","Default start (HHmm)","clock",4),new("EH_STD_END_TM","Default end (HHmm)","clock",4),
@@ -70,30 +70,39 @@ public sealed partial class FirebirdRoutingSource
             FROM EQUIP_HEADER h JOIN CT_TYPE t ON t.CTT_ID=h.EH_UNIT_TYPE
             LEFT JOIN LOCMAST l ON l.LM_ID=h.EH_DOMICILE
             WHERE h.EH_DELETE_DATE IS NULL AND t.CTT_CODE<>'DRV'
-            """ : """
+            """ : $"""
             SELECT h.PB_ID AS Id, COALESCE(CAST(NULLIF(h.PBNUM,0) AS VARCHAR(30)), 'FB-' || CAST(h.PB_ID AS VARCHAR(30))) AS Number,
                 COALESCE((SELECT FIRST 1 TRIM(s.OPS_NAME) FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END ORDER BY s.OPS_STOP_NUMBER),'') AS Description,
-                TRIM(h.PB_LOCATION) AS Terminal, COALESCE(TRIM(t.CTS_DESC),'Unknown') AS Status,
+                {NativeRoutingSql.Terminal("h","currentStop")} AS Terminal, COALESCE(TRIM(t.CTS_DESC),'Unknown') AS Status,
+                COALESCE(TRIM(t.CTS_CODE),'') AS StatusCode,
                 CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'Pickup' ELSE 'Delivery' END AS WorkType,
+                (SELECT FIRST 1 s.OPS_APPT_LOW FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END ORDER BY s.OPS_STOP_NUMBER) AS AppointmentFrom,
+                (SELECT FIRST 1 s.OPS_APPT_HIGH FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END ORDER BY s.OPS_STOP_NUMBER) AS AppointmentTo,
+                (SELECT FIRST 1 s.OPS_LATITUDE FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END ORDER BY s.OPS_STOP_NUMBER) AS Latitude,
+                (SELECT FIRST 1 s.OPS_LONGITUDE FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END ORDER BY s.OPS_STOP_NUMBER) AS Longitude,
                 l.LM_ID AS KnownTerminal,
                 (SELECT COUNT(*) FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END AND (s.OPS_DELIVERED_TIME IS NOT NULL OR (s.OPS_TYPE='P' AND s.OPS_PICKED_UP='Y'))) AS CompletedDeliveries,
                 (SELECT COUNT(*) FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END) AS Deliveries,
                 (SELECT COUNT(*) FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND s.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END
                     AND (s.OPS_LATITUDE IS NULL OR s.OPS_LONGITUDE IS NULL OR s.OPS_LATITUDE NOT BETWEEN -90 AND 90
                     OR s.OPS_LONGITUDE NOT BETWEEN -180 AND 180 OR (s.OPS_LATITUDE=0 AND s.OPS_LONGITUDE=0))) AS MissingCoordinates
-            FROM OPS_HEADER h LEFT JOIN CT_STAT t ON t.CTS_ID=h.PB_STATUS
-            LEFT JOIN LOCMAST l ON l.LM_ID=h.PB_LOCATION WHERE h.PB_TYPE='O' AND h.PB_DT_CANC IS NULL
+            FROM OPS_HEADER h
+            LEFT JOIN OPS_STOP_REC currentStop ON currentStop.OPS_STOP_ID=(SELECT FIRST 1 cs.OPS_STOP_ID FROM OPS_STOP_REC cs
+                WHERE cs.OPS_ORDER_ID=h.PB_ID AND cs.OPS_TYPE=CASE WHEN h.PB_STATUS IN @pickupStatuses THEN 'P' ELSE 'D' END
+                ORDER BY cs.OPS_STOP_NUMBER,cs.OPS_STOP_ID)
+            LEFT JOIN CT_STAT t ON t.CTS_ID={NativeRoutingSql.Status("h","currentStop")}
+            LEFT JOIN LOCMAST l ON l.LM_ID=({NativeRoutingSql.Terminal("h","currentStop")}) WHERE h.PB_TYPE='O' AND h.PB_DT_CANC IS NULL
             """;
         if(unknownTerminal)filter+=" AND l.LM_ID IS NULL";
-        else if(!string.IsNullOrWhiteSpace(terminal))filter+=kind=="fleet"?" AND h.EH_DOMICILE=@terminal":" AND h.PB_LOCATION=@terminal";
+        else if(!string.IsNullOrWhiteSpace(terminal))filter+=kind=="fleet"?" AND h.EH_DOMICILE=@terminal":$" AND ({NativeRoutingSql.Terminal("h","currentStop")})=@terminal";
         int[] readyStatuses=[];
         if(kind=="orders" && readyOnly)
         {
             await using var pg=await factory.OpenConnectionAsync(ct);
-            readyStatuses=(await ReadyStatuses(pg,null,ct)).Concat(pickupStatuses).Distinct().ToArray();
-            filter+=" AND h.PB_STATUS IN @readyStatuses";
+            readyStatuses=await ReadyStatuses(pg,null,ct);
+            filter+=$" AND EXISTS(SELECT 1 FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND {NativeRoutingSql.Ready()})";
         }
-        else if(kind=="orders" && status is not null)filter+=" AND h.PB_STATUS=@status";
+        else if(kind=="orders" && status is not null)filter+=$" AND {NativeRoutingSql.Status("h","currentStop")}=@status";
         var rows=(await db.QueryAsync<RecordRow>(new CommandDefinition(sql+filter+(kind=="fleet"?" ORDER BY h.EH_UNIT_ID":" ORDER BY h.PB_ID DESC")+" ROWS @first TO @last",new { search=search?.Trim(),nativeOrderId=NovaOrderSearch.NativeId(search),terminal,status,readyStatuses,pickupStatuses,first=page*50+1,last=page*50+51 },cancellationToken:ct))).ToArray();
         var routing=kind=="orders"?await OrderRouting(rows.Take(50).Select(r=>r.Id).ToArray(),ct):new Dictionary<long,OrderRoutingRow>();
         var manifests=new Dictionary<long,long[]>();
@@ -102,19 +111,23 @@ public sealed partial class FirebirdRoutingSource
             var links=await db.QueryAsync<OrderManifestLink>(new CommandDefinition("""
                 SELECT s.OPS_ORDER_ID AS OrderId, m.PB_ID AS ManifestNumber
                 FROM OPS_STOP_REC s JOIN OPS_HEADER m ON m.PB_ID=s.OPS_MANIFEST_NUMBER
-                WHERE s.OPS_ORDER_ID IN @ids AND m.PB_TYPE='M' AND m.PB_DT_CANC IS NULL
+                WHERE s.OPS_ORDER_ID IN @ids AND m.PB_TYPE='M' AND m.PB_DT_CANC IS NULL AND NOT EXISTS(SELECT 1 FROM CT_STAT ms WHERE ms.CTS_ID=m.PB_STATUS AND TRIM(ms.CTS_CODE)='CPLT')
                 UNION
                 SELECT s.OPS_ORDER_ID AS OrderId, m.PB_ID AS ManifestNumber
                 FROM OPS_STOP_REC s JOIN OPS_MANIFEST_STOPS link ON link.OSM_PKUP_DELV_ID=s.OPS_STOP_ID
                 JOIN OPS_STOP_REC route ON route.OPS_STOP_ID=link.OSM_STOP_ID
                 JOIN OPS_HEADER m ON m.PB_ID=route.OPS_ORDER_ID
-                WHERE s.OPS_ORDER_ID IN @ids AND m.PB_TYPE='M' AND m.PB_DT_CANC IS NULL
+                WHERE s.OPS_ORDER_ID IN @ids AND m.PB_TYPE='M' AND m.PB_DT_CANC IS NULL AND NOT EXISTS(SELECT 1 FROM CT_STAT ms WHERE ms.CTS_ID=m.PB_STATUS AND TRIM(ms.CTS_CODE)='CPLT')
                 """,new { ids=rows.Take(50).Select(r=>r.Id).ToArray() },cancellationToken:ct));
             manifests=links.GroupBy(l=>l.OrderId).ToDictionary(g=>g.Key,g=>g.Select(l=>l.ManifestNumber).Distinct().Order().ToArray());
         }
         return new(rows.Take(50).Select(r=>new NovaRecordSummary(r.Id,r.Number,r.Description,r.Terminal,r.Status)
         {
             WorkType=r.WorkType,
+            StatusCode=r.StatusCode,
+            AppointmentFrom=r.AppointmentFrom, AppointmentTo=r.AppointmentTo, TimeZone=Options.TimeZoneId,
+            Latitude=r.Latitude, Longitude=r.Longitude,
+            Completed=r.Deliveries>0 && r.CompletedDeliveries==r.Deliveries,
             ManifestNumbers=manifests.GetValueOrDefault(r.Id)??[],
             ReceivingTerminal=r.WorkType=="Pickup"?null:routing.GetValueOrDefault(r.Id)?.ReceivingTerminal,
             Issues=kind=="fleet"
@@ -124,6 +137,9 @@ public sealed partial class FirebirdRoutingSource
         }).ToArray(),rows.Length>50);
     }
     private sealed class RecordRow {
+        public string StatusCode {get;set;}="";
+        public DateTime? AppointmentFrom {get;set;} public DateTime? AppointmentTo {get;set;}
+        public double? Latitude {get;set;} public double? Longitude {get;set;}
         public long Id {get;set;} public string Number {get;set;}=""; public string Description {get;set;}=""; public string Terminal {get;set;}=""; public string Status {get;set;}="";
         public string WorkType {get;set;}="Delivery";
         public string? KnownTerminal {get;set;} public string? Street {get;set;} public string? City {get;set;} public string? PostalCode {get;set;}
@@ -139,6 +155,15 @@ public sealed partial class FirebirdRoutingSource
     {
         var row=(IDictionary<string,object>)await db.QuerySingleAsync(new CommandDefinition($"SELECT {string.Join(',',fields.Select(f=>f.Column))} FROM {table} WHERE {key}=@id",new{id},tx,cancellationToken:ct));
         return new(part,title,fields.Select(f=>new NovaField(f.Column,f.Label,f.Kind,f.Length,f.ReadOnly,Value(row[f.Column]))).ToArray());
+    }
+    public async Task<long> ResolveOrderPro(string pro,CancellationToken ct)
+    {
+        if(!long.TryParse(pro,out var number) || number<=0)throw new FormatException("A positive numeric PRO is required.");
+        await using var db=await Open(ct);
+        var ids=(await db.QueryAsync<long>(new CommandDefinition("SELECT FIRST 2 PB_ID FROM OPS_HEADER WHERE PBNUM=@number AND PB_TYPE='O' AND PB_DT_CANC IS NULL",new{number},cancellationToken:ct))).ToArray();
+        if(ids.Length==0)throw new KeyNotFoundException("Order no longer exists or is not editable here.");
+        if(ids.Length>1)throw new FormatException("More than one order has this PRO. Open it from the orders list.");
+        return ids[0];
     }
     public async Task<NovaRecordDocument> ReadRecord(string kind,long id,CancellationToken ct)
     {

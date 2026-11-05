@@ -6,7 +6,7 @@
     @if(_error is not null){<p class="alert" role="alert">@_error</p>}
     <button class="primary-button" disabled="@(_busy || Disabled || Manifest.Status!="Planning")" @onclick="Publish">Publish to FreightOps</button>
     <button class="text-button" disabled="@_busy" @onclick="Refresh">Refresh delivery status</button>
-    <small>Save or cancel edits before publishing. Once submitted, manage assignments and dispatch in FreightOps; this MVP locks local plan edits.</small>
+    <small>Save or cancel edits before publishing. After publishing, saved planning changes sync automatically. FreightOps changes sync back here.</small>
 </section>
 </AuthorizeView>
 @code {

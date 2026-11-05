@@ -78,7 +78,7 @@ public sealed class FreightOpsSyncProvider : ISyncProvider,ISyncAcknowledgement,
             if(item is null||item.Data is null)throw new FormatException("Incomplete FreightOps event.");
             FreightOpsProtocol.Text(item.EventId,"event ID");
             FreightOpsProtocol.Text(item.EntityType,"entity type",40);
-            if(item.EntityType!="order")throw new FormatException("FreightOps returned an unsupported entity type.");
+            if(item.EntityType is not ("order" or "manifest"))throw new FormatException("FreightOps returned an unsupported entity type.");
             FreightOpsProtocol.Text(item.ExternalId,"external ID",80);
             FreightOpsProtocol.Text(item.Revision,"revision");
             if(!ids.Add(item.EventId))throw new FormatException("Duplicate FreightOps event ID in batch.");
@@ -94,6 +94,10 @@ public sealed class FreightOpsSyncProvider : ISyncProvider,ISyncAcknowledgement,
         if(!ack.EventIds.SequenceEqual(batch.Changes.Select(e=>e.EventId),StringComparer.Ordinal))
             throw new FormatException("FreightOps acknowledgement does not match the imported batch.");
         if(ack.EventIds.Length==0)return;
+        var bindings=new Dictionary<string,string>();
+        foreach(var item in batch.Changes)
+            if(await requests.ImportedLocalId(connectionId,item.EntityType,item.ExternalId,ct) is {} local)bindings[item.EventId]=local;
+        ack=ack with{Bindings=bindings.Count>0?bindings:null};
         var receipt=await Send<FreightOpsAckReceipt>("acknowledge",ack,ct);
         Envelope(receipt.ProtocolVersion,receipt.SourceIdentity,receipt.ConnectionId);
         if(receipt.EventIds is null||!receipt.EventIds.SequenceEqual(ack.EventIds,StringComparer.Ordinal))

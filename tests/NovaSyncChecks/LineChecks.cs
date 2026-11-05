@@ -117,7 +117,28 @@ static class LineChecks
         check(rerated["Lykes"]!["Lines"]!.AsArray().Count==1&&rerated["Lykes"]!["Lines"]![0]!["LineId"]!.ToString()==operationalId,
             "MVP resequencing, row replacement and rating charges retain operational identity without exporting charges");
         rows[0].Weight+=1;Reject(()=>LykesNovaMapping.Project(mvp,rows,config),"MVP changed native freight is held for piece reconciliation");rows[0].Weight-=1;
-        Reject(()=>LykesNovaMapping.Project(mvp,[rows[0],rows[0]],config),"MVP repeated SKU cannot be guessed");
+        Reject(()=>LykesNovaMapping.Project(mvp,[rows[0],rows[0]],config),"adding a duplicate line to an existing snapshot still requires reconciliation");
+        var blank=new NovaSyncLine{Keyword="FRT",StopKind="P",Sku="",Description="Shelving",Uom="CTN",Cube="1",Pieces=12,Weight=120,Pallets=1};
+        var other=new NovaSyncLine{Keyword="FRT",StopKind="P",Sku="",Description="Racking",Uom="CTN",Cube="2",Pieces=2,Weight=40};
+        var assumed=LykesNovaMapping.Project(source,[blank,other,charge],config);
+        var assumedLines=assumed["Lykes"]!["Lines"]!.AsArray().OfType<JsonObject>().ToArray();
+        check(assumedLines.Length==2&&assumedLines.Select(r=>r["Sku"]!.ToString()).Distinct().Count()==2&&
+            assumedLines.All(r=>r["Sku"]!.ToString().StartsWith("AUR-")&&r["SkuGenerated"]!.GetValue<bool>()&&r["Nova"]!["Sku"]!.ToString()==""),
+            "blank Nova SKUs receive distinct internal codes while native SKU values stay blank");
+        check(assumedLines.Single(r=>r["Description"]!.ToString()=="Shelving")["Pieces"]!.GetValue<int>()==12&&assumed["Pieces"]!.GetValue<int>()==14,
+            "twelve pieces on one pallet stay twelve pieces, not twelve lines or an extra pallet barcode");
+        assumed["TerminalCode"]="N-AUS";blank.Sequence=77;blank.StopId=991;blank.Amount=200;
+        var reordered=LykesNovaMapping.Project(assumed,[other,blank,charge],config);
+        check(JsonNode.DeepEquals(assumed["Lykes"],reordered["Lykes"]),"internal codes and identities survive reordered rows and rating changes");
+        check(blank.Sku==""&&blank.LineId is null,"generated codes never mutate Nova input rows");
+        var repeated=LykesNovaMapping.Project(source,[rows[0],rows[0]],config)["Lykes"]!["Lines"]!.AsArray();
+        check(repeated.Count==2&&repeated.Select(r=>r!["LineId"]!.ToString()).Distinct().Count()==2&&repeated.Select(r=>r!["Sku"]!.ToString()).Distinct().Count()==2,
+            "identical repeated-SKU lines remain separate, each with its own identity");
+        var realCode=new NovaSyncLine{Keyword="FRT",StopKind="P",Sku=assumedLines.Single(r=>r["Description"]!.ToString()=="Shelving")["Sku"]!.ToString(),Description="Real SKU collision",Uom="CTN",Cube="1",Pieces=1,Weight=1};
+        var collision=LykesNovaMapping.Project(source,[blank,realCode],config)["Lykes"]!["Lines"]!.AsArray();
+        check(collision.Select(r=>r!["Sku"]!.ToString()).Distinct().Count()==2&&collision.Any(r=>r!["Sku"]!.ToString()==realCode.Sku),
+            "generated internal code cannot collide with a real source SKU");
+        blank.Pieces=13;Reject(()=>LykesNovaMapping.Project(assumed,[blank,other],config),"physical changes still require reconciliation rather than replacing barcodes");blank.Pieces=12;
         Reject(()=>LykesNovaMapping.Project(mapped,rows,config),"MVP does not silently adopt earlier native identities");
         config.WritesEnabled=true;config.OrderLifecycleEnabled=true;
         Reject(()=>LykesNovaMapping.RequireSupportedWrite("order",mvp,config),"MVP rejects reverse orders even when legacy write flags are enabled");
@@ -125,11 +146,46 @@ static class LineChecks
         foreach(var kind in new[]{"terminal","customer","driver","equipment"})
             Reject(()=>LykesNovaMapping.RequireSupportedWrite(kind,source,config),$"MVP blocks reverse {kind} writes before native SQL");
         Reject(()=>LykesNovaOrderWriter.RequireEnabled(config),"MVP lifecycle remains blocked regardless of legacy flags");
+        config.OperationalWritesEnabled=true;
+        var scoped=new LykesNovaOptions{Enabled=true,PilotOrderIds=[100],ManifestSyncFromId=500};
+        check(scoped.IncludesEntity("manifest","500")&&!scoped.IncludesEntity("manifest","499")&&
+            !scoped.IncludesEntity("order","500")&&scoped.IncludesEntity("order","100")&&scoped.IncludesEntity("equipment","1"),
+            "manifest rollout cutoff includes dependencies without accidentally enrolling new orders");
+        LykesNovaMapping.RequireSupportedWrite("manifest",source,config);
+        LykesNovaMapping.RequireSupportedWrite("order",mvp,config);
+        check(true,"operational permission enables guarded order headers and manifests separately from physical freight");
+        Reject(()=>LykesNovaOrderWriter.RequireEnabled(config),"operational permission cannot enable native freight lifecycle writes");
+        foreach(var kind in new[]{"terminal","customer","driver","equipment"})
+            Reject(()=>LykesNovaMapping.RequireSupportedWrite(kind,source,config),"operational permission does not grant master writes: "+kind);
+        var operational=System.Text.Json.JsonSerializer.SerializeToNode(new Aurora.Contracts.TmsOrder{Id="123",Customer="Receiver"})!.AsObject();
+        operational["Lykes"]=mvp["Lykes"]!.DeepClone();
+        foreach(var field in new[]{"Id","Pieces","Weight","Cube","Status","WorkType","TerminalCode","Reference","BillTo"})
+        {
+            var edited=(JsonObject)operational.DeepClone();
+            edited[field]=field is "Pieces" or "Weight" or "Cube"?System.Text.Json.Nodes.JsonValue.Create(5):System.Text.Json.Nodes.JsonValue.Create("changed");
+            Reject(()=>LykesNovaOperationalChanges.ValidateOrder(edited,operational),"operational writer rejects unowned field "+field);
+        }
+        var changedLine=(JsonObject)operational.DeepClone();changedLine["Lykes"]!["Lines"]![0]!["Description"]="changed freight";
+        Reject(()=>LykesNovaOperationalChanges.ValidateOrder(changedLine,operational),"operational writer rejects individual freight edits even with unchanged totals");
+        var notes=(JsonObject)operational.DeepClone();notes["Notes"]="Dispatcher note";notes["FreightOpsState"]="Created";
+        LykesNovaOperationalChanges.ValidateOrder(notes,operational);check(true,"operational note and execution metadata do not require stable native IDs");
+        check(LykesNovaOperationalChanges.SameNativeTime(JsonValue.Create("2026-11-03T15:02:11.9911831Z"),JsonValue.Create("2026-11-03T10:02:11.9911-05:00")),"Firebird 100-microsecond precision does not create a false schedule conflict");
+        check(!LykesNovaOperationalChanges.SameNativeTime(JsonValue.Create("2026-11-03T15:02:11.992Z"),JsonValue.Create("2026-11-03T10:02:11.9911-05:00")),"actual schedule changes remain distinct");
+        config.OperationalWritesEnabled=false;
         config.NativeReadOnly=false;
         Reject(()=>LykesNovaMapping.RequireSupportedWrite("order",mvp,config),"operational identity marker prevents native-write mode bypass");
         Reject(()=>LykesNovaMapping.Project(mvp,rows,config),"operational snapshots cannot silently become native identities");
         config.NativeReadOnly=true;config.Enabled=false;
         LykesNovaMapping.RequireSupportedWrite("order",source,config);
         check(true,"disabled MVP profile preserves existing non-Lykes writes");
+        config.Enabled=true;config.AllowHeaderTotals=true;config.PackTypes["PC"]="Piece";
+        var summarySource=new JsonObject{["Id"]="12345",["TerminalCode"]="N-AUS",["Pieces"]=12,["Weight"]=120,["Cube"]=24};
+        var summary=LykesNovaMapping.Project(summarySource,[],config);
+        check(summary["Lykes"]!["FreightSource"]!.ToString()=="header-totals"&&summary["Lykes"]!["Lines"]!.AsArray().Count==1&&
+            summary["Lykes"]!["Lines"]![0]!["Pieces"]!.GetValue<int>()==12,"header-only order becomes one explicitly labeled line with twelve pieces");
+        check(summary["Weight"]!.GetValue<decimal>()==120&&summary["Cube"]!.GetValue<decimal>()==24,"header summary preserves shipment totals without multiplying weight or cube");
+        summary["TerminalCode"]="N-AUS";
+        check(summary["Lykes"]!["Lines"]![0]!["LineId"]!.ToString()==LykesNovaMapping.Project(summary,[],config)["Lykes"]!["Lines"]![0]!["LineId"]!.ToString(),"repeated header enrollment preserves the same piece identity");
+        summary["Pieces"]=13;Reject(()=>LykesNovaMapping.Project(summary,[],config),"changed header piece count does not silently replace tracked pieces");
     }
 }

@@ -61,7 +61,7 @@ public sealed partial class FirebirdRoutingSource
         return result;
     }
 
-    internal async Task<NovaDispatchDocument> WriteDispatch(FbConnection db, FbTransaction tx, long id, NovaDispatchEdit input, bool release, string actor, CancellationToken ct)
+    internal async Task<NovaDispatchDocument> WriteDispatch(FbConnection db, FbTransaction tx, long id, NovaDispatchEdit input, bool release, string actor, CancellationToken ct,DateTime? occurredAt=null)
     {
         // Serialize changes to a manifest, then lock resources in stable order. This also
         // serializes two dispatchers trying to book the same driver/truck on different loads.
@@ -87,6 +87,12 @@ public sealed partial class FirebirdRoutingSource
         if (links.Length > 1 || links.Any(l => l.Driver != current.DriverId || l.Active != "A"))
             throw new FormatException("This manifest has a different Nova equipment assignment. Reconcile it in Nova before dispatching here.");
         var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId)).DateTime;
+        if(occurredAt is {} actual)
+        {
+            var zone=TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId);
+            if(actual>now.AddMinutes(1)||zone.IsInvalidTime(actual)||zone.IsAmbiguousTime(actual))throw new FormatException("Dispatch requires a valid, non-future local event time.");
+            now=actual;
+        }
         var initials = actor.Trim();
         if (initials.Length > 8) initials = initials[..8];
         var status = await db.QuerySingleOrDefaultAsync<long?>(new CommandDefinition("SELECT CTS_ID FROM CT_STAT WHERE CTS_CODE=@code", new { code = release ? "DPCH" : "ASG" }, tx, cancellationToken: ct))
@@ -275,10 +281,10 @@ public sealed partial class FirebirdRoutingSource
             await db.QueryAsync<long>(new CommandDefinition("SELECT PB_ID FROM OPS_HEADER WHERE PB_ID IN (SELECT s.OPS_ORDER_ID FROM OPS_STOP_REC s JOIN OPS_MANIFEST_STOPS l ON l.OSM_PKUP_DELV_ID=s.OPS_STOP_ID JOIN OPS_STOP_REC r ON r.OPS_STOP_ID=l.OSM_STOP_ID WHERE r.OPS_ORDER_ID=@id) ORDER BY PB_ID WITH LOCK", new { id }, tx, cancellationToken: ct));
             await db.QueryAsync<long>(new CommandDefinition("SELECT OPS_STOP_ID FROM OPS_STOP_REC WHERE OPS_ORDER_ID=@id OR OPS_STOP_ID IN (SELECT l.OSM_PKUP_DELV_ID FROM OPS_MANIFEST_STOPS l JOIN OPS_STOP_REC r ON r.OPS_STOP_ID=l.OSM_STOP_ID WHERE r.OPS_ORDER_ID=@id) ORDER BY OPS_STOP_ID WITH LOCK", new { id }, tx, cancellationToken: ct));
         }
-        return (await db.QueryAsync<DispatchMember>(new CommandDefinition("""
+        return (await db.QueryAsync<DispatchMember>(new CommandDefinition($"""
             SELECT r.OPS_STOP_ID AS RouteStop,r.OPS_STOP_NUMBER AS RouteSequence,l.OSM_SEQUENCE AS Sequence,s.OPS_STOP_ID AS Stop,
                 s.OPS_ORDER_ID AS OrderId,s.OPS_MANIFEST_NUMBER AS ManifestId,s.OPS_DELIVERED_TIME AS Delivered,TRIM(s.OPS_TYPE) AS StopKind,TRIM(s.OPS_PICKED_UP) AS PickedUp,
-                h.PB_DT_CANC AS Cancelled,TRIM(h.PB_LOCATION) AS OrderTerminal,h.PBTWEIGH AS Weight,h.PB_TTL_CUBE AS Cubes
+                h.PB_DT_CANC AS Cancelled,{NativeRoutingSql.Terminal()} AS OrderTerminal,h.PBTWEIGH AS Weight,h.PB_TTL_CUBE AS Cubes
             FROM OPS_STOP_REC r JOIN OPS_MANIFEST_STOPS l ON l.OSM_STOP_ID=r.OPS_STOP_ID
             JOIN OPS_STOP_REC s ON s.OPS_STOP_ID=l.OSM_PKUP_DELV_ID JOIN OPS_HEADER h ON h.PB_ID=s.OPS_ORDER_ID
             WHERE r.OPS_ORDER_ID=@id ORDER BY r.OPS_STOP_NUMBER,l.OSM_SEQUENCE,s.OPS_STOP_ID

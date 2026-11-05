@@ -7,7 +7,7 @@ using Dapper;
 
 namespace Aurora.Modules.Sync;
 
-public sealed class SyncImporter(NpgsqlConnectionFactory factory,ITenantContext tenant,ISyncEntityStore entities) : IExternalChangeImporter
+public sealed class SyncImporter(NpgsqlConnectionFactory factory,ITenantContext tenant,ISyncEntityStore entities,bool externalAuthoritative=false) : IExternalChangeImporter
 {
     public async Task Apply(Guid connectionId,ExternalBatch batch,CancellationToken ct)
     {
@@ -48,6 +48,16 @@ public sealed class SyncImporter(NpgsqlConnectionFactory factory,ITenantContext 
             if(unresolved)fields.Add("$unresolved");
             // Unmapped records are new external records, not concurrent creations.
             if(current is null){merge=new((JsonObject)change.Data.DeepClone(),[]);fields.Clear();}
+            // Direct-database mode uses these rows only as transport snapshots. Old
+            // cache edits must not compete with the database the user actually edits.
+            // Receipts and historical conflicts remain stored; in-flight writes above
+            // still block replacement until their outcome has been reconciled.
+            if(externalAuthoritative)
+            {
+                merge=new(SyncMerge.ReplaceSourceFields(local,change.Data),[]);
+                mergedDeleted=change.Deleted;
+                fields.Clear();
+            }
             if(fields.Count>0)
             {
                 await db.ExecuteAsync(new CommandDefinition("""
@@ -68,8 +78,14 @@ public sealed class SyncImporter(NpgsqlConnectionFactory factory,ITenantContext 
                     """,new{tenant.TenantId,connectionId,change.EntityType,saved.Id,change.ExternalId,change.Revision,change.Deleted,baseline=change.Data.ToJsonString()},tx,cancellationToken:ct));
                 // Forward accepted imports to other destinations in the same transaction.
                 // The origin only needs a correction when the merge differs from its snapshot.
-                var correctOrigin=saved.Deleted!=change.Deleted||!saved.Deleted&&!SyncJson.Equal(saved.Data,change.Data);
+                var correctOrigin=!externalAuthoritative&&(saved.Deleted!=change.Deleted||!saved.Deleted&&!SyncJson.Equal(saved.Data,change.Data));
                 var changed=current is null || saved.Revision!=current.Revision;
+                if(externalAuthoritative)
+                    await db.ExecuteAsync(new CommandDefinition("""
+                        UPDATE aurora_sync_conflict SET resolved_at=now()
+                        WHERE tenant_id=@TenantId AND connection_id=@connectionId AND entity_type=@EntityType
+                          AND local_id=@Id AND resolved_at IS NULL
+                        """,new{tenant.TenantId,connectionId,change.EntityType,saved.Id},tx,cancellationToken:ct));
                 if(changed || correctOrigin)
                     await SyncStore.Enqueue(db,tx,tenant.TenantId,change.EntityType,saved.Id,saved.Revision,
                         saved.Deleted?"delete":"upsert",saved.Data.ToJsonString(),ct,correctOrigin?null:connectionId,

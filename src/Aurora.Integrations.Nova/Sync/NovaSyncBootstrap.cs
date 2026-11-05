@@ -5,17 +5,24 @@ namespace Aurora.Integrations.Nova.Sync;
 
 public static class NovaSyncBootstrap
 {
-    public static async Task ReclassifyOrders(string connectionString,Guid consumer,CancellationToken ct)
+    public static async Task ReclassifyOrders(string connectionString,Guid consumer,CancellationToken ct,bool includeManifests=false)
     {
         await using var db=new FbConnection(connectionString);await db.OpenAsync(ct);
         await using var tx=db.BeginTransaction();
         await db.ExecuteAsync(new CommandDefinition("""
             INSERT INTO AURORA_SYNC_EVENT(EVENT_ID,CONSUMER_ID,ENTITY_TYPE,ENTITY_ID,CHANGE_KIND)
             SELECT GEN_ID(AURORA_SYNC_EVENT_GEN,1),@key,'order-or-manifest',CAST(h.PB_ID AS VARCHAR(80)),'U'
-            FROM OPS_HEADER h WHERE h.PB_TYPE='O' AND h.PB_DT_CANC IS NULL
+            FROM OPS_HEADER h WHERE (h.PB_TYPE='O' OR (@manifests=1 AND h.PB_TYPE='M')) AND h.PB_DT_CANC IS NULL
               AND NOT EXISTS(SELECT 1 FROM AURORA_SYNC_EVENT e WHERE e.CONSUMER_ID=@key
                 AND e.ENTITY_TYPE='order-or-manifest' AND e.ENTITY_ID=CAST(h.PB_ID AS VARCHAR(80)))
-            """,new{key=consumer.ToString()},tx,cancellationToken:ct));
+            """,new{key=consumer.ToString(),manifests=includeManifests?1:0},tx,cancellationToken:ct));
+        if(includeManifests)
+            await db.ExecuteAsync(new CommandDefinition("""
+                INSERT INTO AURORA_SYNC_EVENT(EVENT_ID,CONSUMER_ID,ENTITY_TYPE,ENTITY_ID,CHANGE_KIND)
+                SELECT GEN_ID(AURORA_SYNC_EVENT_GEN,1),@key,'equipment',CAST(e.EH_ID AS VARCHAR(80)),'U'
+                FROM EQUIP_HEADER e WHERE e.EH_DELETE_DATE IS NULL AND NOT EXISTS(
+                  SELECT 1 FROM AURORA_SYNC_EVENT q WHERE q.CONSUMER_ID=@key AND q.ENTITY_TYPE='equipment' AND q.ENTITY_ID=CAST(e.EH_ID AS VARCHAR(80)))
+                """,new{key=consumer.ToString()},tx,cancellationToken:ct));
         await tx.CommitAsync(ct);
     }
     public static async Task<int> Pending(string connectionString,Guid consumer,CancellationToken ct)

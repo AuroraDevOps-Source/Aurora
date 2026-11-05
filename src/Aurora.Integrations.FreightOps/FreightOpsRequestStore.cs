@@ -9,6 +9,11 @@ namespace Aurora.Integrations.FreightOps;
 
 public sealed class FreightOpsRequestStore(NpgsqlConnectionFactory factory,ITenantContext tenant):IFreightOpsRequestStore
 {
+    public async Task<string?> ImportedLocalId(Guid connectionId,string kind,string externalId,CancellationToken ct)
+    {
+        await using var db=await factory.OpenConnectionAsync(ct);
+        return await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT local_id FROM aurora_sync_mapping WHERE tenant_id=@TenantId AND connection_id=@connectionId AND entity_type=@kind AND external_id=@externalId",new{tenant.TenantId,connectionId,kind,externalId},cancellationToken:ct));
+    }
     public async Task<FreightOpsWrite> Prepare(SyncChange change,string sourceIdentity,CancellationToken ct)
     {
         if(change.Id==Guid.Empty||change.ConnectionId==Guid.Empty||change.LocalRevision<0||change.Operation is not ("upsert" or "delete"))
@@ -63,7 +68,7 @@ public sealed class FreightOpsRequestStore(NpgsqlConnectionFactory factory,ITena
             {
                 var orders=data["Orders"] as JsonArray??throw new FormatException("Manifest orders are required.");
                 var resolved=new JsonArray();
-                foreach(var order in orders)
+                foreach(var order in change.Operation=="delete"?new JsonArray():orders)
                 {
                     var local=$"{Guid.Parse(order!["SourceId"]!.GetValue<string>()):D}/{order["Id"]!.GetValue<string>()}";
                     var mapped=await db.QuerySingleOrDefaultAsync<Mapping>(new CommandDefinition("SELECT external_id AS ExternalId,external_revision AS Revision,external_deleted AS Deleted FROM aurora_sync_mapping WHERE tenant_id=@TenantId AND connection_id=@ConnectionId AND entity_type='order' AND local_id=@local",new{tenant.TenantId,change.ConnectionId,local},tx,cancellationToken:ct));

@@ -48,6 +48,13 @@ public sealed partial class FirebirdRoutingSource
     private async Task<string> WriteSyncManifest(FbConnection db,FbTransaction tx,string? external,JsonObject data,SyncChange change,CancellationToken ct)
     {
         var manifest=data.Deserialize<TmsManifest>()!;manifest.Validate();
+        if(Options.Lykes.Enabled&&Options.Lykes.NativeReadOnly&&manifest.Status!="Planning"&&!Options.Lykes.DispatchSynchronizationEnabled)
+            throw new FormatException("Enable dispatch synchronization before exporting execution milestones.");
+        if(data["Details"]?["StatusOccurredAtUtc"] is {} utc)
+        {
+            if(!DateTimeOffset.TryParse(utc.ToString(),CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind,out var eventTime))throw new FormatException("Invalid status event time.");
+            manifest.Details.StatusOccurredAt=TimeZoneInfo.ConvertTime(eventTime,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId)).DateTime;
+        }
         if(manifest.Status is not ("Planning" or "Dispatched" or "En Route" or "Complete"))
             throw new FormatException("Nova synchronization supports Planning, Dispatched, En Route and Complete manifest statuses.");
         await ValidTerminal(db,tx,manifest.Details.OriginTerminal,ct);await ValidTerminal(db,tx,manifest.Details.DestinationTerminal,ct);
@@ -61,6 +68,18 @@ public sealed partial class FirebirdRoutingSource
             var stop=await db.QuerySingleAsync<long>(new CommandDefinition("SELECT OPS_STOP_ID FROM OPS_STOP_REC WHERE OPS_ORDER_ID=@id AND OPS_TYPE=@work",new{id=long.Parse(mapped.ExternalId,CultureInfo.InvariantCulture),work},tx,cancellationToken:ct));stops.Add(stop);
         }
         var driver=manifest.Details.DriverId is {} localDriver?await Mapping("driver",localDriver.ToString(CultureInfo.InvariantCulture),false,ct):null;
+        if(manifest.Details.DriverId is not null&&driver is null)throw new InvalidOperationException("The manifest's driver has not synchronized yet.");
+        if(manifest.Details.DriverId is null&&!string.IsNullOrWhiteSpace(manifest.Details.Driver))
+        {
+            await using var pg=await factory.OpenConnectionAsync(ct);
+            var matches=(await pg.QueryAsync<SyncMapping>(new CommandDefinition("""
+                SELECT local_id AS LocalId,external_id AS ExternalId,external_revision AS Revision,baseline::text AS Baseline
+                FROM aurora_sync_mapping WHERE tenant_id=@TenantId AND connection_id=@connection AND entity_type='driver'
+                AND NOT external_deleted AND lower(btrim(concat_ws(' ',baseline->>'FirstName',baseline->>'LastName')))=lower(@name)
+                """,new{tenant.TenantId,connection=_syncConnection,name=manifest.Details.Driver.Trim()},cancellationToken:ct))).ToArray();
+            if(matches.Length!=1)throw new FormatException("Choose a synchronized driver identity; the supplied name does not identify exactly one driver.");
+            driver=matches[0];
+        }
         var truck=string.IsNullOrWhiteSpace(manifest.Vehicle)?null:await Mapping("equipment",manifest.Vehicle,false,ct)??throw new InvalidOperationException("The manifest's truck has not synchronized yet.");
         var driverId=driver is null?(long?)null:long.Parse(driver.ExternalId,CultureInfo.InvariantCulture);
         var truckId=truck is null?(long?)null:long.Parse(truck.ExternalId,CultureInfo.InvariantCulture);
@@ -99,7 +118,7 @@ public sealed partial class FirebirdRoutingSource
         {
             if(driverId is null || truckId is null)throw new FormatException("Dispatch requires a synchronized driver and truck.");
             var dispatch=await DispatchDocument(db,tx,id,true,ct);
-            await WriteDispatch(db,tx,id,new(dispatch.Revision,driverId.Value,truckId.Value),true,"Aurora",ct);
+            await WriteDispatch(db,tx,id,new(dispatch.Revision,driverId.Value,truckId.Value),true,"Aurora",ct,manifest.Details.StatusOccurredAt);
         }
         else if(manifest.Status is "En Route" or "Complete" && current?.StatusCode!=(manifest.Status=="En Route"?"ENR":"CPLT"))
         {

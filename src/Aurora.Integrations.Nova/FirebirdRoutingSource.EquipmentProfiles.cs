@@ -12,6 +12,13 @@ public sealed partial class FirebirdRoutingSource
     // prevent settings from leaking across connected Nova databases or renamed units.
     private string EquipmentProfileKey(long id) => $"nova-profile:{Options.SourceKey}:{id}";
 
+    public async Task<EquipmentTypeTemplate[]> ReadEquipmentTypes(CancellationToken ct)
+    {
+        await using var pg=await factory.OpenConnectionAsync(ct);
+        var rows=await pg.QueryAsync<string>(new CommandDefinition("SELECT data::text FROM aurora_equipment_type ORDER BY code",cancellationToken:ct));
+        return rows.Select(json=>JsonSerializer.Deserialize<EquipmentTypeTemplate>(json)!).ToArray();
+    }
+
     public async Task<EquipmentRoutingProfile> ReadEquipmentProfile(long id, CancellationToken ct)
     {
         await ReadRecord("fleet", id, ct);
@@ -32,13 +39,28 @@ public sealed partial class FirebirdRoutingSource
         await using var nativeTx = BeginCreate(fb);
         var record = await ReadRecord(fb, nativeTx, "fleet", id, true, ct);
         if(record.Revision != input.EquipmentRevision) throw new FormatException("Equipment changed. Reopen it before saving its routing profile.");
+        if(input.EquipmentType is {} template)
+        {
+            template.Validate();
+            if(!await pg.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM aurora_equipment_type WHERE code=@Code)",new{template.Code},tx,cancellationToken:ct)))throw new FormatException("The selected equipment type no longer exists.");
+            var fields=record.Parts.Single(p=>p.Key=="header").Fields.ToDictionary(f=>f.Key,f=>f.Value);
+            if(template.Fields(true).Any(pair=>!EquipmentTypeTemplate.SameNumber(fields.GetValueOrDefault(pair.Key),pair.Value)))throw new FormatException("Equipment values changed. Reopen the equipment before saving its type details.");
+        }
         var code = EquipmentProfileKey(id);
         var json = await pg.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
             "SELECT data::text FROM routing_equipment_type WHERE tenant_id=@TenantId AND code=@code",
             new { tenant.TenantId, code }, tx, cancellationToken:ct));
         var current = json is null ? new EquipmentRoutingProfile() : JsonSerializer.Deserialize<EquipmentRoutingProfile>(json)!;
         if(current.Revision != input.Revision) throw new FormatException("Routing profile changed. Reopen the equipment before saving.");
-        var saved = new EquipmentRoutingProfile(input.Profile, current.Revision+1);
+        var defaultDriver = input.SetDefaultDriver ? input.DefaultDriverId : current.DefaultDriverId;
+        if(defaultDriver is {} driverId)
+        {
+            var terminal=record.Parts.Single(p=>p.Key=="header").Fields.Single(f=>f.Key=="EH_DOMICILE").Value;
+            var driver=(await Drivers(fb,nativeTx,ct)).SingleOrDefault(d=>d.Id==driverId);
+            if(driver is null || !string.Equals(driver.Terminal,terminal,StringComparison.OrdinalIgnoreCase))
+                throw new FormatException("Choose a default driver from the truck's terminal, or select No default driver.");
+        }
+        var saved = new EquipmentRoutingProfile(input.Profile, current.Revision+1){EquipmentType=input.EquipmentType??current.EquipmentType,DefaultDriverId=defaultDriver};
         await pg.ExecuteAsync(new CommandDefinition("""
             INSERT INTO routing_equipment_type(tenant_id,code,data) VALUES(@TenantId,@code,CAST(@data AS jsonb))
             ON CONFLICT(tenant_id,code) DO UPDATE SET data=excluded.data,updated_utc=now()
@@ -61,6 +83,7 @@ public sealed partial class FirebirdRoutingSource
             EquipmentRoutingProfiles.Validate(setting.Profile);
             var type = keys[row.Code];
             type.RoutingProfile = setting.Profile;
+            foreach(var unit in catalog.Units.Where(u=>u.TypeCode==type.Code))unit.DriverId=setting.DefaultDriverId;
             // Explicitly configured equipment represents the complete cargo-carrying rig.
             // Capacity and costs must still be configured before it is planning-ready.
             type.PowerOnly = false;

@@ -32,7 +32,7 @@ static class HostMappingChecks
             LANGUAGE sql AS $$ SELECT NULL::uuid,NULL::text,NULL::text,NULL::text WHERE false $$;
             """);
         var builder=WebApplication.CreateSlimBuilder();builder.Logging.ClearProviders();builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string,string?>{{"Synchronization:Enabled","true"},{"Synchronization:FreightOps:Enabled","true"}});
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string,string?>{{"Synchronization:LocalWorkspace","true"},{"Synchronization:Enabled","true"},{"Synchronization:FreightOps:Enabled","true"}});
         builder.Services.AddSingleton(dataSource);builder.Services.AddSingleton(factory);builder.Services.AddSingleton(tenant);builder.Services.AddSingleton(entities);
         builder.Services.AddOptions<FirebirdRoutingOptions>();builder.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         builder.Services.AddSingleton<IOptions<FreightOpsRuntimeOptions>>(Options.Create(runtime));

@@ -33,7 +33,7 @@ Check(FirebirdRoutingSource.PlannedDispatchTruck(reference,[(2,"TEST-TRUCK")],Gu
 Check(FirebirdRoutingSource.PlannedDispatchTruck(reference,[(1,"WRONG")],tenantId) is null,"missing optimized truck cannot be substituted");
 Check(AppLog.Describe("/api/v1/aurora/firebird/manifests/{id}/dispatch","POST",200)=="Dispatched manifest","plain dispatch activity");
 Check(AppLog.Describe("/api/v1/aurora/firebird/manifests/{id}/assignment","PUT",200)=="Assigned manifest","plain assignment activity");
-var builder=WebApplication.CreateBuilder();builder.Services.AddAuthorization();builder.Services.AddScoped<FirebirdRoutingSource>();builder.Services.AddScoped<OrderWorkspace>();builder.Services.AddScoped<PlanningSessions>();
+var builder=WebApplication.CreateBuilder();builder.Services.AddAuthorization();builder.Services.AddScoped<FirebirdRoutingSource>();builder.Services.AddScoped<OrderWorkspace>();builder.Services.AddScoped<PlanningSessions>();builder.Services.AddScoped<MasterAddressLookup>();builder.Services.AddScoped<TmsStore>();builder.Services.AddScoped<NpgsqlConnectionFactory>();builder.Services.AddScoped<ITenantContext,TestTenant>();builder.Services.AddScoped<NovaUserConnections>();
 await using var app=builder.Build();app.MapOrderWorkspaceEndpoints();
 var policies=app.Services.GetRequiredService<IAuthorizationPolicyProvider>();var authorization=app.Services.GetRequiredService<IAuthorizationService>();
 var endpoints=((IEndpointRouteBuilder)app).DataSources.SelectMany(s=>s.Endpoints).OfType<RouteEndpoint>().Where(e=>e.RoutePattern.RawText!.EndsWith("/dispatch")||e.RoutePattern.RawText!.EndsWith("/assignment")||e.RoutePattern.RawText!.EndsWith("/status")||e.RoutePattern.RawText!.EndsWith("/notes")).ToArray();
@@ -153,5 +153,3 @@ if(Environment.GetEnvironmentVariable("FIREBIRD_CHECK_CONFIG") is {} path)
 }
 Console.WriteLine($"PASS {checks} dispatch checks.");
 sealed class TestTenant(Guid id):ITenantContext {public Guid TenantId=>id;public Guid? TenantIdOrNull=>id;public Guid? UserIdOrNull=>null;}
-
-

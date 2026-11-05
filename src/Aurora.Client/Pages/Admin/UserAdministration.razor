@@ -21,10 +21,6 @@ else
             <label class="field">Level<select @bind="_level"><option>Administrator</option><option>Power User</option><option>User</option></select></label>
             <label class="field">@(_id is null?"Login password":"New login password")<input id="managed-user-password" name="managed-user-password" type="password" @bind="_loginPassword" autocomplete="section-managed-user new-password" data-1p-ignore="true" data-lpignore="true" placeholder="@(_id is null?"Required":"Leave blank to keep current")" /></label>
         </div></fieldset>
-        <fieldset class="edit-group"><legend>Nova sign-in</legend><div class="user-fields">
-            <label class="field nova-login-option"><input type="checkbox" @bind="_novaApiLogin" /><span>Allow Nova API sign-in (User level only)</span></label>
-            <label class="field">Nova user ID<input @bind="_novaUserId" maxlength="128" placeholder="Leave blank to disable Nova sign-in" /></label>
-        </div></fieldset>
         <div class="user-toolbar"><span class="spacer"></span><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div>
     </fieldset>
 }
@@ -33,15 +29,15 @@ else
 @code {
     const string Url="api/v1/admin/users";
     AdminUserDto[] _users=[];AdminUserDto? _delete;
-    Guid? _id;bool _editing,_busy,_novaApiLogin;
-    string _name="",_email="",_level="User",_revision="",_loginPassword="",_novaUserId="";
+    Guid? _id;bool _editing,_busy;
+    string _name="",_email="",_level="User",_revision="",_loginPassword="";
     string? _error,_message;
     protected override async Task OnInitializedAsync()=>await Run(Load);
     async Task Load(){using var response=await Http.GetAsync(Url);await Check(response);_users=(await response.Content.ReadFromJsonAsync<AdminUserDto[]>())??[];}
-    void New(){_novaApiLogin=false;_id=null;_editing=true;_delete=null;_name=_email=_revision=_loginPassword=_novaUserId="";_level="User";_error=_message=null;}
-    void Edit(AdminUserDto user){_novaApiLogin=user.NovaApiLogin;_id=user.Id;_name=user.UserName;_email=user.Email;_level=user.Level;_revision=user.Revision;_novaUserId=user.NovaUserId??"";_loginPassword="";_editing=true;_delete=null;_error=_message=null;}
+    void New(){_id=null;_editing=true;_delete=null;_name=_email=_revision=_loginPassword="";_level="User";_error=_message=null;}
+    void Edit(AdminUserDto user){_id=user.Id;_name=user.UserName;_email=user.Email;_level=user.Level;_revision=user.Revision;_loginPassword="";_editing=true;_delete=null;_error=_message=null;}
     void Cancel(){_editing=false;_loginPassword="";_error=_message=null;}
-    AdminUserEdit Input()=>new(_name,_email,_level,_loginPassword,_revision,_novaUserId,_novaApiLogin);
+    AdminUserEdit Input()=>new(_name,_email,_level,_loginPassword,_revision);
     async Task Save()=>await Run(async()=>
     {
         var creating=_id is null;
@@ -49,7 +45,7 @@ else
         await Check(response);
         var created=creating?await response.Content.ReadFromJsonAsync<AdminUserCreated>():null;
         _editing=false;_loginPassword="";
-        _message=created is null?"User saved.":created.Invitation.Sent?"User created. Invitation email submitted to Resend.":"User created, but the invitation email was not sent. "+created.Invitation.Error;
+        _message=created is null?"User saved.":created.Invitation.Sent?"User created.":"User created, but the invitation email was not sent. "+created.Invitation.Error;
         await Load();
     });
     async Task SendInvitation(AdminUserDto user)=>await Run(async()=>
@@ -57,8 +53,7 @@ else
         using var response=await Http.PostAsync($"{Url}/{user.Id}/invitation",null);
         await Check(response);
         var result=await response.Content.ReadFromJsonAsync<InvitationEmailResult>();
-        if(result?.Sent==true)_message="Invitation email submitted to Resend.";
-        else _error=result?.Error??"Invitation email could not be sent.";
+        if(result?.Sent!=true)_error=result?.Error??"Invitation email could not be sent.";
     });
     async Task Delete()=>await Run(async()=>{using var response=await Http.DeleteAsync($"{Url}/{_delete!.Id}?revision={Uri.EscapeDataString(_delete.Revision)}");await Check(response);_delete=null;await Load();_message="User deleted.";});
     async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=_message=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;}}

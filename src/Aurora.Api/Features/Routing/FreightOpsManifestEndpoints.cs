@@ -12,7 +12,7 @@ public static class FreightOpsManifestEndpoints
     public sealed record PublishRequest(int Revision);
     public static void MapFreightOpsManifests(this IEndpointRouteBuilder app)
     {
-        var group=app.MapGroup("/api/v1/aurora/manifests/{id:guid}/freightops").RequireAuthorization(p=>p.RequireRole("aurora:Admin","aurora:PowerUser"));
+        var group=app.MapGroup("/api/v1/aurora/manifests/{id:guid}/freightops").RequireAuthorization(p=>p.RequireRole("aurora:Admin","aurora:PowerUser")).AddEndpointFilter<NativeWorkspaceFilter>();
         group.MapPost("",(Guid id,PublishRequest input,NpgsqlConnectionFactory factory,ITenantContext tenant,IOptions<FreightOpsRuntimeOptions> runtime,CancellationToken ct)=>OrderWorkspaceEndpoints.Guard(async()=>
         {
             await using var db=await factory.OpenConnectionAsync(ct);

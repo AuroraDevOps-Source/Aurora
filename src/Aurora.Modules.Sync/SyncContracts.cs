@@ -46,6 +46,27 @@ public sealed class SyncConflictException(string message) : Exception(message);
 public sealed record FieldMerge(JsonObject Result,string[] Conflicts);
 public static class SyncMerge
 {
+    // A native transport snapshot owns every field it supplies. Retain supplemental
+    // target metadata (e.g. execution state and line PO/BOL) absent from the source.
+    // Match line supplements only by stable identity, never position or SKU.
+    public static JsonObject ReplaceSourceFields(JsonObject local,JsonObject source)
+    {
+        var result=(JsonObject)local.DeepClone();
+        foreach(var field in source)
+        {
+            if(field.Value is JsonObject child && local[field.Key] is JsonObject prior)
+                result[field.Key]=ReplaceSourceFields(prior,child);
+            else if(field.Key=="Lines" && field.Value is JsonArray lines && local[field.Key] is JsonArray old)
+                result[field.Key]=new JsonArray(lines.Select(line=>
+                {
+                    if(line is not JsonObject row || !Guid.TryParse(row["LineId"]?.ToString(),out var id))return line?.DeepClone();
+                    var matches=old.OfType<JsonObject>().Where(r=>Guid.TryParse(r["LineId"]?.ToString(),out var previous)&&previous==id).ToArray();
+                    return matches.Length==1?ReplaceSourceFields(matches[0],row):row.DeepClone();
+                }).ToArray());
+            else result[field.Key]=field.Value?.DeepClone();
+        }
+        return result;
+    }
     // Three-way merge: independent edits combine; competing edits remain unresolved.
     // Field absence and explicit null are distinct. Arrays are treated atomically.
     public static FieldMerge Apply(JsonObject baseline,JsonObject local,JsonObject external)

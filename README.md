@@ -89,7 +89,7 @@ in Docker. Nothing here belongs in `appsettings.json`.
 
 Adding a user under Admin > Users submits an invitation through the
 [Resend Email API](https://resend.com/docs/api-reference/emails/send-email), from
-`alerts@aurorsoftware.com`. Verify that exact sender domain in Resend. The email
+`alerts@aurorasoftware.com`. Verify that exact sender domain in Resend. The email
 includes the username and a sign-in link that continues to Change password.
 Administrators provide the initial password separately; passwords are never emailed.
 Users can also open Change password using the lock icon in the header. The email
@@ -176,3 +176,11 @@ Firebird generators may advance even when the transaction rolls back.
 Orders also expose a Freight workflow for movement legs, warehouse/storage work,
 ordered tasks, partner references, and execution history. Apply migration 0018 before
 using it. See `docs/FREIGHT-WORKFLOW-2026-10-07.md` for behavior and integration boundaries.
+
+### Optimization driver cost
+
+Settings > General > Driver cost per hour stores one company-wide hourly labor rate.
+It defaults to zero and is editable by administrators. Every optimization run adds
+the latest saved rate to the saved equipment hourly cost of each selected truck, without
+requiring a driver assignment. Truck availability and route hours still apply.
+Drivers are assigned during dispatch; individual driver pay does not affect optimization.

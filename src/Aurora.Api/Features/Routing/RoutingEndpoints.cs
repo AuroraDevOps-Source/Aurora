@@ -12,7 +12,7 @@ public static class RoutingEndpoints
 
     public static void MapRoutingEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/routing").RequireAuthorization();
+        var group = app.MapGroup("/api/v1/routing").RequireAuthorization().AddEndpointFilter<NativeWorkspaceFilter>();
 
         group.MapGet("/route-plans", async (ListRoutePlansQuery query, CancellationToken cancellationToken) =>
             Results.Ok(await query.ExecuteAsync(cancellationToken)));

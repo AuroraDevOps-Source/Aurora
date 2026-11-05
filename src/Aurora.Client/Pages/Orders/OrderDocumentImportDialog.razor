@@ -1,93 +1,282 @@
 @inject IHttpClientFactory Clients
 @inject IJSRuntime JS
-<EditPopup Title="Import orders" Busy="_busy" OnClose="Close" Class="order-dialog">
+<section class="import-entry" aria-label="Convert documents to orders">
+ @if(!_review && _error is not null){<p class="alert" role="alert">@_error</p>}
+ <fieldset disabled="@(_busy || _review)" class="import-inputs">
+  <div class="import-panels">
+   <section class="import-panel @(_file is not null ? "is-selected" : null)">
+    <header class="import-panel-heading"><span class="import-icon mdi mdi-file-upload-outline" aria-hidden="true"></span><h2>Upload document</h2>@if(_file is not null){<span class="import-ready">Ready</span>}</header>
+    <div class="import-dropzone @(!string.IsNullOrWhiteSpace(_text) ? "is-disabled" : null)">
+     <span class="mdi mdi-cloud-upload-outline import-drop-icon" aria-hidden="true"></span>
+     <strong>Drop a file here</strong><span class="import-or">or</span><span class="import-browse">Browse files</span>
+     <InputFile @key="_fileVersion" OnChange="SelectFile" disabled="@(!string.IsNullOrWhiteSpace(_text))" aria-label="Upload document: browse or drop a file" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpeg,.jpg,.png,.webp,.gif,.bmp" />
+    </div>
+    @if(_file is not null){<div class="import-file"><span class="mdi mdi-file-document-outline" aria-hidden="true"></span><div><strong>@_file.Name</strong><small>@FileSize(_file.Size)</small></div><button type="button" class="text-button" @onclick="ClearFile">Remove</button></div>}
+    else {<p class="import-formats">PDF, Word, Excel, CSV, text, or images · Up to 10 MB</p>}
+    @if(!string.IsNullOrWhiteSpace(_text)){<p class="import-source-hint">Clear the pasted text to upload a file.</p>}
+   </section>
+   <section class="import-panel @(!string.IsNullOrWhiteSpace(_text) ? "is-selected" : null)">
+    <header class="import-panel-heading"><span class="import-icon mdi mdi-clipboard-text-outline" aria-hidden="true"></span><h2>Paste text</h2><button type="button" class="text-button import-clear" disabled="@(_text.Length==0)" @onclick="ClearText">Clear</button></header>
+    <label class="import-text-label"><span class="import-visually-hidden">Order details</span><textarea class="import-text" @bind="_text" @bind:event="oninput" rows="9" disabled="@(_file is not null)"></textarea></label>
+    <div class="import-text-meta"><span>@(_file is not null ? "Remove the file to paste text." : "Paste order details from an email or document.")</span><span>@_text.Length.ToString("N0") characters</span></div>
+   </section>
+  </div>
+  <div class="import-action-bar">
+   <div class="import-action-status" role="status">
+    @if(_busy && !_review){<span class="import-spinner" aria-hidden="true"></span><span>@_progress</span>}
+    else if(_file is not null){<span class="mdi mdi-check-circle-outline" aria-hidden="true"></span><span>Document ready to convert</span>}
+    else if(!string.IsNullOrWhiteSpace(_text)){<span class="mdi mdi-check-circle-outline" aria-hidden="true"></span><span>Text ready to convert</span>}
+    else {<span>Upload a document or paste text to begin.</span>}
+   </div>
+   <button class="primary-button import-convert" disabled="@(!CanConvert || _busy)" @onclick="Convert">@(_busy ? "Converting…" : "Convert to orders")<span class="mdi mdi-arrow-right" aria-hidden="true"></span></button>
+  </div>
+ </fieldset>
+</section>
+<section class="import-history" aria-labelledby="import-history-heading">
+ <header><div><h2 id="import-history-heading">Recent imports</h2><p>Latest 20 imports for your company</p></div><button class="outline-button" disabled="@(_historyLoading || _busy)" @onclick="LoadHistory">Refresh</button></header>
+ @if(_historyError is not null){<p class="alert" role="alert">@_historyError</p>}
+ else if(_historyLoading){<p class="import-history-empty" role="status">Loading recent imports…</p>}
+ else if(_history.Count==0){<div class="import-history-empty"><span class="mdi mdi-history" aria-hidden="true"></span><strong>No imports yet</strong><p>Your converted documents and created order counts will appear here.</p></div>}
+ else {
+  <div class="import-history-scroll"><table><thead><tr><th>Source</th><th>Date</th><th>Order number</th><th>Orders created</th><th>Status</th></tr></thead><tbody>
+   @foreach(var item in _history){<tr @key="item.Id"><td><span class="mdi mdi-file-document-outline" aria-hidden="true"></span>@(item.FileName=="pasted-orders.txt" ? "Pasted text" : item.FileName)</td><td>@item.CreatedAt.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")</td><td class="import-order-numbers">@if(item.CreatedPros.Length==0){<span>—</span>}else{@foreach(var pro in item.CreatedPros){<a href="@($"/data-entry?import={item.Id}&order={Uri.EscapeDataString(pro)}")" @onclick="()=>OpenImportedOrder(item.Id,pro)" @onclick:preventDefault="true" data-enhance-nav="false" aria-label="@($"Open order {pro}")">@pro</a>}}</td><td>@item.CreatedCount <span class="import-count-detail">/ @item.ExtractedCount extracted</span></td><td><span class="import-history-status @HistoryClass(item.Status)">@item.Status</span></td></tr>}
+  </tbody></table></div>
+ }
+</section>
+@if(_review){
+<EditPopup Title="@(_editing is null ? "Review orders" : "Edit order · " + _editPro)" Busy="_busy" OnClose="Close" Class="order-dialog">
  @if(_error is not null){<p class="alert" role="alert">@_error</p>}
- @if(_saved>0){<p role="status">@_saved orders created in Aurora.</p>}
- <p>Select a document, review the extracted orders, then create them in Aurora.</p>
- <fieldset disabled="@_busy">
-  @if(_rows.Count==0){
-   <label class="field">Document (up to 10 MB)<InputFile OnChange="SelectFile" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpeg,.jpg,.png,.webp,.gif,.bmp" /></label>
-   <button class="primary-button" disabled="@(_file is null || _busy)" @onclick="Convert">Convert document</button>
-  }
-  else {
-   <p>Check addresses, dates and freight totals. Missing order numbers and consignee names must be filled in. Missing dates default to today. Dates without a time zone use your local time.</p>
-   <label class="field">Terminal<select @bind="_terminal"><option value="">Unassigned</option>@foreach(var terminal in Terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
-   @foreach(var row in _rows){
-    <details @key="row" open>
+ @if(_saved>0){
+  <div class="import-success" role="status">
+   <strong>@(_saved==1 ? $"Order {_createdPros[0]}" : $"{_saved} orders") created in @(NativeWorkspace?"Nova":"Aurora").</strong>
+   @foreach(var note in _addressNotes){<p>@(_saved>1 ? $"Order {note.Pro}: " : "")@note.Text</p>}
+  </div>
+ }
+ @foreach(var warning in _warnings){<p class="alert" role="status">@warning</p>}
+ <fieldset disabled="@_busy" class="import-review-fields">
+   @if(_rows.Count>10){<div class="import-action-bar"><button class="outline-button" disabled="@(ReviewIndex==0)" @onclick="()=>_reviewIndex=ReviewIndex-1">Previous order</button><label>Order <select value="@ReviewIndex" @onchange="e=>_reviewIndex=int.Parse(e.Value!.ToString()!)">@for(var i=0;i<_rows.Count;i++){<option value="@i">@(i+1) · @_rows[i].Order.Id · @_rows[i].Order.Customer</option>}</select> of @_rows.Count</label><button class="outline-button" disabled="@(ReviewIndex>=_rows.Count-1)" @onclick="()=>_reviewIndex=ReviewIndex+1">Next order</button></div>}
+   @foreach(var row in (_rows.Count>10?_rows.Skip(ReviewIndex).Take(1):_rows)){
+    <details class="import-order" @key="row" open>
      <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) · @row.Order.Customer</summary>
-     <div class="manifest-edit-grid">
-      @foreach(var field in TextFields){
-       <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>SetText(row.Order,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
-      }
+     @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
+     @if(_existing.Contains(row.Order.Id)){<p class="alert import-duplicate" role="alert">PRO @row.Order.Id already exists</p>}
+     <section class="import-group"><h3>Order &amp; references</h3><div class="manifest-edit-grid">
+      <label class="field">Tag # / numeric PRO<input @bind="row.Draft.TagNumber" maxlength="200" readonly="@(_editing is not null)" /></label>
+      <label class="field">Nova PRO (from Tag)<input value="@MappedPro(row)" readonly /></label>
+      <label class="field">Terminal<select @bind="row.Order.TerminalId"><option value="">Choose terminal</option>@foreach(var terminal in Terminals){<option value="@terminal.Id">@terminal.Code - @terminal.Name</option>}</select></label>
+      @if(NativeWorkspace){<label class="field">Nova status<InputSelect @bind-Value="row.Draft.NativeStatusId"><option value="">Choose status</option>@if(row.Draft.NativeStatusId is {} existingStatus && !Statuses.Any(s=>s.Id==existingStatus)){<option value="@existingStatus">@existingStatus</option>}@foreach(var status in Statuses){<option value="@status.Id">@status.Name</option>}</InputSelect></label>}
+      <label class="field">BOL #<input @bind="row.Draft.BillOfLading" maxlength="200" /></label>
+      <label class="field">Shipment reference<input @bind="row.Draft.ShipmentReference" maxlength="200" /></label>
+      <label class="field">HAWB #<input @bind="row.Draft.HouseAirWaybill" maxlength="200" /></label>
+      <label class="field">MAWB #<input @bind="row.Draft.MasterAirWaybill" maxlength="200" /></label>
+     </div></section>
+     <div class="import-parties">
+     @foreach(var group in AddressGroups){
+      <section class="import-group import-address"><h3>@group.Title</h3><div class="manifest-edit-grid">
+       @foreach(var field in TextFields.Skip(group.Start).Take(7)){
+        <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>SetText(row.Order,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
+       }
+      </div></section>
+     }
+     </div>
+     <section class="import-group"><h3>Shipment details</h3><div class="manifest-edit-grid">
       <label class="field">Scheduled date/time<input type="datetime-local" @bind="row.Scheduled" /></label>
       <label class="field">Work type<select @bind="row.Order.WorkType"><option>Delivery</option><option>Pickup</option></select></label>
       <label class="field">Pieces<InputNumber @bind-Value="row.Order.Pieces" /></label>
       <label class="field">Total weight (lb)<InputNumber @bind-Value="row.Order.Weight" /></label>
       <label class="field">Total cube (ft³)<InputNumber @bind-Value="row.Order.Cube" /></label>
-      <label class="field">Notes<textarea @bind="row.Order.Notes" maxlength="4000"></textarea></label>
-     </div>
-     <button class="text-button" @onclick="()=>_rows.Remove(row)">Remove from import</button>
+      <label class="field import-notes">Notes<textarea @bind="row.Order.Notes" maxlength="4000"></textarea></label>
+     </div></section>
+     @if(_editing is null){<button class="text-button" @onclick="()=>_rows.Remove(row)">Remove from import</button>}
     </details>
    }
-   <button class="primary-button" disabled="@_busy" @onclick="Create">Create @_rows.Count orders</button>
-  }
+   @if(_editing is not null){<button class="primary-button" disabled="@_busy" @onclick="SaveImportedOrder">Save changes</button>}
+   else if(_rows.Count>0){<button class="primary-button" disabled="@(_busy || HasDuplicates)" @onclick="Create">Create @_rows.Count @(_rows.Count==1?"order":"orders")</button>}
  </fieldset>
  @if(_busy){<p role="status">@_progress</p>}
  <div class="popup-actions"><button class="outline-button" disabled="@_busy" @onclick="Close">Close</button></div>
 </EditPopup>
+}
 @code {
+ List<OrderImportHistory> _history=[];
+ int _reviewIndex;
+ int ReviewIndex=>Math.Clamp(_reviewIndex,0,Math.Max(0,_rows.Count-1));
+ bool _historyLoading;
+ string? _historyError;
+ [Parameter] public Guid? ImportBatch {get;set;}
+ [Parameter] public string? OrderPro {get;set;}
+ string? _openedLink;
+ ImportedOrderEdit? _editing;
+ Guid _editBatch;
+ string? _editPro;
+ protected override Task OnInitializedAsync()=>LoadHistory();
+ protected override async Task OnParametersSetAsync()
+ {
+  if(ImportBatch is {} batch && !string.IsNullOrWhiteSpace(OrderPro) && _openedLink!=$"{batch}:{OrderPro}")
+  { _openedLink=$"{batch}:{OrderPro}";await OpenImportedOrder(batch,OrderPro); }
+ }
+ async Task OpenImportedOrder(Guid batch,string pro)
+ {
+  if(_busy)return;
+  _busy=true;_error=null;_createdPros.Clear();_addressNotes.Clear();_existing.Clear();_warnings.Clear();_rows.Clear();_editing=null;
+  try
+  {
+   using var http=Clients.CreateClient(ApiClients.Authorized);
+   using var response=await http.GetAsync($"api/v1/order-imports/{batch}/orders/{Uri.EscapeDataString(pro)}");
+   await ApiResponse.Check(response);
+   _editing=(await response.Content.ReadFromJsonAsync<ImportedOrderEdit>())!;
+   _editBatch=batch;_editPro=pro;
+   var draft=_editing.Draft;
+   if(_editing.NativeWorkspace)draft.Order.TerminalId=Terminals.FirstOrDefault(t=>string.Equals(t.Code,draft.Order.TerminalCode,StringComparison.OrdinalIgnoreCase))?.Id;
+   _rows=[new Row(draft)];
+   if(_editing.NativeWorkspace && draft.Order.AppointmentFrom is null)_rows[0].Scheduled=null;
+   _review=true;
+  }
+  catch(Exception ex){_error=ex.Message;_review=false;}
+  finally{_busy=false;}
+ }
+ async Task SaveImportedOrder()
+ {
+  if(_busy || _editing is null)return;
+  _busy=true;_error=null;_progress="Saving order…";
+  try
+  {
+   var row=_rows.Single();
+   row.Order.TerminalCode=Terminals.FirstOrDefault(t=>t.Id==row.Order.TerminalId)?.Code;
+   if(row.Scheduled is {} scheduled)row.Order.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));
+   using var http=Clients.CreateClient(ApiClients.Authorized);
+   using var response=await http.PutAsJsonAsync($"api/v1/order-imports/{_editBatch}/orders/{Uri.EscapeDataString(_editPro!)}",_editing with {ClearSchedule=row.Scheduled is null});
+   await ApiResponse.Check(response);
+   _review=false;_editing=null;_rows.Clear();await LoadHistory();await OnCreated.InvokeAsync();
+  }
+  catch(Exception ex){_error=ex.Message;}
+  finally{_busy=false;}
+ }
+ async Task LoadHistory()
+ {
+  _historyLoading=true;_historyError=null;
+  try{using var http=Clients.CreateClient(ApiClients.Authorized);_history=await http.GetFromJsonAsync<List<OrderImportHistory>>("api/v1/tms/orders/import/history")??[];}
+  catch(Exception){_historyError="Recent imports could not be loaded. Select Refresh to retry.";}
+  finally{_historyLoading=false;}
+ }
+ static string FileSize(long size)=>size>=1024*1024?$"{size/(1024d*1024):0.0} MB":$"{Math.Max(1,Math.Ceiling(size/1024d)):0} KB";
+ static string HistoryClass(string status)=>status switch {"Orders created"=>"is-created","Failed" or "Interrupted"=>"is-failed","Converting"=>"is-converting",_=>"is-converted"};
+ void ClearText(){_text="";_error=null;}
+ [Parameter] public bool NativeWorkspace {get;set;}
+ [Parameter] public NovaManifestStatus[] Statuses {get;set;}=[];
  [Parameter] public List<TerminalDto> Terminals {get;set;}=[];
  [Parameter] public EventCallback OnClose {get;set;}
  [Parameter] public EventCallback OnCreated {get;set;}
  IBrowserFile? _file;
+ const long MaxImportBytes=10*1024*1024;
+ bool _review;
+ int _fileVersion;
+ bool _pasteText=>_file is null;
+ static readonly (string Title,int Start)[] AddressGroups=[("Shipper",7),("Consignee",0),("Bill to",14)];
+ string _text="";
+ bool CanConvert=>_pasteText?!string.IsNullOrWhiteSpace(_text):_file is not null;
  bool _busy;
- int _saved;
+ readonly List<string> _createdPros=[];
+ readonly List<(string Pro,string Text)> _addressNotes=[];
+ int _saved => _createdPros.Count;
  string? _error,_progress;
- Guid? _terminal;
+ readonly HashSet<string> _existing=[];
+ bool HasDuplicates=>_rows.Any(row=>_existing.Contains(row.Order.Id));
+ readonly List<string> _warnings=[];
  List<Row> _rows=[];
- sealed class Row(TmsOrder order){public TmsOrder Order=order;public DateTime Scheduled=order.ScheduledAt.LocalDateTime;}
+ sealed class Row(OrderDocumentDraft draft){public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
+ static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "Enter a valid Tag / PRO";}}
  static readonly (string Name,string Label)[] TextFields=[
-  ("Id","PRO / Order"),("Reference","Reference"),("Customer","Consignee"),("Address","Consignee address"),("Address2","Consignee address 2"),("City","Consignee city"),("State","Consignee state"),("PostalCode","Consignee ZIP"),("Country","Consignee country"),
+  ("Customer","Consignee"),("Address","Consignee address"),("Address2","Consignee address 2"),("City","Consignee city"),("State","Consignee state"),("PostalCode","Consignee ZIP"),("Country","Consignee country"),
   ("Shipper","Shipper"),("OriginAddress","Shipper address"),("OriginAddress2","Shipper address 2"),("OriginCity","Shipper city"),("OriginState","Shipper state"),("OriginPostalCode","Shipper ZIP"),("OriginCountry","Shipper country"),
   ("BillTo","Bill to"),("BillToAddress","Bill-to address"),("BillToAddress2","Bill-to address 2"),("BillToCity","Bill-to city"),("BillToState","Bill-to state"),("BillToPostalCode","Bill-to ZIP"),("BillToCountry","Bill-to country")];
  static string GetText(TmsOrder o,string name)=>(string?)typeof(TmsOrder).GetProperty(name)!.GetValue(o)??"";
  static void SetText(TmsOrder o,string name,string value)=>typeof(TmsOrder).GetProperty(name)!.SetValue(o,value);
- void SelectFile(InputFileChangeEventArgs e){_file=e.File;_error=null;}
- async Task Close(){if(!_busy)await OnClose.InvokeAsync();}
+ void ClearFile(){_file=null;_fileVersion++;_error=null;}
+ void SelectFile(InputFileChangeEventArgs e){
+  _file=null;_error=null;
+  if(e.FileCount!=1){_error="Choose one document at a time.";_fileVersion++;return;}
+  if(e.File.Size is <=0 or >MaxImportBytes){_error="Choose a nonempty file up to 10 MB.";return;}
+  _file=e.File;
+ }
+ async Task Close(){if(_busy)return;_review=false;_editing=null;_rows.Clear();_error=null;await LoadHistory();await OnClose.InvokeAsync();}
  async Task Convert()
  {
-  if(_busy || _file is null)return;
-  _busy=true;_error=null;_progress="Converting document… This may take a few minutes.";
+  if(_busy || !CanConvert)return;
+  if(_pasteText && System.Text.Encoding.UTF8.GetByteCount(_text)>MaxImportBytes){_error="Pasted text must be 10 MB or less. Split the orders into smaller batches.";return;}
+  _busy=true;_editing=null;_error=null;_createdPros.Clear();_addressNotes.Clear();_warnings.Clear();_existing.Clear();_progress="Extracting orders… This may take a few minutes.";
   try{
    using var http=Clients.CreateClient(ApiClients.Authorized);http.Timeout=TimeSpan.FromMinutes(6);
    using var form=new MultipartFormDataContent();
-   await using var stream=_file.OpenReadStream(10*1024*1024);
-   form.Add(new StreamContent(stream),"file",_file.Name);
+   if(_pasteText)form.Add(new StringContent(_text,System.Text.Encoding.UTF8,"text/plain"),"file","pasted-orders.txt");
+   else form.Add(new StreamContent(_file!.OpenReadStream(MaxImportBytes)),"file",_file.Name);
    using var response=await http.PostAsync("api/v1/tms/orders/convert-document",form);
    await ApiResponse.Check(response);
-   _rows=(await response.Content.ReadFromJsonAsync<List<TmsOrder>>()??[]).Select(o=>new Row(o)).ToList();
-   if(_rows.Count==0)_error="No orders were found in this document.";
-  }catch(Exception ex){_error=ex.Message;}finally{_busy=false;}
+   _reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
+   foreach(var row in _rows){
+    row.Draft.NativeStatusId=NativeWorkspace && Statuses.Any(s=>s.Id==NovaDocumentImport.DefaultStatus)?NovaDocumentImport.DefaultStatus:null;
+    if(string.IsNullOrWhiteSpace(row.Draft.TagNumber))row.Draft.TagNumber=row.Order.Id;
+    row.Order.TerminalId=Terminals.FirstOrDefault(t=>string.Equals(t.Code,row.Order.TerminalCode,StringComparison.OrdinalIgnoreCase))?.Id;
+   }
+   var ids=_rows.Select(r=>r.Order.Id).Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct().ToArray();
+   if(ids.Length>0)await CheckExisting(http,ids);
+   if(_rows.Count==0)_error="No orders were found. Check the file or pasted text and try again.";
+  }catch(Exception ex){_error=ex.Message;}finally{_busy=false;_review=_rows.Count>0;await LoadHistory();}
+ }
+ async Task CheckExisting(HttpClient http,string[] ids)
+ {
+  _existing.Clear();
+  foreach(var batch in ids.Chunk(100)){
+   using var response=await http.PostAsJsonAsync("api/v1/tms/orders/import/check",batch);
+   await ApiResponse.Check(response);
+   _existing.UnionWith(await response.Content.ReadFromJsonAsync<string[]>()??[]);
+  }
+ }
+ void AddLocationMessages(string pro,IEnumerable<string> messages)
+ {
+  var parties=new List<string>();
+  foreach(var message in messages.Distinct()){
+   var party=NovaImportAddress.Parties.FirstOrDefault(p=>message==$"{p.Label}: no unique Nova address match; kept the imported address.");
+   if(party.Label is not null){parties.Add(party.Label.ToLowerInvariant());continue;}
+   if(NovaImportAddress.Parties.Any(p=>message.StartsWith($"{p.Label}: using the address from Nova account ",StringComparison.Ordinal)))
+    _addressNotes.Add((pro,message));
+   else _warnings.Add($"PRO {pro}: {message}");
+  }
+  if(parties.Count==0)return;
+  var names=parties.Count==1 ? parties[0] : string.Join(", ",parties.SkipLast(1))+" and "+parties[^1];
+  _addressNotes.Add((pro,$"Used the {names} {(parties.Count==1?"address":"addresses")} from the bill."));
  }
  async Task Create()
  {
-  if(_busy || _rows.Count==0)return;
-  _busy=true;_error=null;_progress="Creating orders…";
+  if(_busy || _rows.Count==0 || HasDuplicates)return;
+  _busy=true;_error=null;_progress="Checking import…";
+  var creationStarted=false;
   try{
    foreach(var row in _rows){
-    row.Order.TerminalId=_terminal;
-    row.Order.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",row.Scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));
-    row.Order.Validate();
+    row.Draft.Normalize();
+    var terminal=Terminals.SingleOrDefault(t=>t.Id==row.Order.TerminalId);
+    row.Order.TerminalCode=terminal?.Code;
+    if(row.Scheduled is {} scheduled){row.Draft.ChangeLocalSchedule(scheduled);row.Order.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));}
    }
    if(_rows.GroupBy(r=>r.Order.Id).Any(g=>g.Count()>1))throw new FormatException("Order numbers must be unique within the import.");
    using var http=Clients.CreateClient(ApiClients.Authorized);
+   await CheckExisting(http,_rows.Select(r=>r.Order.Id).ToArray());
+   if(_existing.Count>0)throw new FormatException("These PROs already exist in Aurora or Nova: "+string.Join(", ",_existing)+". Remove them from the import.");
+   _progress="Creating orders…";
    while(_rows.Count>0){
-    using var response=await http.PostAsJsonAsync("api/v1/tms/orders",_rows[0].Order);
+    creationStarted=true;
+    using var response=await http.PostAsJsonAsync(NativeWorkspace?"api/v1/aurora/firebird/orders/import":"api/v1/tms/orders/import",_rows[0].Draft);
     await ApiResponse.Check(response);
-    _rows.RemoveAt(0);_saved++;
+    if(NativeWorkspace){
+     var saved=await response.Content.ReadFromJsonAsync<NovaRecordDocument>();
+     AddLocationMessages(_rows[0].Order.Id,saved?.LocationWarnings??[]);
+    }
+    _createdPros.Add(_rows[0].Order.Id);_rows.RemoveAt(0);
    }
-   _file=null;
-  }catch(Exception ex){_error=$"{ex.Message} {_saved} orders created; {_rows.Count} remain. If a request lost its connection, check the orders list before retrying.";}
-  finally{_busy=false;if(_saved>0)await OnCreated.InvokeAsync();}
+   _file=null;_fileVersion++;_text="";
+  }catch(Exception ex){_error=creationStarted
+    ?$"{ex.Message} {_saved} orders created; {_rows.Count} remain. If a request lost its connection, check the orders list before retrying."
+    :$"{ex.Message} No orders were created in this attempt. {_rows.Count} {(_rows.Count==1?"order remains":"orders remain")} for review.";}
+  finally{_busy=false;await LoadHistory();if(_saved>0)await OnCreated.InvokeAsync();}
  }
 }

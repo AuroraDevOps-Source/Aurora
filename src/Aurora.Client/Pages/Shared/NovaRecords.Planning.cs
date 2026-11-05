@@ -32,7 +32,7 @@ public partial class NovaRecords
 
     TmsOrder? PlanningOrder(NovaRecordSummary row) => _planningOrders.GetValueOrDefault(row.Id) is { } order
         && string.Equals(order.TerminalCode, row.Terminal, StringComparison.OrdinalIgnoreCase) ? order : null;
-    bool CanSelect(NovaRecordSummary row) => _planningError is null && PlanningOrder(row) is { Status: WorkspaceOrderStatus.Ready, ManifestId: null, OptimizationDraftId: null };
+    bool CanSelect(NovaRecordSummary row) => row.Issues.Length==0 && _planningError is null && PlanningOrder(row) is { Status: WorkspaceOrderStatus.Ready, ManifestId: null, OptimizationDraftId: null };
     IEnumerable<NovaRecordSummary> PageAvailable => _rows.Where(CanSelect);
     bool AllPageSelected => PageAvailable.Any() && PageAvailable.All(row => _selectedOrders.Contains(row.Id));
     string SelectionHint(NovaRecordSummary row) => CanSelect(row) ? "Shift-click to select a range on this page"

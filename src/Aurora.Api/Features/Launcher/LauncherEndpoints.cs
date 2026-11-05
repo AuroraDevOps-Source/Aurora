@@ -39,6 +39,13 @@ public static class LauncherEndpoints
     {
         var group = app.MapGroup("/api/v1/me").RequireAuthorization();
 
+        group.MapGet("/navigation", async (NpgsqlConnectionFactory factory, CancellationToken ct) =>
+        {
+            await using var db=await factory.OpenConnectionAsync(ct);
+            var json=await db.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT public.aurora_tenant_navigation()",cancellationToken:ct));
+            return json is null ? Results.Forbid() : Results.Ok(System.Text.Json.JsonSerializer.Deserialize<TenantNavigationSettings>(json));
+        });
+
         group.MapGet("/tenant", async (NpgsqlConnectionFactory factory, ITenantContext tenant, CancellationToken ct) =>
         {
             await using var db=await factory.OpenConnectionAsync(ct);

@@ -12,7 +12,7 @@
         }
     </tbody></table></div>
     @if(!_fleet.Units.Any(u=>u.UseForRouting)) { <p class="empty-state">Add your first truck. Equipment types define its capacity, routing profile, and operating costs.</p> }
-    <p class="preview-footnote">Saved drivers default into new plans and can be changed during planning. Driver hours-of-service compliance is not enforced.</p>
+    <p class="preview-footnote">Default drivers are available for dispatch. Optimization uses the driver cost per hour in Settings.</p>
 </section>
 @if(_editing)
 {

@@ -21,7 +21,15 @@ public sealed class SyncStore(NpgsqlConnectionFactory factory,ITenantContext ten
             INSERT INTO aurora_sync_outbox(tenant_id,connection_id,entity_type,local_id,local_revision,operation,payload)
             SELECT @tenantId,id,@entityType,@localId,@revision,@operation,CAST(@payload AS jsonb)
             FROM aurora_sync_connection WHERE tenant_id=@tenantId AND (@excludeConnectionId IS NULL OR id<>@excludeConnectionId) AND (@onlyConnectionId IS NULL OR id=@onlyConnectionId)
-              AND (provider='nova' OR (provider='freightops' AND (@entityType='order' OR (@entityType='manifest' AND id=@onlyConnectionId))))
+              AND (provider='nova' OR (provider='freightops' AND (@entityType='order' OR (@entityType='manifest' AND (id=@onlyConnectionId OR EXISTS(
+                SELECT 1 FROM aurora_sync_outbox published WHERE published.tenant_id=aurora_sync_connection.tenant_id
+                  AND published.connection_id=aurora_sync_connection.id AND published.entity_type='manifest' AND published.local_id=@localId)
+                OR EXISTS(SELECT 1 FROM aurora_sync_mapping mapped WHERE mapped.tenant_id=aurora_sync_connection.tenant_id
+                  AND mapped.connection_id=aurora_sync_connection.id AND mapped.entity_type='manifest' AND mapped.local_id=@localId)
+                OR EXISTS(SELECT 1 FROM aurora_sync_mapping native JOIN aurora_sync_connection origin ON origin.tenant_id=native.tenant_id AND origin.id=native.connection_id
+                  WHERE native.tenant_id=aurora_sync_connection.tenant_id AND native.entity_type='manifest' AND native.local_id=@localId
+                    AND origin.provider='nova' AND origin.enabled AND origin.metadata->>'OperationalWritesEnabled'='true'
+                    AND (origin.metadata->>'ManifestSyncFromId') IS NOT NULL))))))
             ON CONFLICT(tenant_id,connection_id,entity_type,local_id,local_revision) DO UPDATE
               SET state='pending',available_at=now(),last_error=NULL
               WHERE aurora_sync_outbox.state='superseded'

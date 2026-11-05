@@ -95,7 +95,7 @@ public static class LykesNovaLineWriter
             if(prior is not null)Unchanged(row,prior,"Pieces","TotalWeight","CubePerPiece","HandlingUnits","TotalCube");
             else
             {
-                Unchanged(row,new JsonObject(),"LineId","Kind","Sku","PackType","Pieces","TotalWeight","CubePerPiece","HandlingUnits","TotalCube","PO","BOL","Notes");
+                Unchanged(row,new JsonObject(),"LineId","Kind","Sku","Description","PackType","Pieces","TotalWeight","CubePerPiece","HandlingUnits","TotalCube","PO","BOL","Notes");
                 if(row.ContainsKey("Nova"))throw new FormatException("New lines cannot claim existing Nova metadata.");
             }
             var sku=Text(row,"Sku");
@@ -116,7 +116,8 @@ public static class LykesNovaLineWriter
                 if(lines.Any(x=>x.Sku==sku))throw new SyncConflictException("An existing SKU must retain its original line ID, even when removed in the same request.");
                 if(nextSequence==int.MaxValue)throw new FormatException("Native line sequence is exhausted.");
                 line=new(){LineId=id.ToString(),Sequence=++nextSequence,StopId=stops.Single(x=>x.Kind==options.FreightStopKind).Id,
-                    Keyword=keyword,Sku=sku,Uom=units[0],Cube="0"};
+                    Keyword=keyword,Sku=sku,Description=Text(row,"Description"),Uom=units[0],Cube="0"};
+                if(line.Description.Length>80)throw new FormatException("Nova freight descriptions allow at most 80 characters.");
             }
             else line=lines.Single(x=>Guid.Parse(x.LineId!.Trim())==id);
             if(options.ScalarCubeUnit!="ft3"||!decimal.TryParse(line.Cube,NumberStyles.AllowDecimalPoint,CultureInfo.InvariantCulture,out var oldCube))
@@ -180,7 +181,7 @@ public static class LykesNovaLineWriter
         {
             var parameters=new{orderId,lineId=edit.Line.LineId,edit.Pieces,edit.Weight,edit.Cube,
                 kilos=decimal.Round(edit.Weight/2.2046226218487757m,3),tons=decimal.Round(edit.Weight/2000m,3),
-                metricTons=decimal.Round(edit.Weight/2204.6226218487757m,3),edit.Line.Sequence,edit.Line.StopId,edit.Line.Keyword,edit.Line.Sku,edit.Line.Uom};
+                metricTons=decimal.Round(edit.Weight/2204.6226218487757m,3),edit.Line.Sequence,edit.Line.StopId,edit.Line.Keyword,edit.Line.Sku,edit.Line.Uom,edit.Line.Description};
             int affected;
             if(edit.Operation=="add")
             {
@@ -191,7 +192,7 @@ public static class LykesNovaLineWriter
                     INSERT INTO OPS_LINE_ITEMS(OPL_ORDER_ID,OPL_SEQUENCE,OPL_STOP_ID,OPL_SYNC_ID,OPL_KEYWORD,OPL_SKU,OPL_UOM,
                       OPL_PIECES,OPL_WEIGHT,OPL_KILOS,OPL_TONS,OPL_MET_TONS,OPL_CUBE,OPL_DESC,OPL_PALLETS,OPL_PALLET_POSITIONS,
                       OPL_RATE,OPL_AMOUNT,OPL_DIM_WGT,OPL_RATE_TYPE)
-                    VALUES(@orderId,@Sequence,@StopId,@lineId,@Keyword,@Sku,@Uom,@Pieces,@Weight,@kilos,@tons,@metricTons,@Cube,'',0,0,0,0,0,'')
+                    VALUES(@orderId,@Sequence,@StopId,@lineId,@Keyword,@Sku,@Uom,@Pieces,@Weight,@kilos,@tons,@metricTons,@Cube,@Description,0,0,0,0,0,'')
                     """,parameters,tx,cancellationToken:ct));
             }
             else if(edit.Operation=="delete")

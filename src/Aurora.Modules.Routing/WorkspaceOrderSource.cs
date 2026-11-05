@@ -5,8 +5,15 @@ namespace Aurora.Modules.Routing;
 
 public static class WorkspaceOrderSource
 {
-    public static async Task<Guid> Get(NpgsqlConnection db,Guid tenantId,string? terminal,NpgsqlTransaction? tx,CancellationToken ct)
+    public static async Task<Guid> Get(NpgsqlConnection db,Guid tenantId,string? terminal,NpgsqlTransaction? tx,CancellationToken ct,bool integrationStaging=false)
     {
+        if(integrationStaging)
+            return await db.QuerySingleAsync<Guid>(new CommandDefinition("""
+                INSERT INTO aurora_order_source(tenant_id,id,name,request)
+                VALUES(@tenantId,gen_random_uuid(),'FreightOps integration cache','{"reporting":{"integrationStaging":true}}')
+                ON CONFLICT(tenant_id,name) DO UPDATE SET name=excluded.name
+                WHERE aurora_order_source.request#>>'{reporting,integrationStaging}'='true' RETURNING id
+                """,new{tenantId},tx,cancellationToken:ct));
         // Keep newly synchronized orders in the same planning source as adopted
         // orders at that terminal, so a planner can select both in one route.
         var existing=await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("""

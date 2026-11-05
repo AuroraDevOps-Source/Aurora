@@ -29,10 +29,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
       """;
     const string ManifestSql = """
       SELECT jsonb_build_object('Id',m.id,'Number',m.number,'ManifestDate',m.manifest_date,'Status',m.status,
-      'Vehicle',m.vehicle,'Details',m.details || CASE WHEN EXISTS(
-        SELECT 1 FROM aurora_sync_outbox x JOIN aurora_sync_connection c ON (c.tenant_id,c.id)=(x.tenant_id,x.connection_id)
-        WHERE x.tenant_id=m.tenant_id AND c.provider='freightops' AND x.entity_type='manifest' AND x.local_id=m.id::text)
-        THEN jsonb_build_object('SourceReadOnlyReason','Submitted to FreightOps. Manage assignments and dispatch there; local plan edits are locked.') ELSE '{}'::jsonb END,'Revision',m.revision,
+      'Vehicle',m.vehicle,'Details',m.details,'Revision',m.revision,
       'OrderCount',(SELECT count(*) FROM aurora_manifest_order a WHERE a.tenant_id=m.tenant_id AND a.manifest_id=m.id))::text
       FROM aurora_manifest m WHERE m.tenant_id=@TenantId AND m.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM aurora_planning_draft d WHERE d.tenant_id=m.tenant_id AND d.id=m.draft_id AND NOT aurora_source_in_workspace(d.tenant_id,d.source_id))
       """;
@@ -54,11 +51,21 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
         return (await db.QueryAsync<string>(new CommandDefinition(ManifestSql+" ORDER BY m.manifest_date DESC,m.number",new{tenant.TenantId},cancellationToken:ct))).Select(x=>JsonSerializer.Deserialize<TmsManifest>(x)!).ToList();
     }
     static void Check(int count) { if(count!=1) throw new FormatException("This record changed or no longer exists. Refresh and try again."); }
-    public async Task SaveOrder(TmsOrder item,bool create,CancellationToken ct)
+    // Includes cancelled/deleted orders and all sources, independent of screen filters.
+    const string ExistingProSql = "SELECT DISTINCT ltrim(btrim(id),'0') FROM aurora_order WHERE tenant_id=@TenantId AND ltrim(btrim(id),'0')=ANY(@ids)";
+    public async Task<string[]> ExistingOrderNumbers(string[] ids,CancellationToken ct)
     {
-        item.Validate(); item.ScheduledAt=item.ScheduledAt.ToUniversalTime();
+        await using var db=await factory.OpenConnectionAsync(ct);
+        return (await db.QueryAsync<string>(new CommandDefinition(ExistingProSql,new{tenant.TenantId,ids},cancellationToken:ct))).ToArray();
+    }
+    public async Task SaveOrder(TmsOrder item,bool create,CancellationToken ct,bool documentImport=false)
+    {
+        if(!documentImport)item.Validate();
+        item.ScheduledAt=item.ScheduledAt.ToUniversalTime();
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
         await OperationalOutbox.Lock(db,tx,tenant.TenantId,ct);
+        if(create && (await db.QueryAsync<string>(new CommandDefinition(ExistingProSql,new{tenant.TenantId,ids=new[]{item.Id.Trim().TrimStart('0')}},tx,cancellationToken:ct))).Any())
+            throw new FormatException($"PRO {item.Id} already exists in Aurora (including deleted orders). No order was created.");
         if (item.TerminalId is {} terminalId && await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_terminal WHERE tenant_id=@TenantId AND id=@terminalId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,terminalId},tx,cancellationToken:ct)) is null)
             throw new FormatException("Choose a saved terminal from your company.");
         foreach (var nodeId in new[] { item.PickupNodeId, item.DeliverToNodeId }.OfType<Guid>())
@@ -128,7 +135,6 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
             item.Id=Guid.NewGuid();
             await db.ExecuteAsync(new CommandDefinition("INSERT INTO aurora_manifest(tenant_id,id,vehicle,data,number,manifest_date,status,details) VALUES(@TenantId,@Id,@Vehicle,'{}',@Number,@date,@Status,CAST(@json AS jsonb))",new{tenant.TenantId,item.Id,item.Vehicle,item.Number,date=item.ManifestDate.ToDateTime(TimeOnly.MinValue),item.Status,json=JsonSerializer.Serialize(item.Details)},tx,cancellationToken:ct));
         } else {
-            await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,item.Id,db,tx,ct);
             var current=await Lock(db,tx,item.Id,ct);
             if(current.Revision!=item.Revision) throw new FormatException("Manifest changed. Refresh and try again.");
             if(current.Details.SourceReadOnlyReason is {} reason)throw new FormatException(reason);
@@ -146,7 +152,6 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
     {
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
         await OperationalOutbox.Lock(db,tx,tenant.TenantId,ct);
-        await FreightOpsManifestPublishing.RequireLocalPlan(tenant.TenantId,id,db,tx,ct);
         var m=await Lock(db,tx,id,ct);
         if(!m.Editable) throw new FormatException("Orders cannot be changed after dispatch.");
         if(m.Revision!=input.Revision) throw new FormatException("Manifest changed. Refresh and try again.");

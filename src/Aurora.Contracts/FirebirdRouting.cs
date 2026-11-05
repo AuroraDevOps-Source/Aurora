@@ -24,6 +24,7 @@ public sealed class NovaManifest
     public DateTime? CreatedAt { get; set; }
     public DateTime? ManifestDate { get; set; }
     public int? StatusId { get; set; }
+    public string StatusCode { get; set; } = "";
     public string Status { get; set; } = "";
     public string Terminal { get; set; } = "";
     public string Truck { get; set; } = "";
@@ -32,6 +33,7 @@ public sealed class NovaManifest
 }
 public sealed class NovaManifestOrder
 {
+    public bool Completed { get; set; }
     public string Status { get; set; } = "";
     public string Reference { get; set; } = "";
     public decimal? Pieces { get; set; }

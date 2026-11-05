@@ -71,7 +71,15 @@ public sealed partial class FirebirdRoutingSource : INovaSyncMapper
     {
         RequireEnabled();
         var kind=change.EntityType;
-        if(!Options.Lykes.IncludesEntity(kind,change.EntityId))return [];
+        if(!Options.Lykes.IncludesEntity(kind,change.EntityId))
+        {
+            // A manifest can enroll a required member outside the pilot order list.
+            // Keep following its edits/deletion after that first committed binding.
+            var enrolled=kind=="order-or-manifest"
+                ? await Mapping("order",change.EntityId,true,ct)??await Mapping("manifest",change.EntityId,true,ct)
+                : await Mapping(kind,change.EntityId,true,ct);
+            if(enrolled is null)return [];
+        }
         if(kind=="order-or-manifest")
         {
             var type=await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT PB_TYPE FROM OPS_HEADER WHERE PB_ID=@id",new{id=long.Parse(change.EntityId,CultureInfo.InvariantCulture)},tx,cancellationToken:ct));
@@ -83,6 +91,7 @@ public sealed partial class FirebirdRoutingSource : INovaSyncMapper
                 return deleted;
             }
             kind=type.Trim()=="M"?"manifest":"order";
+            if(!Options.Lykes.IncludesEntity(kind,change.EntityId)&&await Mapping(kind,change.EntityId,true,ct) is null)return [];
         }
         if(kind=="equipment")
         {
@@ -117,6 +126,21 @@ public sealed partial class FirebirdRoutingSource : INovaSyncMapper
             if(mapping is null)return [];
             data=JsonNode.Parse(mapping.Baseline)!.AsObject();
             return [new(kind,change.EntityId,SyncHash(data,true),data,true)];
+        }
+        // During the dispatch pilot, only complete, unlinked resources are eligible
+        // for enrollment. Previously mapped resources must still report invalid edits.
+        if(mapping is null&&Options.Lykes.Enabled&&Options.Lykes.ManifestSyncFromId is >0&&kind is "equipment" or "driver")
+        {
+            try
+            {
+                if(kind=="driver")data.Deserialize<NovaDriver>()!.Validate();
+                else
+                {
+                    var unit=data["Unit"]!.Deserialize<EquipmentUnitDto>()!;var type=data["Type"]!.Deserialize<EquipmentTypeDto>()!;
+                    unit.TypeCode="sync";type.Code="sync";unit.Validate();type.Validate();
+                }
+            }
+            catch(FormatException){return [];}
         }
         return [new(kind,change.EntityId,SyncHash(data),data)];
     }

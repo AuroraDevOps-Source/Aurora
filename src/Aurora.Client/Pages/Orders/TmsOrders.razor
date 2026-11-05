@@ -10,7 +10,7 @@
  <label class="field">Status<select @bind="_status" @bind:after="Load" disabled="@_busy"><option value="">All statuses</option>@foreach(var s in WorkspaceOrderStatus.All){<option value="@s">@WorkspaceOrderStatus.Label(s)</option>}</select></label>
  <label class="field">Terminal<select @bind="_terminalFilter" @bind:after="Load" disabled="@_busy"><option value="">All terminals</option>@foreach(var terminal in _terminals){<option value="@terminal.Id">@terminal.Code · @terminal.Name</option>}</select></label>
  <label class="field order-search">Search<input @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyDown" disabled="@_busy" placeholder="PRO, customer, city, reference" title="Press Enter to search" /></label>
- <button class="primary-button" disabled="@(_busy || _edit is not null || _selected.Count==0)" @onclick="OptimizeSelected">Optimize routes</button><button class="outline-button" disabled="@(_busy || _edit is not null)" @onclick="()=>_import=true">Import orders</button>@if(_selected.Count>0){<button class="text-button" disabled="@_busy" @onclick="ClearSelection">Clear selection</button>}<button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
+ <button class="primary-button" disabled="@(_busy || _edit is not null || _selected.Count==0)" @onclick="OptimizeSelected">Optimize routes</button>@if(_selected.Count>0){<button class="text-button" disabled="@_busy" @onclick="ClearSelection">Clear selection</button>}<button class="primary-button" @onclick="New" disabled="@(_busy || _edit is not null)">Add order</button></div>
  @foreach(var plan in _openPlans)
  {
   <div class="orders-open-plan" role="status">
@@ -97,9 +97,7 @@
 <label class="field manifest-notes">Notes<textarea @bind="e.Notes" maxlength="4000" rows="2"></textarea></label>
 </div></section><div class="manifest-edit-actions"><button class="outline-button" @onclick="()=>_edit=null">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div></fieldset>
 </section></EditPopup>}
-@if(_import){<OrderDocumentImportDialog Terminals="_terminals" OnClose="()=>_import=false" OnCreated="Load" />}
 @code {
- bool _import;
  // Temporarily hide the entry point while retaining the workflow editor.
  bool ShowFreightWorkflow => false;
  OrderPlanningSelection.Selection? _planSelection;
@@ -181,7 +179,8 @@
  void ChooseCustomer(string? id){if(_edit is null)return;_edit.CustomerId=Guid.TryParse(id,out var key)?key:null;if(_edit.CustomerId is {} customerId){var c=_customers.Single(c=>c.Id==customerId);_edit.Customer=c.Name;_edit.CustomerCode=c.Code;_edit.Address=c.Address;_edit.Address2=c.Address2;_edit.City=c.City;_edit.State=c.State;_edit.PostalCode=c.PostalCode;_edit.Country=c.Country;}else {_edit.CustomerCode=null;}}
  DateTime? _from=DateTime.Today,_to=DateTime.Today.AddDays(1).AddSeconds(-1); DateTime _scheduled;
  string _status=WorkspaceOrderStatus.Ready,_search="",_appliedSearch="";
- protected override async Task OnInitializedAsync()=>await Load();
+ [Parameter] public string? EditPro {get;set;}
+ protected override async Task OnInitializedAsync(){await Load();if(!string.IsNullOrWhiteSpace(EditPro)){TmsOrder? found=null;await Run(async()=>{var matches=(await Http.GetFromJsonAsync<List<TmsOrder>>("api/v1/tms/orders?search="+Uri.EscapeDataString(EditPro))??[]).Where(o=>o.Id==EditPro).ToArray();if(matches.Length!=1)throw new FormatException(matches.Length==0?"Order no longer exists.":"More than one order has this number. Open it from the orders list.");found=matches[0];});if(found is not null)await Edit(found);}}
  async Task Run(Func<Task> action){if(_busy)return;_busy=true;_error=null;try{await action();}catch(Exception ex){_error=ex.Message;}finally{_busy=false;}}
  async Task Check(HttpResponseMessage r){if(!r.IsSuccessStatusCode)throw new FormatException((await r.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error??"Request failed.");}
  async Task Load()=>await Run(async()=>{if(_from>_to)throw new FormatException("End must follow start.");_terminals=await Http.GetFromJsonAsync<List<TerminalDto>>("api/v1/tms/terminals")??[];var url="api/v1/tms/orders?status="+Uri.EscapeDataString(_status)+"&search="+Uri.EscapeDataString(_appliedSearch);if(_terminalFilter is {} terminal)url+="&terminal="+terminal;foreach(var pair in new[]{("from",_from),("to",_to)})if(pair.Item2 is {} d)url+="&"+pair.Item1+"="+Uri.EscapeDataString(await JS.InvokeAsync<string>("auroraWorkspace.utc",d.ToString("yyyy-MM-ddTHH:mm:ss")));_orders=await Http.GetFromJsonAsync<List<TmsOrder>>(url)??[];_openPlans=await Http.GetFromJsonAsync<List<OpenOrderDraftDto>>("api/v1/aurora/drafts")??[];var visible=_orders.Select(Key).ToHashSet();_selected.RemoveWhere(key=>!visible.Contains(key));_selectionAnchor=null;_selectionVersion++;});

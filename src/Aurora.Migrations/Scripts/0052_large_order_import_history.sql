@@ -1,0 +1,2 @@
+ALTER TABLE order_import_history DROP CONSTRAINT order_import_history_extracted_count_check;
+ALTER TABLE order_import_history ADD CONSTRAINT order_import_history_extracted_count_check CHECK(extracted_count BETWEEN 0 AND 5000);

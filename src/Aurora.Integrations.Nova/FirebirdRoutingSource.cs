@@ -58,18 +58,15 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
         {
             TransactionBehavior = FbTransactionBehavior.Read | FbTransactionBehavior.Concurrency | FbTransactionBehavior.Wait
         });
-        var rows = (await fb.QueryAsync<SourceOrder>(new CommandDefinition("""
-            SELECT h.PB_STATUS AS StatusId,h.PB_ID AS NativeId, h.PBNUM AS Pro, h.PB_LOCATION AS Terminal, TRIM(s.OPS_ACCTID) AS CustomerCode,
+        var rows = (await fb.QueryAsync<SourceOrder>(new CommandDefinition($"""
+            SELECT CASE WHEN {NativeRoutingSql.Dock()} THEN 1 ELSE 0 END AS ReceivedAtTerminal, {NativeRoutingSql.Status()} AS StatusId,h.PB_ID AS NativeId, h.PBNUM AS Pro, {NativeRoutingSql.Terminal()} AS Terminal, TRIM(s.OPS_ACCTID) AS CustomerCode,
                 h.PBTPIECE AS Pieces, h.PBTWEIGH AS Weight, h.PB_TTL_CUBE AS Cube,
                 h.PBBOL AS Reference, s.OPS_STOP_ID AS StopId, TRIM(s.OPS_TYPE) AS StopKind, s.OPS_NAME AS Customer,
                 s.OPS_ADDR1 AS Address, s.OPS_CITY AS City, s.OPS_STATE AS State, s.OPS_ZIP AS PostalCode,
                 s.OPS_LATITUDE AS Latitude, s.OPS_LONGITUDE AS Longitude,
                 s.OPS_APPT_LOW AS AppointmentFrom, s.OPS_APPT_HIGH AS AppointmentTo
-            FROM OPS_HEADER h JOIN OPS_STOP_REC s ON s.OPS_ORDER_ID=h.PB_ID AND ((s.OPS_TYPE='D' AND h.PB_STATUS IN @readyStatuses) OR (s.OPS_TYPE='P' AND h.PB_STATUS IN @pickupStatuses))
-            WHERE h.PB_TYPE='O' AND h.PB_DT_CANC IS NULL
-                AND COALESCE(s.OPS_MANIFEST_NUMBER,0)=0 AND s.OPS_DELIVERED_TIME IS NULL
-                AND (s.OPS_TYPE<>'P' OR COALESCE(s.OPS_PICKED_UP,'N')<>'Y')
-                AND NOT EXISTS (SELECT 1 FROM OPS_MANIFEST_STOPS m WHERE m.OSM_PKUP_DELV_ID=s.OPS_STOP_ID)
+            FROM OPS_HEADER h JOIN OPS_STOP_REC s ON s.OPS_ORDER_ID=h.PB_ID
+            WHERE {NativeRoutingSql.Ready()}
             ORDER BY h.PB_ID,s.OPS_STOP_NUMBER
             """, new { readyStatuses, pickupStatuses }, read, cancellationToken: ct))).ToArray();
         var terminals = await ReadTerminals(ct);
@@ -78,8 +75,21 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
         var duplicateIds = rows.GroupBy(r => r.NativeId).Where(g => g.Count() != 1).Select(g => g.Key).ToHashSet();
         if (duplicateIds.Count > 0) warnings.Add($"{duplicateIds.Count} orders have multiple eligible stops and need review before routing.");
         rows = rows.Where(r => !duplicateIds.Contains(r.NativeId)).ToArray();
+        var unlocated=rows.Where(r=>!HasCoordinates(r.Latitude,r.Longitude)).ToArray();
+        if(unlocated.Length>0)warnings.Add($"{unlocated.Length} orders need verified stop coordinates before planning. Open the affected orders to correct their addresses or map locations.");
+        rows=rows.Where(r=>HasCoordinates(r.Latitude,r.Longitude)).ToArray();
         var policies=await CustomerPolicies(pg,tx,ct);
         foreach(var row in rows)row.Policy=policies.GetValueOrDefault(row.CustomerCode??"");
+        // A per-order receiving override describes the completed leg, not a new B-to-B trip.
+        foreach(var received in rows.Where(r=>r.ReceivedAtTerminal==1))
+            await pg.ExecuteAsync(new CommandDefinition("""
+                UPDATE aurora_order_routing SET receiving_terminal=NULL,revision=revision+1
+                WHERE tenant_id=@TenantId AND source_key=@SourceKey AND order_id=@id AND receiving_terminal=@terminal
+                    AND NOT EXISTS(SELECT 1 FROM aurora_planning_draft d JOIN aurora_order_source ds
+                        ON (ds.tenant_id,ds.id)=(d.tenant_id,d.source_id)
+                        WHERE d.tenant_id=@TenantId AND ds.request#>>'{reporting,firebirdSource}'=@SourceKey
+                        AND @orderKey=ANY(d.order_ids) AND d.finished_session IS NULL AND d.cancelled_at IS NULL)
+                """,new{tenant.TenantId,Options.SourceKey,id=received.NativeId,terminal=Text(received.Terminal),orderKey=received.Id},tx,cancellationToken:ct));
         await AccumulateConsolidation(pg,tx,rows,warnings,ct);
         var consolidationOrders=rows.Where(r=>r.StopKind=="D"&&r.Policy?.Consolidation==true).Select(r=>r.NativeId).ToArray();
         rows=rows.Where(r=>!consolidationOrders.Contains(r.NativeId)).ToArray();
@@ -107,6 +117,16 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
                 """,new{tenant.TenantId,source,nativeId=node.Id.ToString(),code=node.Code},tx,cancellationToken:ct));
             foreach (var row in orders)
             {
+                // An old-terminal plan must be canceled/reconciled before the same
+                // native stop can be planned at its new terminal.
+                var reservedElsewhere=await pg.ExecuteScalarAsync<bool>(new CommandDefinition("""
+                    SELECT EXISTS(SELECT 1 FROM aurora_planning_draft d JOIN aurora_order_source ds
+                        ON (ds.tenant_id,ds.id)=(d.tenant_id,d.source_id)
+                        WHERE d.tenant_id=@TenantId AND d.source_id<>@source AND @id=ANY(d.order_ids)
+                        AND ds.request#>>'{reporting,firebirdSource}'=@SourceKey
+                        AND d.finished_session IS NULL AND d.cancelled_at IS NULL)
+                    """,new{tenant.TenantId,source,id=row.Id,Options.SourceKey},tx,cancellationToken:ct));
+                if(reservedElsewhere){warnings.Add($"Order {row.Pro}: cancel its old-terminal route plan before routing from {node.Code}.");continue;}
                 var order = new TmsOrder
                 {
                     SourceId = source, Id = row.Id, TerminalId = node.Id, TerminalCode = node.Code,
@@ -115,30 +135,17 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
                     Reference = Text(row.Reference), Pieces = row.Pieces ?? 0, Weight = row.Weight ?? 0, Cube = row.Cube ?? 0,
                     ScheduledAt = row.AppointmentFrom is { } start ? LocalTime(start) : LocalTime(DateTime.Today)
                 };
-                await pg.ExecuteAsync(new CommandDefinition("""
-                    INSERT INTO aurora_order AS o(tenant_id,source_id,id,scheduled_at,customer,city,status,terminal_id,details)
-                    VALUES(@TenantId,@source,@Id,@time,@Customer,@City,'ReadyToRoute',NULL,CAST(@json AS jsonb))
-                    ON CONFLICT(tenant_id,source_id,id) DO UPDATE SET scheduled_at=excluded.scheduled_at,
-                        customer=excluded.customer,city=excluded.city,terminal_id=NULL,details=excluded.details,deleted_at=NULL,
-                        revision=o.revision+1
-                    WHERE o.status='ReadyToRoute' AND NOT EXISTS(SELECT 1 FROM aurora_planning_draft d
-                        WHERE d.tenant_id=o.tenant_id AND d.source_id=o.source_id AND o.id=ANY(d.order_ids)
-                        AND d.finished_session IS NULL AND d.cancelled_at IS NULL)
-                    """, new { tenant.TenantId, source, order.Id, time = order.ScheduledAt.ToUniversalTime(), order.Customer, order.City, terminal = node.Id, json = JsonSerializer.Serialize(order) }, tx, cancellationToken: ct));
+                await pg.ExecuteAsync(new CommandDefinition(NativeSnapshotSql.Upsert, new { tenant.TenantId, source, order.Id, time = order.ScheduledAt.ToUniversalTime(), order.Customer, order.City, terminal = node.Id, json = JsonSerializer.Serialize(order) }, tx, cancellationToken: ct));
+                // This index represents the current local assignment. Native links and
+                // saved route data retain previous-trip history after Nova releases freight.
+                await pg.ExecuteAsync(new CommandDefinition(NativeSnapshotSql.ReleaseAssignment,new{tenant.TenantId,source,id=row.Id},tx,cancellationToken:ct));
                 valid.Add(row);
             }
         }
         // Withdraw no-longer-eligible external orders, but keep every open draft's snapshot
         // available for retry/reconciliation. Finish always rechecks the live Firebird rows.
-        var keys = valid.Select(r => r.Id).ToArray();
-        await pg.ExecuteAsync(new CommandDefinition("""
-            UPDATE aurora_order o SET deleted_at=now(),revision=o.revision+1 FROM aurora_order_source s
-            WHERE (s.tenant_id,s.id)=(o.tenant_id,o.source_id) AND o.tenant_id=@TenantId
-                AND s.request#>>'{reporting,firebirdSource}'=@SourceKey AND o.status='ReadyToRoute'
-                AND o.deleted_at IS NULL AND NOT(o.id=ANY(@keys))
-                AND NOT EXISTS(SELECT 1 FROM aurora_planning_draft d WHERE d.tenant_id=o.tenant_id
-                    AND d.source_id=o.source_id AND o.id=ANY(d.order_ids) AND d.finished_session IS NULL AND d.cancelled_at IS NULL)
-            """, new { tenant.TenantId, Options.SourceKey, keys }, tx, cancellationToken: ct));
+        var keys = valid.Select(r => r.Id + "@" + SourceId(Text(r.Terminal))).ToArray();
+        await pg.ExecuteAsync(new CommandDefinition(NativeSnapshotSql.Withdraw, new { tenant.TenantId, Options.SourceKey, keys }, tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
         var codes = valid.Select(r => Text(r.Terminal)).Distinct().Order().ToArray();
         return new(valid.Count, codes, warnings.ToArray(), codes.Select(SourceId).ToArray()){ConsolidationOrders=consolidationOrders};
@@ -189,6 +196,7 @@ public sealed partial class FirebirdRoutingSource(NpgsqlConnectionFactory factor
     }
     public sealed class SourceOrder
     {
+        public int ReceivedAtTerminal {get;set;}
         public long? StatusId {get;set;}
         public string? CustomerCode {get;set;}
         public CustomerPlanning? Policy {get;set;}

@@ -1,0 +1,127 @@
+@inject HttpClient Http
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<section class="dispatch-board" aria-label="Daily dispatch board" aria-busy="@_busy">
+    <div class="dispatch-heading">
+        <div class="snapshot"><span class="snapshot-dot"></span>@(_loaded is {} loaded ? $"Snapshot · {loaded.LocalDateTime:h:mm:ss tt}" : "Waiting for data")<button class="outline-button" disabled="@_busy" @onclick="Load">@(_busy ? "Refreshing…" : "Refresh")</button></div>
+    </div>
+    <div class="dispatch-toolbar">
+        <label class="field">Dispatch date<InputDate @bind-Value="_date" @bind-Value:after="Load" disabled="@_busy" /></label>
+        <label class="field">Terminal<select @bind="_terminal" @bind:after="Changed" disabled="@_busy"><option value="">All terminals</option><option value="__none">Unassigned terminal</option>@foreach(var terminal in Terminals){<option>@terminal</option>}</select></label>
+        <label class="field dispatch-search">Find work<input placeholder="Order, route, customer, driver or truck" @bind="_search" @bind:event="oninput" @bind:after="Changed" /></label>
+        <label class="carry-over"><input type="checkbox" @bind="_carryOver" @bind:after="Load" disabled="@_busy" /> Include earlier unfinished work</label>
+    </div>
+    @if(_error is not null){<div class="dispatch-error" role="alert">@_error <button class="outline-button" @onclick="Load" disabled="@_busy">Retry</button></div>}
+    @foreach(var warning in _data.Warnings){<p class="dispatch-warning" role="status">@warning</p>}
+    <div class="dispatch-metrics" aria-label="Filter work">
+        @foreach(var metric in Metrics){<button class="metric @metric.Style @(_focus==metric.Key ? "selected" : "")" aria-pressed="@(_focus==metric.Key)" @onclick="()=>SetFocus(metric.Key)"><strong class="metric-count">@(_busy || _error is not null ? "—" : metric.Count.ToString())</strong><span class="metric-label">@metric.Label</span></button>}
+    </div>
+    @if(_busy){<p class="dispatch-loading" role="status">Loading orders, routes, and equipment…</p>}
+    else if(_error is null){
+    <div class="dispatch-content">
+        <div class="dispatch-work">
+            <div class="section-heading"><h3>@(_focus=="All" ? "Today’s work" : _focus)</h3><button class="text-button" @onclick='()=>SetFocus("All")'>Show all work</button></div>
+            <div class="dispatch-lanes">
+                @foreach(var lane in Lanes){
+                var rows=Visible.Where(i=>i.Lane==lane).OrderByDescending(i=>i.Late(_now)).ThenByDescending(i=>i.Issues.Length>0).ThenBy(i=>i.Scheduled).ToArray();
+                <section class="dispatch-lane"><header><span class="lane-dot @lane.ToLowerInvariant()"></span><h4>@lane</h4><span>@rows.Length</span></header>
+                    <div class="lane-cards">@foreach(var item in rows){
+                        <button class="dispatch-card @(_selected?.Key==item.Key ? "selected" : "") @(item.Late(_now) ? "late-card" : "")" @onclick="()=>Select(item)" aria-label="@($"View {item.Number}, {item.Status}")">
+                            <div class="card-top"><strong>@item.Number</strong><span>@(item.Key.StartsWith("order:") ? "ORDER" : "ROUTE")</span></div>
+                            <p class="card-description">@item.Description</p><span class="card-status">@item.Status</span>
+                            <div class="card-facts"><span>@(string.IsNullOrEmpty(item.Terminal) ? "No terminal" : item.Terminal)</span><span>@(item.Scheduled?.ToString("MMM d") ?? "Date missing") · @item.Orders @(item.Orders==1 ? "order" : "orders")</span></div>
+                            @if(!item.Key.StartsWith("order:")){<div class="card-assignment"><i class="mdi mdi-truck-outline" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(item.Truck)?"Truck unassigned":item.Truck)<br /><i class="mdi mdi-account-outline" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(item.Driver)?"Driver unassigned":item.Driver)</div>}
+                            @if(item.Late(_now)){<span class="flag late">Late · appointment passed</span>}
+                            @if(item.Issues.Length>0){<span class="flag blocked">@item.Issues.Length @(item.Issues.Length==1?"blocker":"blockers") · @item.Issues[0]</span>}
+                            @if(IsCarryOver(item)){<span class="flag carry">Carry-over · review progress</span>}
+                        </button>
+                    }@if(rows.Length==0){<p class="lane-empty">No @lane.ToLowerInvariant() work in this view.</p>}</div>
+                </section>}
+            </div>
+            <section class="dispatch-resources"><div class="section-heading"><h3>Drivers &amp; equipment</h3><span>@Resources.Count() in terminal scope</span></div><p class="scope-note">Directory status and assignments for this view. Confirm availability in the manifest before dispatch.</p>
+                <div class="resource-scroll"><table><thead><tr><th>Resource</th><th>Terminal</th><th>Status</th><th>Routes in view</th></tr></thead><tbody>
+                @foreach(var resource in Resources){var assigned=Scoped.Where(i=>i.Lane!="Complete" && (resource.Kind=="Driver" ? (i.DriverId is {} driverId ? driverId==resource.DriverId : i.Driver.Equals(resource.Name,StringComparison.OrdinalIgnoreCase)) : i.Truck.Equals(resource.Name,StringComparison.OrdinalIgnoreCase))).ToArray();
+                    <tr><td><strong>@resource.Name</strong><small>@resource.Kind</small></td><td>@resource.Terminal</td><td>@resource.Status</td><td>@(assigned.Length==0 ? "No matching assignment" : string.Join(", ",assigned.Select(i=>i.Number)))</td></tr>
+                }@if(!Resources.Any()){<tr><td colspan="4">No resources in this terminal scope.</td></tr>}</tbody></table></div>
+                <div class="resource-links"><a href="/aurora/drivers">Manage drivers ↗</a><a href="/aurora/fleet">Manage equipment ↗</a></div>
+            </section>
+        </div>
+        <aside class="dispatch-context">
+            <section class="dispatch-map-panel"><div class="section-heading"><h3>Dispatch map</h3><button class="text-button" @onclick="ResetMap">Fit all</button></div><div id="daily-dispatch-map" class="dispatch-map" aria-label="Dispatch locations and route stop connections"></div>
+                <p class="scope-note">Blue: planned · green: dispatched · red: unassigned. Lines connect known stops; not road paths or live vehicle positions.</p>
+                <p class="map-coverage">@MapItems.Count(i=>i.Mappable || i.Stops.Length>0) of @MapItems.Count() items mapped</p>
+                @if(_mapError is not null){<p role="alert">@_mapError</p>}
+            </section>
+            @if(_selected is {} selected){<section class="dispatch-detail"><div class="section-heading"><h3>@selected.Number</h3><button class="text-button" aria-label="Close details" @onclick="ClearSelection">×</button></div><p>@selected.Description</p><dl><dt>Status</dt><dd>@selected.Status</dd><dt>Appointment end</dt><dd>@(selected.Due?.ToString("MMM d, h:mm tt") ?? "Not supplied")</dd><dt>Time zone</dt><dd>@(string.IsNullOrEmpty(selected.Zone)?"Browser local time":selected.Zone)</dd></dl>
+                @foreach(var issue in selected.Issues){<p class="detail-issue">@issue</p>}
+                <a class="primary-button" href="@selected.Url">@(selected.Url=="/aurora/orders"?"Open orders":selected.Key.StartsWith("order:")?"Open order / plan":"Open manifest & dispatch") ↗</a></section>}
+            <section class="dispatch-exceptions"><div class="section-heading"><h3>Needs attention</h3><span>@Exceptions.Count()</span></div>
+                @foreach(var item in Exceptions){<button class="exception-row" @onclick="()=>Select(item)"><span class="exception-icon">!</span><span><strong>@item.Number</strong><small>@(item.Late(_now)?"Appointment window passed":item.Issues.FirstOrDefault()??(item.Scheduled is null?"Schedule missing":"Earlier work still unfinished"))</small></span><span>→</span></button>}
+                @if(!Exceptions.Any()){<p class="lane-empty">No timing alerts or blockers in this scope.</p>}
+            </section>
+        </aside>
+    </div>
+    <p class="dispatch-footnote">Late means an unfinished appointment’s end time has passed. Carry-over flags earlier unfinished work for review; it does not confirm a vehicle is stuck. Undated work remains visible. Refresh updates this snapshot.</p>
+    }
+</section>
+
+@code {
+    [Parameter] public bool Local {get;set;}
+    DispatchSnapshot _data=new();
+    DateTime _date=DateTime.Today;
+    DateTimeOffset _now=DateTimeOffset.Now;
+    DateTimeOffset? _loaded;
+    string _terminal="",_search="",_focus="All";
+    string? _error,_mapError;
+    bool _busy,_carryOver=true,_renderMap,_mapShown,_disposed;
+    DispatchItem? _selected;
+    readonly CancellationTokenSource _cts=new();
+    IEnumerable<string> Terminals=>_data.Items.Select(i=>i.Terminal).Concat(_data.Resources.Select(r=>r.Terminal)).Where(t=>!string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).Order();
+    bool TerminalMatches(string terminal)=>_terminal=="" || (_terminal=="__none" ? string.IsNullOrWhiteSpace(terminal) : _terminal.Equals(terminal,StringComparison.OrdinalIgnoreCase));
+    IEnumerable<DispatchItem> Scoped=>_data.Items.Where(i=>DispatchBoardRules.InScope(i,_date,_carryOver) && TerminalMatches(i.Terminal) && $"{i.Number} {i.Description} {i.Driver} {i.Truck}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    bool IsCarryOver(DispatchItem i)=>i.Lane!="Complete" && i.Scheduled?.Date<_date.Date;
+    IEnumerable<DispatchItem> Exceptions=>Scoped.Where(i=>i.Lane!="Complete" && (i.Late(_now)||i.Issues.Length>0||IsCarryOver(i)||i.Scheduled is null)).OrderByDescending(i=>i.Late(_now)).ThenByDescending(i=>i.Issues.Length>0);
+    IEnumerable<DispatchItem> Visible=>Scoped.Where(i=>_focus switch {"All"=>i.Lane!="Complete","Late"=>i.Late(_now),"Blocked"=>i.Issues.Length>0,_=>i.Lane==_focus});
+    IEnumerable<DispatchItem> MapItems=>_selected is {} selected ? new[]{selected} : Visible;
+    IEnumerable<DispatchResource> Resources=>_data.Resources.Where(r=>TerminalMatches(r.Terminal));
+    string[] Lanes=>_focus=="Complete"?["Complete"]:["Unassigned","Planned","Dispatched"];
+    IEnumerable<(string Key,string Label,int Count,string Style)> Metrics => [
+        ("Unassigned","Unassigned",Scoped.Count(i=>i.Lane=="Unassigned"),"amber"),
+        ("Planned","Planned",Scoped.Count(i=>i.Lane=="Planned"),"blue"),
+        ("Dispatched","Dispatched",Scoped.Count(i=>i.Lane=="Dispatched"),"green"),
+        ("Late","Late",Scoped.Count(i=>i.Late(_now)),"red"),
+        ("Blocked","Blocked",Scoped.Count(i=>i.Issues.Length>0),"red"),
+        ("Complete","Complete",Scoped.Count(i=>i.Lane=="Complete"),"neutral")];
+    protected override Task OnInitializedAsync()=>Load();
+    async Task Load()
+    {
+        if(_busy || _disposed)return;
+        _busy=true;_error=null;_selected=null;_data=new();_renderMap=false;
+        if(_mapShown){await JS.InvokeVoidAsync("routeMap.dispose");_mapShown=false;}
+        try{_data=await new DispatchBoardLoader(Http).Load(Local,_date,_carryOver,_cts.Token);_loaded=_now=DateTimeOffset.Now;_renderMap=true;}
+        catch(OperationCanceledException) when(_disposed){}
+        catch(Exception ex) when(ex is HttpRequestException or FormatException or System.Text.Json.JsonException or OperationCanceledException){_error="Dispatch data could not be loaded. Refresh to retry; no current counts are available.";}
+        finally{_busy=false;}
+    }
+    void Changed(){_selected=null;_renderMap=true;}
+    void SetFocus(string focus){_focus=focus;Changed();}
+    void ClearSelection(){_selected=null;_renderMap=true;}
+    void ResetMap()=>ClearSelection();
+    void Select(DispatchItem item){_selected=item;_renderMap=true;}
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(!_renderMap || _busy || _disposed)return;
+        _renderMap=false;_mapError=null;
+        var items=MapItems.ToArray();
+        var routes=items.Where(i=>i.Lane!="Unassigned").Select(i=>new{
+            vehicle=i.Number,color=i.Lane=="Dispatched"?"#168268":"#376be6",
+            stops=(i.Mappable?new[]{new{lat=i.Latitude!.Value,lon=i.Longitude!.Value,sequence=0,locationId=i.Description,isDepot=i.Key.StartsWith("manifest:"),orderIds=new[]{i.Number},arrival="—",departure="—"}}:[])
+                .Concat(i.Stops.Select(s=>new{lat=s.Latitude,lon=s.Longitude,sequence=s.Sequence,locationId=s.Name,isDepot=false,orderIds=new[]{s.Number},arrival="—",departure="—"})).ToArray()
+        }).ToArray();
+        var dropped=items.Where(i=>i.Lane=="Unassigned"&&i.Mappable).Select(i=>new{latitude=i.Latitude,longitude=i.Longitude,number=i.Number,orderId=i.Description,reason=i.Status}).ToArray();
+        try{await JS.InvokeVoidAsync("routeMap.render","daily-dispatch-map",new{routes,dropped});_mapShown=true;}
+        catch(JSException){_mapError="Map unavailable. Order and route details remain available.";StateHasChanged();}
+    }
+    public async ValueTask DisposeAsync(){_disposed=true;_cts.Cancel();_cts.Dispose();if(_mapShown)try{await JS.InvokeVoidAsync("routeMap.dispose");}catch(JSDisconnectedException){}}
+}
