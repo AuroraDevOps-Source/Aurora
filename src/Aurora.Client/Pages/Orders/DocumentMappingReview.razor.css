@@ -19,4 +19,4 @@
 .mapping-controls { display: grid; gap: .5rem; }
 .mapping-controls p { margin: 0; }
 .mapping-controls .field { max-width: 32rem; }
-.mapping-controls button { justify-self: start; }
+.mapping-actions { display: flex; gap: .5rem; flex-wrap: wrap; }

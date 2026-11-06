@@ -21,7 +21,10 @@
   <label><input type="checkbox" @bind="_remember" /> Remember “@_choice!.Label” for @Draft.MappingSender · @Draft.MappingForm</label>
  }
  @if(_error is not null){<p role="alert">@_error</p>}
- <button type="button" class="outline-button" disabled="@(_choice is null && string.IsNullOrWhiteSpace(_value))" @onclick="Apply">Apply answer</button>
+ <div class="mapping-actions">
+  <button type="button" class="outline-button" disabled="@(_choice is null && string.IsNullOrWhiteSpace(_value))" @onclick="Apply">Apply</button>
+  <button type="button" class="outline-button" @onclick="OnSkipped">Skip</button>
+ </div>
  </div>
 </fieldset>
 @code {
@@ -29,6 +32,7 @@
  [Parameter,EditorRequired] public DocumentMappingQuestion Question {get;set;}=null!;
  [Parameter,EditorRequired] public List<OrderDocumentDraft> Drafts {get;set;}=[];
  [Parameter] public EventCallback OnAnswered {get;set;}
+ [Parameter] public EventCallback OnSkipped {get;set;}
  readonly string _group=Guid.NewGuid().ToString("N");
  MappingCandidate? _choice;
  bool _manual,_batch,_remember,_saving;

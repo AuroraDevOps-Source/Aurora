@@ -87,7 +87,7 @@
      @foreach(var decision in row.Draft.MappingDecisions){<p class="import-source-hint">@decision</p>}
      @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms &middot; @row.Draft.BillingEvidence</p>}
      @foreach(var question in row.Draft.MappingQuestions){
-      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="()=>AnswerApplied(row)" />
+      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="()=>AnswerApplied(row)" OnSkipped="()=>SkipOrder(row)" />
      }
      @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
      @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
@@ -168,19 +168,25 @@
   _manuallySelected=true;
   _openRow=_openRow==row ? null : row;
  }
- void SelectReviewRow(Row? answered=null)
+ void SelectReviewRow(Row? answered=null, bool skip=false)
  {
   var conflicts=ConflictingPros.ToHashSet();
   var flagged=_rows.Where(row=>ReviewIssue(row,conflicts) is not null).ToList();
   if (answered is null) _openRow=flagged.FirstOrDefault();
-  else if (answered.Draft.MappingQuestions.Length>0) _openRow=answered;
+  else if (!skip && answered.Draft.MappingQuestions.Length>0) _openRow=answered;
   else
   {
    var after=_rows.Skip(_rows.IndexOf(answered)+1);
-   _openRow=after.FirstOrDefault(flagged.Contains) ?? flagged.FirstOrDefault();
+   _openRow=after.FirstOrDefault(flagged.Contains) ?? flagged.FirstOrDefault(row=>!skip || row!=answered);
   }
   var visible=_needsReviewOnly ? flagged : _rows;
   _reviewIndex=_openRow is null ? 0 : visible.IndexOf(_openRow);
+ }
+ void SkipOrder(Row row)
+ {
+  _manuallySelected=true;
+  SelectReviewRow(row, skip:true);
+  _scrollTo=_openRow?.SummaryId ?? row.SummaryId;
  }
  async Task AnswerApplied(Row row)
  {
