@@ -22,7 +22,7 @@ using var http = new HttpClient(handler);
 var settings = new Dictionary<string, string?> { ["RESEND_API_KEY"] = "re_test_only", ["Resend:PublicOrigin"] = "https://client.example" };
 ResendInvitationEmail Sender(Dictionary<string, string?> config) => new(http, new ConfigurationBuilder().AddInMemoryCollection(config).Build(), NullLogger<ResendInvitationEmail>.Instance);
 var id = Guid.NewGuid();
-var result = await Sender(settings).Send(id, "<Alice & Bob>", "alice@example.invalid", default);
+var result = await Sender(settings).Send(id, "<Alice & Bob>", "alice@example.invalid", default, "Demo<&123");
 Check(result.Sent && result.Error is null, "accepted invitation reports success");
 Check(handler.Url == "https://api.resend.com/emails" && handler.Method == HttpMethod.Post && handler.Authorization == "Bearer re_test_only", "Resend endpoint and server authentication");
 Check(handler.IdempotencyKey?.StartsWith($"user-invitation/{id}/") == true, "invitation request has an idempotency key");
@@ -31,7 +31,7 @@ using (var payload = JsonDocument.Parse(handler.Body!))
     var body = payload.RootElement;
     Check(body.GetProperty("from").GetString() == "Aurora <alerts@aurorasoftware.com>" && body.GetProperty("to")[0].GetString() == "alice@example.invalid", "exact requested sender and recipient");
     Check(body.GetProperty("html").GetString()!.Contains("&lt;Alice &amp; Bob&gt;") && !body.GetProperty("html").GetString()!.Contains("<Alice"), "username HTML is escaped");
-    Check(body.GetProperty("text").GetString()!.Contains("https://client.example/login?changePassword=true") && body.GetProperty("text").GetString()!.Contains("provided by your administrator"), "invitation links to password-change login and explains initial password");
+    Check(body.GetProperty("text").GetString()!.Contains("https://client.example/login?changePassword=true") && body.GetProperty("text").GetString()!.Contains("Password: Demo<&123") && body.GetProperty("html").GetString()!.Contains("Demo&lt;&amp;123"), "invitation links to password-change login and explains initial password");
     Check(!handler.Body!.Contains("re_test_only"), "API key does not leak into email content");
 }
 foreach (var origin in new[] { "https://client.example", "https://localhost:7259", "http://localhost:7259" })

@@ -7,12 +7,12 @@ namespace Aurora.Api.Features.Auth;
 
 public interface IInvitationEmail
 {
-    Task<InvitationEmailResult> Send(Guid userId, string userName, string email, CancellationToken ct);
+    Task<InvitationEmailResult> Send(Guid userId, string userName, string email, CancellationToken ct, string? password = null);
 }
 
 public sealed class ResendInvitationEmail(HttpClient http, IConfiguration configuration, ILogger<ResendInvitationEmail> logger) : IInvitationEmail
 {
-    public async Task<InvitationEmailResult> Send(Guid userId, string userName, string email, CancellationToken ct)
+    public async Task<InvitationEmailResult> Send(Guid userId, string userName, string email, CancellationToken ct, string? password = null)
     {
         var key = configuration["RESEND_API_KEY"];
         var origin = configuration["Resend:PublicOrigin"] ?? configuration["Hosting:PublicOrigin"];
@@ -27,6 +27,8 @@ public sealed class ResendInvitationEmail(HttpClient http, IConfiguration config
         }
 
         var loginUrl = new Uri(uri, "/login?changePassword=true").AbsoluteUri;
+        var credentialText = password is null ? "Use the password provided by your administrator." : $"Password: {password}";
+        var credentialHtml = password is null ? "<p>Use the password provided by your administrator.</p>" : $"<p>Password: <code>{WebUtility.HtmlEncode(password)}</code></p>";
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key.Trim());
         request.Headers.Add("Idempotency-Key", $"user-invitation/{userId}/{Guid.NewGuid():N}");
@@ -35,8 +37,8 @@ public sealed class ResendInvitationEmail(HttpClient http, IConfiguration config
             from = "Aurora <alerts@aurorasoftware.com>",
             to = new[] { email },
             subject = "Your Aurora account is ready — sign in and change your password",
-            text = $"Your Aurora account has been created.\n\nUsername: {userName}\n\nSign in and change your password: {loginUrl}\n\nUse the initial password provided by your administrator. You need to change it to your own password after signing in. If you have not received your initial password, contact your administrator.",
-            html = $"<h1>Welcome to Aurora</h1><p>Your account has been created.</p><p>Username: <strong>{WebUtility.HtmlEncode(userName)}</strong></p><p><a href=\"{WebUtility.HtmlEncode(loginUrl)}\">Sign in and change your password</a></p><p>Use the initial password provided by your administrator. You need to change it to your own password after signing in. If you have not received your initial password, contact your administrator.</p>"
+            text = $"Username: {userName}\n{credentialText}\n\nSign in and change your password: {loginUrl}",
+            html = $"<h1>Welcome to Aurora</h1><p>Username: <strong>{WebUtility.HtmlEncode(userName)}</strong></p>{credentialHtml}<p><a href=\"{WebUtility.HtmlEncode(loginUrl)}\">Sign in and change your password</a></p>"
         });
         try
         {

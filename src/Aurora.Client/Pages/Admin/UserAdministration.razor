@@ -13,7 +13,7 @@
 else
 {
     <h2>@(_id is null?"Add user":"Edit user")</h2>
-    @if (_id is null) { <p>An invitation email will ask this user to sign in and change their password. Provide their initial password separately.</p> }
+    @if (_id is null) { <p>The invitation email includes the username, initial login password, and a link to change it.</p> }
     <fieldset disabled="@_busy">
         <fieldset class="edit-group"><legend>Account & access</legend><div class="user-fields">
             <label class="field">Username<input id="managed-user-name" name="managed-user-name" @bind="_name" autocomplete="section-managed-user username" data-1p-ignore="true" data-lpignore="true" maxlength="256" /></label>

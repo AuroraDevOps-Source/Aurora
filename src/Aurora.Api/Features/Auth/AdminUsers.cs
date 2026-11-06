@@ -107,7 +107,7 @@ public static class AdminUserEndpoints
         {
             var id=await service.Save(null,input,ct);
             // Send only after the transaction commits. Email failure must not undo a created user.
-            var invitation=input.SendInvitation?await email.Send(id,input.UserName.Trim(),input.Email.Trim(),ct):new InvitationEmailResult(false,null);
+            var invitation=input.SendInvitation?await email.Send(id,input.UserName.Trim(),input.Email.Trim(),ct,input.LoginPassword):new InvitationEmailResult(false,null);
             return Results.Ok(new AdminUserCreated(id,invitation));
         }));
         group.MapPost("/{id:guid}/invitation",(Guid id,AdminUsers service,IInvitationEmail email,CancellationToken ct)=>Guard(async()=>Results.Ok(await service.SendInvitation(id,email,ct))));
