@@ -43,13 +43,21 @@ public static class OrderWorkspaceEndpoints
         group.MapPost("/firebird/orders/import/preflight", (string[] workTypes)=>Results.NoContent());
         group.MapPost("/firebird/orders/import", (OrderDocumentDraft draft,FirebirdRoutingSource source,TmsStore store,
             Aurora.Infrastructure.Data.NpgsqlConnectionFactory factory,Aurora.Infrastructure.Tenancy.ITenantContext tenant,
-            NovaUserConnections connections,OrderImportHistoryStore history,CancellationToken ct)=>Guard(async()=>{
+            NovaUserConnections connections,OrderImportHistoryStore history,ILogger<FirebirdRoutingSource> logger,CancellationToken ct)=>Guard(async()=>{
             if (draft.MappingQuestions is {Length:>0}) throw new FormatException("Answer the document mapping questions before creating this order.");
             await history.Validate(draft.ImportId,ct);
             var pro=OrderDocumentDraft.SplitTag(string.IsNullOrWhiteSpace(draft.TagNumber)?draft.Order.Id:draft.TagNumber).Pro;
             if((await OrderImportChecks.Existing([pro],store,factory,tenant,connections,ct)).Length>0)
                 return Results.Conflict(new ApiErrorDto($"PRO {pro} already exists in Aurora or Nova. No order was created."));
-            var saved=await source.ImportDocument(draft,ct);
+            NovaRecordDocument saved;
+            try { saved=await source.ImportDocument(draft,ct); }
+            catch(FirebirdSql.Data.FirebirdClient.FbException ex)
+            {
+                logger.LogWarning("Nova order import {ImportId} PRO {Pro} failed with Firebird code {Code}, SQL state {State}",draft.ImportId,pro,ex.ErrorCode,ex.SQLSTATE);
+                if(ex.SQLSTATE?.StartsWith("22",StringComparison.Ordinal)==true || ex.SQLSTATE?.StartsWith("23",StringComparison.Ordinal)==true)
+                    return Results.UnprocessableEntity(new ApiErrorDto($"Nova rejected a field or database constraint on PRO {pro} (code {ex.ErrorCode}). Review this order."));
+                throw;
+            }
             await history.RecordCreated(draft.ImportId,pro);
             return Results.Ok(saved);
         }));
