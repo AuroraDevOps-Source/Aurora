@@ -71,23 +71,23 @@
    @if (visible.Count > 10)
    {
     <div class="import-action-bar">
-     <button class="outline-button" disabled="@(index==0)" @onclick="()=>_reviewIndex=index-1">Previous order</button>
-     <label>Order <select value="@index" @onchange="e=>_reviewIndex=int.Parse(e.Value!.ToString()!)">
+     <button class="outline-button" disabled="@(index==0)" @onclick="()=>SelectPage(visible, index-1)">Previous order</button>
+     <label>Order <select value="@index" @onchange="e=>SelectPage(visible, int.Parse(e.Value!.ToString()!))">
       @for(var i=0;i<visible.Count;i++){<option value="@i">@(i+1) &middot; @visible[i].Order.Id &middot; @visible[i].Order.Customer</option>}
      </select> of @visible.Count</label>
-     <button class="outline-button" disabled="@(index==visible.Count-1)" @onclick="()=>_reviewIndex=index+1">Next order</button>
+     <button class="outline-button" disabled="@(index==visible.Count-1)" @onclick="()=>SelectPage(visible, index+1)">Next order</button>
     </div>
    }
    @if (_needsReviewOnly && visible.Count==0 && _rows.Count>0){<p role="status">@(_checking ? "Checking orders..." : _checkFailed ? "Retry the checks to finish reviewing these orders." : "No orders need review.")</p>}
    @foreach(var row in (visible.Count>10?visible.Skip(index).Take(1):visible)){
-    <details class="import-order" @key="row" open="@(_editing is not null)">
-     <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) &middot; @row.Order.Customer
+    <details class="import-order" @key="row" open="@(_editing is not null || _openRow==row)">
+     <summary id="@row.SummaryId" @onclick="()=>ToggleRow(row)" @onclick:preventDefault="@(_editing is null)">@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) &middot; @row.Order.Customer
       @if(_editing is null && ReviewIssue(row,conflicts) is {} issue){<span> &mdash; @issue</span>}
      </summary>
      @foreach(var decision in row.Draft.MappingDecisions){<p class="import-source-hint">@decision</p>}
      @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms &middot; @row.Draft.BillingEvidence</p>}
      @foreach(var question in row.Draft.MappingQuestions){
-      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="ReviewChecks" />
+      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="()=>AnswerApplied(row)" />
      }
      @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
      @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
@@ -148,7 +148,53 @@
  List<OrderImportHistory> _history=[];
  int _reviewIndex;
  bool _needsReviewOnly = true;
- void ResetReviewIndex()=>_reviewIndex=0;
+ Row? _openRow;
+ bool _manuallySelected;
+ string? _scrollTo;
+ void ResetReviewIndex()
+ {
+  _manuallySelected=false;
+  SelectReviewRow();
+ }
+ void SelectPage(List<Row> visible, int index)
+ {
+  _manuallySelected=true;
+  _reviewIndex=index;
+  _openRow=visible[index];
+ }
+ void ToggleRow(Row row)
+ {
+  if (_editing is not null) return;
+  _manuallySelected=true;
+  _openRow=_openRow==row ? null : row;
+ }
+ void SelectReviewRow(Row? answered=null)
+ {
+  var conflicts=ConflictingPros.ToHashSet();
+  var flagged=_rows.Where(row=>ReviewIssue(row,conflicts) is not null).ToList();
+  if (answered is null) _openRow=flagged.FirstOrDefault();
+  else if (answered.Draft.MappingQuestions.Length>0) _openRow=answered;
+  else
+  {
+   var after=_rows.Skip(_rows.IndexOf(answered)+1);
+   _openRow=after.FirstOrDefault(flagged.Contains) ?? flagged.FirstOrDefault();
+  }
+  var visible=_needsReviewOnly ? flagged : _rows;
+  _reviewIndex=_openRow is null ? 0 : visible.IndexOf(_openRow);
+ }
+ async Task AnswerApplied(Row row)
+ {
+  _manuallySelected=false;
+  SelectReviewRow(row);
+  _scrollTo=_openRow?.SummaryId;
+  await ReviewChecks();
+ }
+ protected override async Task OnAfterRenderAsync(bool firstRender)
+ {
+  if (_scrollTo is not {} id) return;
+  _scrollTo=null;
+  await JS.InvokeVoidAsync("auroraWorkspace.scrollOption",id);
+ }
  string? ReviewIssue(Row row, HashSet<string> conflicts)
  {
   if (row.Draft.MappingQuestions.Length > 0) return "Unanswered question";
@@ -245,7 +291,7 @@
  bool CannotCreate => _checking || _checkFailed || _rows.Any(r=>r.Draft.MappingQuestions.Length>0) || _rows.Any(row=>MappedPro(row)=="" || _existing.Contains(MappedPro(row))) || ConflictingPros.Any();
  readonly List<string> _warnings=[];
  List<Row> _rows=[];
- sealed class Row(OrderDocumentDraft draft){public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
+ sealed class Row(OrderDocumentDraft draft){public string SummaryId {get;}="review-"+Guid.NewGuid().ToString("N");public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
  static string Measure(decimal? value)=>value?.ToString("0.####")??"\u2014";
  static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "";}}
  static readonly (string Name,string Label)[] TextFields=[
@@ -290,7 +336,7 @@
    Console.WriteLine($"Document upload to draft: {uploadTimer.ElapsedMilliseconds} ms");
    if(_rows.Count==0)_error="No orders were found. Check the file or pasted text and try again.";
   }catch(Exception ex){_error=ex.Message;}finally{_busy=false;_review=_rows.Count>0;}
-  if(_review)await ReviewChecks();
+  if(_review){ResetReviewIndex();await ReviewChecks();}
   await LoadHistory();
  }
  async Task ReviewChecks()
@@ -305,7 +351,9 @@
    http.Timeout=TimeSpan.FromMinutes(5);
    var duplicates=FindExisting(http,rows.Select(MappedPro).Where(id=>id.Length>0).Distinct().ToArray());
    await Task.WhenAll(duplicates,CheckAddresses(http,rows,version));
-   if(version==_reviewVersion){_existing.Clear();_existing.UnionWith(await duplicates);}
+   if(version==_reviewVersion){_existing.Clear();_existing.UnionWith(await duplicates);
+    if (!_manuallySelected && (_openRow is null || ReviewIssue(_openRow,ConflictingPros.ToHashSet()) is null)) SelectReviewRow();
+   }
   }
   catch(Exception ex){if(version==_reviewVersion){_checkFailed=true;_error=ex.Message;}}
   finally{if(version==_reviewVersion)_checking=false;}
