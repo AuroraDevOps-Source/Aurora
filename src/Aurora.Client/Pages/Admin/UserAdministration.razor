@@ -13,13 +13,13 @@
 else
 {
     <h2>@(_id is null?"Add user":"Edit user")</h2>
-    @if (_id is null) { <p>The invitation email includes the username, initial login password, and a link to change it.</p> }
+    @if (_id is null) { <p>Aurora emails this user their temporary password and a link to set their own password before signing in.</p> }
     <fieldset disabled="@_busy">
         <fieldset class="edit-group"><legend>Account & access</legend><div class="user-fields">
             <label class="field">Username<input id="managed-user-name" name="managed-user-name" @bind="_name" autocomplete="section-managed-user username" data-1p-ignore="true" data-lpignore="true" maxlength="256" /></label>
             <label class="field">Email<input type="email" @bind="_email" maxlength="256" /></label>
             <label class="field">Level<select @bind="_level"><option>Administrator</option><option>Power User</option><option>User</option></select></label>
-            <label class="field">@(_id is null?"Login password":"New login password")<input id="managed-user-password" name="managed-user-password" type="password" @bind="_loginPassword" autocomplete="section-managed-user new-password" data-1p-ignore="true" data-lpignore="true" placeholder="@(_id is null?"Required":"Leave blank to keep current")" /></label>
+            @if(_id is not null){<label class="field">New login password<input id="managed-user-password" name="managed-user-password" type="password" @bind="_loginPassword" autocomplete="section-managed-user new-password" data-1p-ignore="true" data-lpignore="true" placeholder="Leave blank to keep current" /></label>}
         </div></fieldset>
         <div class="user-toolbar"><span class="spacer"></span><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div>
     </fieldset>

@@ -34,6 +34,12 @@ using (var payload = JsonDocument.Parse(handler.Body!))
     Check(body.GetProperty("text").GetString()!.Contains("https://client.example/login?changePassword=true") && body.GetProperty("text").GetString()!.Contains("Password: Demo<&123") && body.GetProperty("html").GetString()!.Contains("Demo&lt;&amp;123"), "invitation links to password-change login and explains initial password");
     Check(!handler.Body!.Contains("re_test_only"), "API key does not leak into email content");
 }
+var pendingInvite=await Sender(settings).Send(id,"Alice","alice@example.invalid",default,FirstLogin.TemporaryPassword,"test+/=");
+using (var message=JsonDocument.Parse(handler.Body!))
+{
+    var text=message.RootElement.GetProperty("text").GetString()!;
+    Check(pendingInvite.Sent && text.Contains("Password: AuroraTemp123") && text.Contains("/login#invite=test%2B%2F%3D"),"first-login email contains the temporary password and encoded invitation link");
+}
 foreach (var origin in new[] { "https://client.example", "https://localhost:7259", "http://localhost:7259" })
     Check((await Sender(new(settings) { ["Resend:PublicOrigin"] = origin }).Send(id, "Alice", "alice@example.invalid", default)).Sent, "valid configured origin " + origin);
 foreach (var origin in new[] { "", "https://client.example/path", "http://client.example", "javascript:alert(1)", "https://user:pass@client.example", "https://client.example/?next=evil" })

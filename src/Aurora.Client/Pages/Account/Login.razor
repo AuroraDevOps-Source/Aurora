@@ -22,10 +22,21 @@
                    autocapitalize="none" spellcheck="false" required />
         </div>
         <div class="aurora-login-field">
-            <label for="aurora-password">Password</label>
+            <label for="aurora-password">@(_invitation is null ? "Password" : "Temporary password from your invitation")</label>
             <input id="aurora-password" name="password" type="password" autocomplete="current-password" required />
         </div>
 
+        @if (_invitation is not null)
+        {
+            <div class="aurora-login-field">
+                <label for="first-password">Choose your new password</label>
+                <input id="first-password" type="password" autocomplete="new-password" required @bind="_newPassword" @bind:event="oninput" />
+            </div>
+            <div class="aurora-login-field">
+                <label for="confirm-first-password">Confirm new password</label>
+                <input id="confirm-first-password" type="password" autocomplete="new-password" required @bind="_confirmation" @bind:event="oninput" />
+            </div>
+        }
         @if (_error is not null && _tenants is null)
         {
             <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
@@ -78,6 +89,13 @@
     private ElementReference _loginForm;
     private string? _error;
     private bool _signingIn;
+    private string? _invitation, _activatedPassword;
+    private string _newPassword="", _confirmation="";
+    protected override void OnInitialized()
+    {
+        var fragment=new Uri(Navigation.Uri).Fragment;
+        if(fragment.StartsWith("#invite=",StringComparison.Ordinal)) _invitation=Uri.UnescapeDataString(fragment[8..]);
+    }
     public sealed record TenantOption(Guid Id, string Name);
     private TenantOption[]? _tenants;
     private Guid? _selected;
@@ -99,10 +117,15 @@
                 _error = "Enter your username and password.";
                 return;
             }
+            if (_invitation is not null && _newPassword!=_confirmation)
+            {
+                _error="Your new passwords do not match.";
+                return;
+            }
             var client = HttpClientFactory.CreateClient(ApiClients.Anonymous);
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
             {
-                Content = JsonContent.Create(new { credentials.UserName, credentials.Password, TenantId = _selected })
+                Content = JsonContent.Create(new { credentials.UserName, Password=_activatedPassword ?? credentials.Password, TenantId = _selected, InvitationToken=_invitation, NewPassword=_invitation is null ? null : _newPassword })
             };
             // Cross-origin (different port) — the Set-Cookie response is only honoured if the
             // browser fetch is told to include credentials.
@@ -111,6 +134,7 @@
             using var response = await client.SendAsync(request);
             if (response.StatusCode == System.Net.HttpStatusCode.Accepted)
             {
+                if(_invitation is not null){_activatedPassword=_newPassword;_invitation=null;_newPassword=_confirmation="";}
                 _tenants = await response.Content.ReadFromJsonAsync<TenantOption[]>();
                 if (_tenants?.Length == 0) _error = "No active companies are available.";
                 return;
@@ -118,7 +142,9 @@
             if (!response.IsSuccessStatusCode)
             {
                 _selected = null; _tenants = null;
-                _error = "Sign-in failed. Check your credentials and try again.";
+                _error = _invitation is not null && response.StatusCode==System.Net.HttpStatusCode.BadRequest
+                    ? (await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error
+                    : "Check your credentials. For first sign-in, open the link in your invitation email.";
                 return;
             }
 

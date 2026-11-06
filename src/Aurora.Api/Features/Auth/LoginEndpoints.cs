@@ -1,3 +1,4 @@
+using Aurora.Contracts;
 using Aurora.Infrastructure.Entities;
 using Aurora.Infrastructure.Data;
 using Dapper;
@@ -30,7 +31,16 @@ public static class LoginEndpoints
 
             context.Items[AppLog.ActorKey] = new AppLog.Actor(user.Id, user.UserName ?? "Unknown user");
 
-            var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+            if (user.InvitationPending)
+            {
+                if (request.InvitationToken is null || request.NewPassword is null)
+                    return Results.Unauthorized();
+                var activation = await FirstLogin.Complete(userManager,user,request.Password,request.InvitationToken,request.NewPassword);
+                if (!activation.Succeeded)
+                    return Results.BadRequest(new ApiErrorDto(string.Join(" ",activation.Errors.Select(e=>e.Description))));
+            }
+            else if (request.InvitationToken is not null) return Results.BadRequest(new ApiErrorDto("This invitation is no longer active. Sign in with your own password."));
+            var result = await signInManager.CheckPasswordSignInAsync(user, request.InvitationToken is null ? request.Password : request.NewPassword!, lockoutOnFailure: true);
             if (!result.Succeeded)
             {
                 return Results.Unauthorized();
@@ -86,5 +96,5 @@ public static class LoginEndpoints
     }
 }
 
-public sealed record LoginRequest(string UserName, string Password, Guid? TenantId = null);
+public sealed record LoginRequest(string UserName, string Password, Guid? TenantId = null, string? InvitationToken = null, string? NewPassword = null);
 public sealed record LoginTenant(Guid Id, string Name);

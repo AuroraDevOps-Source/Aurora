@@ -33,7 +33,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         var role=Role(input.Level);
         if(string.IsNullOrWhiteSpace(input.UserName) || input.UserName.Length>256 || string.IsNullOrWhiteSpace(input.Email) || input.Email.Length>256)
             throw new FormatException("Enter a username and email address.");
-        if(id is null && string.IsNullOrEmpty(input.LoginPassword))throw new FormatException("Enter a login password for the new user.");
+
         await using var tx=await db.Database.BeginTransactionAsync(ct);
         var connection=db.Database.GetDbConnection();var transaction=tx.GetDbTransaction();
         await connection.ExecuteAsync(new CommandDefinition("SELECT pg_advisory_xact_lock(hashtextextended(@key,0))",new{key=$"admin-users:{tenant.TenantId}"},transaction,cancellationToken:ct));
@@ -46,11 +46,11 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
             if(id==tenant.UserId && input.Level!=row.Level)throw new FormatException("Another administrator must change your access level.");
             if(row.Level=="Administrator" && input.Level!="Administrator")await KeepAdministrator(connection,transaction,ct);
         }
-        var user=id is null?new ApplicationUser{Id=Guid.NewGuid()}:await users.FindByIdAsync(id.Value.ToString())??throw new KeyNotFoundException("User not found.");
+        var user=id is null?new ApplicationUser{Id=Guid.NewGuid(),InvitationPending=true}:await users.FindByIdAsync(id.Value.ToString())??throw new KeyNotFoundException("User not found.");
         user.UserName=input.UserName.Trim();user.Email=input.Email.Trim();
         if(id is null)
         {
-            Check(await users.CreateAsync(user,input.LoginPassword!));
+            Check(await users.CreateAsync(user));
             await connection.ExecuteAsync(new CommandDefinition("""
                 UPDATE "AspNetUsers" SET "ManagementTenantId"=@TenantId WHERE "Id"=@Id;
                 INSERT INTO user_tenant(tenant_id,user_id,is_default) VALUES(@TenantId,@Id,true);
@@ -58,6 +58,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         }
         else
         {
+            if(user.InvitationPending && !string.IsNullOrEmpty(input.LoginPassword))throw new FormatException("Resend the invitation so this user can set their first password.");
             Check(await users.UpdateAsync(user));
             if(!string.IsNullOrEmpty(input.LoginPassword))Check(await users.ResetPasswordAsync(user,await users.GeneratePasswordResetTokenAsync(user),input.LoginPassword));
         }
@@ -72,7 +73,10 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         await using var connection=await factory.OpenConnectionAsync(ct);
         var row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id",new{tenant.TenantId,id},cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
         if(row.Owner!=tenant.TenantId)throw new FormatException("This shared login is managed by another company.");
-        return await email.Send(row.Id,row.UserName,row.Email,ct);
+        var user=await users.FindByIdAsync(id.ToString())??throw new KeyNotFoundException("User not found.");
+        if(!user.InvitationPending) return await email.Send(row.Id,row.UserName,row.Email,ct);
+        var token=await FirstLogin.Token(users,user);
+        return await email.Send(user.Id,user.UserName!,user.Email!,ct,FirstLogin.TemporaryPassword,token);
     }
     async Task KeepAdministrator(System.Data.Common.DbConnection connection,System.Data.Common.DbTransaction transaction,CancellationToken ct)
     {
@@ -107,7 +111,7 @@ public static class AdminUserEndpoints
         {
             var id=await service.Save(null,input,ct);
             // Send only after the transaction commits. Email failure must not undo a created user.
-            var invitation=input.SendInvitation?await email.Send(id,input.UserName.Trim(),input.Email.Trim(),ct,input.LoginPassword):new InvitationEmailResult(false,null);
+            var invitation=input.SendInvitation?await service.SendInvitation(id,email,ct):new InvitationEmailResult(false,null);
             return Results.Ok(new AdminUserCreated(id,invitation));
         }));
         group.MapPost("/{id:guid}/invitation",(Guid id,AdminUsers service,IInvitationEmail email,CancellationToken ct)=>Guard(async()=>Results.Ok(await service.SendInvitation(id,email,ct))));

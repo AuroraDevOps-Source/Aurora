@@ -67,7 +67,7 @@ public static class NovaApiLaunch
             "SELECT * FROM nova_api_consume(@hash)",new{hash=NovaLaunch.TicketHash(input.Code)},cancellationToken:ct));
         if(code is null) return Results.Unauthorized();
         var user=await users.FindByIdAsync(code.UserId.ToString());
-        if(user is null || !await signIn.CanSignInAsync(user) || await users.IsLockedOutAsync(user) ||
+        if(user is null || user.InvitationPending || !await signIn.CanSignInAsync(user) || await users.IsLockedOutAsync(user) ||
             await users.GetTwoFactorEnabledAsync(user) || await users.GetSecurityStampAsync(user)!=code.SecurityStamp)
             return Results.Unauthorized();
         var account=await db.QuerySingleOrDefaultAsync<Account>(new CommandDefinition(

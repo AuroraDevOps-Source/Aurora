@@ -60,7 +60,7 @@ public static class NovaLaunch
                     new { database.TenantId, input.DatabaseId, novaUser }, commandTimeout: 10, cancellationToken: ct));
                 if (userId is null) return Results.Unauthorized();
                 var user = await users.FindByIdAsync(userId.ToString()!);
-                if (user is null || !await signIn.CanSignInAsync(user) || await users.IsLockedOutAsync(user)
+                if (user is null || user.InvitationPending || !await signIn.CanSignInAsync(user) || await users.IsLockedOutAsync(user)
                     || await users.GetTwoFactorEnabledAsync(user)) return Results.Unauthorized();
                 // Mapping is restricted to the default tenant, matching /connect/authorize.
                 await signIn.SignInAsync(user, isPersistent: false, authenticationMethod: "NovaLaunch");

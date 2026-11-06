@@ -53,10 +53,18 @@ try
     await using(var scope=provider.CreateAsyncScope())
     {
         var manager=scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        Check(await manager.CheckPasswordAsync((await manager.FindByIdAsync(created.Value.ToString()))!,password),"new login password works");
+        var account=(await manager.FindByIdAsync(created.Value.ToString()))!;
+        Check(account.InvitationPending && account.PasswordHash is null,"pending login has no usable password hash");
+        var token=await FirstLogin.Token(manager,account);
+        Check(!(await FirstLogin.Complete(manager,account,FirstLogin.TemporaryPassword,"invalid",password)).Succeeded,"invitation token required");
+        Check(!(await FirstLogin.Complete(manager,account,"wrong",token,password)).Succeeded,"temporary password required");
+        Check(!(await FirstLogin.Complete(manager,account,FirstLogin.TemporaryPassword,token,FirstLogin.TemporaryPassword)).Succeeded,"must replace temporary password");
+        Check((await FirstLogin.Complete(manager,account,FirstLogin.TemporaryPassword,token,password)).Succeeded && await manager.CheckPasswordAsync(account,password),"first sign-in sets personal password");
+        Check(!(await FirstLogin.Complete(manager,account,FirstLogin.TemporaryPassword,token,"new")).Succeeded,"invitation cannot be reused");
         var factory=scope.ServiceProvider.GetRequiredService<NpgsqlConnectionFactory>();await using var connection=await factory.OpenConnectionAsync();
         Check(!JsonSerializer.Serialize(row).Contains("DatabaseId"),"user DTO has no database assignment");
     }
+    row=(await Use(s=>s.List(default))).Single(r=>r.Id==created);
     input=input with{Revision=row.Revision,Level="Power User",LoginPassword=""};
     await Use(s=>s.Save(created,input,default));
     row=(await Use(s=>s.List(default))).Single(r=>r.Id==created);
