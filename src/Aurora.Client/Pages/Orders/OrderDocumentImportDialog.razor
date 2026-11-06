@@ -58,14 +58,17 @@
  <fieldset disabled="@_busy" class="import-review-fields">
    @{
     var conflicts = ConflictingPros.ToHashSet();
-    var visible = _needsReviewOnly && _editing is null ? _rows.Where(r => ReviewIssue(r, conflicts) is not null).ToList() : _rows;
+    var flagged = _rows.Where(r => ReviewIssue(r, conflicts) is not null).ToList();
+    var visible = _needsReviewOnly && _editing is null ? flagged : _rows;
+    var skipped = _rows.Count(r=>r.Skipped);
+    var included = _rows.Count-skipped;
     var index = Math.Clamp(_reviewIndex, 0, Math.Max(0, visible.Count - 1));
    }
    @if (_editing is null)
    {
     <div class="import-review-filter">
      <label><input type="checkbox" @bind="_needsReviewOnly" @bind:after="ResetReviewIndex" /> Only show orders needing review</label>
-     <span role="status">@(_needsReviewOnly ? $"{visible.Count} of {_rows.Count} needing review" : $"Showing all {_rows.Count}")</span>
+     <span role="status">@($"{flagged.Count:N0} out of {_totalExtracted:N0} needing review")@if(skipped>0){<span> &middot; @skipped skipped</span>}</span>
     </div>
    }
    @if (visible.Count > 10)
@@ -82,12 +85,14 @@
    @foreach(var row in (visible.Count>10?visible.Skip(index).Take(1):visible)){
     <details class="import-order" @key="row" open="@(_editing is not null || _openRow==row)">
      <summary id="@row.SummaryId" @onclick="()=>ToggleRow(row)" @onclick:preventDefault="@(_editing is null)">@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) &middot; @row.Order.Customer
-      @if(_editing is null && ReviewIssue(row,conflicts) is {} issue){<span> &mdash; @issue</span>}
+      @if(row.Skipped){<span> &mdash; Skipped</span>}
+      else if(_editing is null && ReviewIssue(row,conflicts) is {} issue){<span> &mdash; @issue</span>}
      </summary>
      @foreach(var decision in row.Draft.MappingDecisions){<p class="import-source-hint">@decision</p>}
      @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms &middot; @row.Draft.BillingEvidence</p>}
-     @foreach(var question in row.Draft.MappingQuestions){
-      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="()=>AnswerApplied(row)" OnSkipped="()=>SkipOrder(row)" />
+     @if(row.Skipped){<button class="outline-button" @onclick="()=>Include(row)">Include in import</button>}
+     @foreach(var question in row.Draft.MappingQuestions.Where(_=>!row.Skipped)){
+      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="IncludedRows.Select(r=>r.Draft).ToList()" OnAnswered="()=>AnswerApplied(row)" OnSkipped="()=>SkipOrder(row)" />
      }
      @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
      @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
@@ -138,7 +143,8 @@
     </details>
    }
    @if(_editing is not null){<button class="primary-button" disabled="@_busy" @onclick="SaveImportedOrder">Save changes</button>}
-   else if(_rows.Count>0){<button class="primary-button" disabled="@(_busy || CannotCreate)" @onclick="Create">Create @_rows.Count @(_rows.Count==1?"order":"orders")</button>}
+   else if(included>0){<button class="primary-button" disabled="@(_busy || CannotCreate)" @onclick="Create">Create @included @(included==1?"order":"orders")</button>}
+   else if(skipped>0 && _saved==0){<button class="primary-button" @onclick="Close">Finish without creating orders</button>}
  </fieldset>
  @if(_busy){<p role="status">@_progress</p>}
  <div class="popup-actions"><button class="outline-button" disabled="@_busy" @onclick="Close">Close</button></div>
@@ -147,6 +153,7 @@
 @code {
  List<OrderImportHistory> _history=[];
  int _reviewIndex;
+ int _totalExtracted;
  bool _needsReviewOnly = true;
  Row? _openRow;
  bool _manuallySelected;
@@ -177,20 +184,27 @@
   else
   {
    var after=_rows.Skip(_rows.IndexOf(answered)+1);
-   _openRow=after.FirstOrDefault(flagged.Contains) ?? flagged.FirstOrDefault(row=>!skip || row!=answered);
+   _openRow=after.FirstOrDefault(flagged.Contains);
   }
   var visible=_needsReviewOnly ? flagged : _rows;
-  _reviewIndex=_openRow is null ? 0 : visible.IndexOf(_openRow);
+  _reviewIndex=_openRow is null ? Math.Clamp(_reviewIndex,0,Math.Max(0,visible.Count-1)) : visible.IndexOf(_openRow);
  }
  void SkipOrder(Row row)
  {
   _manuallySelected=true;
+  row.Skipped=true;
   SelectReviewRow(row, skip:true);
-  _scrollTo=_openRow?.SummaryId ?? row.SummaryId;
+  _scrollTo=_openRow?.SummaryId;
+ }
+ void Include(Row row)
+ {
+  row.Skipped=false;
+  _manuallySelected=true;
+  _openRow=row;
  }
  async Task AnswerApplied(Row row)
  {
-  _manuallySelected=false;
+  _manuallySelected=true;
   SelectReviewRow(row);
   _scrollTo=_openRow?.SummaryId;
   await ReviewChecks();
@@ -203,6 +217,7 @@
  }
  string? ReviewIssue(Row row, HashSet<string> conflicts)
  {
+  if (row.Skipped) return null;
   if (row.Draft.MappingQuestions.Length > 0) return "Unanswered question";
   var pro=MappedPro(row);
   if (pro.Length==0) return "Missing or invalid PRO";
@@ -291,13 +306,14 @@
  int _saved => _createdPros.Count;
  string? _error,_progress;
  readonly HashSet<string> _existing=[];
- IEnumerable<string> ConflictingPros => _rows.Select(MappedPro).Where(pro=>pro.Length>0).GroupBy(pro=>pro).Where(g=>g.Count()>1).Select(g=>g.Key);
+ IEnumerable<Row> IncludedRows => _rows.Where(row=>!row.Skipped);
+ IEnumerable<string> ConflictingPros => IncludedRows.Select(MappedPro).Where(pro=>pro.Length>0).GroupBy(pro=>pro).Where(g=>g.Count()>1).Select(g=>g.Key);
  bool _checking,_checkFailed;
  int _reviewVersion;
- bool CannotCreate => _checking || _checkFailed || _rows.Any(r=>r.Draft.MappingQuestions.Length>0) || _rows.Any(row=>MappedPro(row)=="" || _existing.Contains(MappedPro(row))) || ConflictingPros.Any();
+ bool CannotCreate => _checking || _checkFailed || IncludedRows.Any(r=>r.Draft.MappingQuestions.Length>0) || IncludedRows.Any(row=>MappedPro(row)=="" || _existing.Contains(MappedPro(row))) || ConflictingPros.Any();
  readonly List<string> _warnings=[];
  List<Row> _rows=[];
- sealed class Row(OrderDocumentDraft draft){public string SummaryId {get;}="review-"+Guid.NewGuid().ToString("N");public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
+ sealed class Row(OrderDocumentDraft draft){public bool Skipped;public string SummaryId {get;}="review-"+Guid.NewGuid().ToString("N");public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
  static string Measure(decimal? value)=>value?.ToString("0.####")??"\u2014";
  static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "";}}
  static readonly (string Name,string Label)[] TextFields=[
@@ -333,6 +349,7 @@
    using var response=await http.PostAsync("api/v1/tms/orders/convert-document?earlyReview=true",form);
    await ApiResponse.Check(response);
    _needsReviewOnly=true;_reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
+   _totalExtracted=_rows.Count;
    foreach(var row in _rows){
     row.Draft.NativeStatusId=NativeWorkspace && Statuses.Any(s=>s.Id==NovaDocumentImport.DefaultStatus)?NovaDocumentImport.DefaultStatus:null;
     if(string.IsNullOrWhiteSpace(row.Draft.TagNumber))row.Draft.TagNumber=row.Order.Id;
@@ -419,30 +436,31 @@
  }
  async Task Create()
  {
-  if(_busy || _rows.Count==0 || CannotCreate)return;
+  var pending=IncludedRows.ToList();
+  if(_busy || pending.Count==0 || CannotCreate)return;
   _busy=true;_error=null;_progress="Checking import...";
   var creationStarted=false;
   try{
-   foreach(var row in _rows){
+   foreach(var row in pending){
     row.Draft.Normalize();
     var terminal=Terminals.SingleOrDefault(t=>t.Id==row.Order.TerminalId);
     row.Order.TerminalCode=terminal?.Code;
     if(row.Scheduled is {} scheduled){row.Draft.ChangeLocalSchedule(scheduled);row.Order.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));}
    }
-   if(_rows.GroupBy(r=>r.Order.Id).Any(g=>g.Count()>1))throw new FormatException("Order numbers must be unique within the import.");
+   if(pending.GroupBy(r=>r.Order.Id).Any(g=>g.Count()>1))throw new FormatException("Order numbers must be unique within the import.");
    using var http=Clients.CreateClient(ApiClients.Authorized);
-   _existing.Clear();_existing.UnionWith(await FindExisting(http,_rows.Select(r=>r.Order.Id).ToArray()));
+   _existing.Clear();_existing.UnionWith(await FindExisting(http,pending.Select(r=>r.Order.Id).ToArray()));
    if(_existing.Count>0)throw new FormatException("These PROs already exist in Aurora or Nova: "+string.Join(", ",_existing)+". Remove them from the import.");
    _progress="Creating orders...";
-   while(_rows.Count>0){
+   foreach(var row in pending){
     creationStarted=true;
-    using var response=await http.PostAsJsonAsync(NativeWorkspace?"api/v1/aurora/firebird/orders/import":"api/v1/tms/orders/import",_rows[0].Draft);
+    using var response=await http.PostAsJsonAsync(NativeWorkspace?"api/v1/aurora/firebird/orders/import":"api/v1/tms/orders/import",row.Draft);
     await ApiResponse.Check(response);
     if(NativeWorkspace){
      var saved=await response.Content.ReadFromJsonAsync<NovaRecordDocument>();
-     AddLocationMessages(_rows[0].Order.Id,saved?.LocationWarnings??[]);
+     AddLocationMessages(row.Order.Id,saved?.LocationWarnings??[]);
     }
-    _createdPros.Add(_rows[0].Order.Id);_rows.RemoveAt(0);
+    _createdPros.Add(row.Order.Id);_rows.Remove(row);
    }
    _file=null;_fileVersion++;_text="";
   }catch(Exception ex){_error=creationStarted
