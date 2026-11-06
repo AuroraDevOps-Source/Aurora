@@ -81,3 +81,13 @@
 .import-lines{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .import-lines th,.import-lines td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid #d5e0eb}
 .import-lines th{color:#425775;background:#edf2f8}
+
+.import-review-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .25rem 1rem;
+    margin-bottom: .75rem;
+}
+.import-review-filter label { cursor: pointer; }
+.import-review-filter [role="status"] { color: #52647a; font-size: .875rem; }

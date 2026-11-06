@@ -1,0 +1,22 @@
+.mapping-alert {
+    min-width: 0;
+    margin: .5rem 0 1rem;
+    padding: .5rem .875rem .875rem;
+    border: 1px solid #dfc477;
+    border-radius: 8px;
+    background: #fff8df;
+    color: #493a1d;
+}
+.mapping-alert legend {
+    float: none;
+    width: auto;
+    margin: 0;
+    padding: 0 .3rem;
+    color: #654911;
+    font-size: inherit;
+    font-weight: 700;
+}
+.mapping-controls { display: grid; gap: .5rem; }
+.mapping-controls p { margin: 0; }
+.mapping-controls .field { max-width: 32rem; }
+.mapping-controls button { justify-self: start; }

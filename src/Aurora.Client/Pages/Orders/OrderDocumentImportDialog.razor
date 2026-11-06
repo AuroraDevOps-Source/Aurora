@@ -56,14 +56,17 @@
  @if(_checkFailed){<button class="outline-button" @onclick="ReviewChecks">Retry address and duplicate checks</button>}
  @foreach(var warning in _warnings){<p class="alert" role="status">@warning</p>}
  <fieldset disabled="@_busy" class="import-review-fields">
-   @if (_editing is null)
-   {
-    <label><input type="checkbox" @bind="_needsReviewOnly" @bind:after="ResetReviewIndex" /> Only show orders needing review</label>
-   }
    @{
     var conflicts = ConflictingPros.ToHashSet();
     var visible = _needsReviewOnly && _editing is null ? _rows.Where(r => ReviewIssue(r, conflicts) is not null).ToList() : _rows;
     var index = Math.Clamp(_reviewIndex, 0, Math.Max(0, visible.Count - 1));
+   }
+   @if (_editing is null)
+   {
+    <div class="import-review-filter">
+     <label><input type="checkbox" @bind="_needsReviewOnly" @bind:after="ResetReviewIndex" /> Only show orders needing review</label>
+     <span role="status">@(_needsReviewOnly ? $"{visible.Count} of {_rows.Count} needing review" : $"Showing all {_rows.Count}")</span>
+    </div>
    }
    @if (visible.Count > 10)
    {
@@ -144,7 +147,7 @@
 @code {
  List<OrderImportHistory> _history=[];
  int _reviewIndex;
- bool _needsReviewOnly;
+ bool _needsReviewOnly = true;
  void ResetReviewIndex()=>_reviewIndex=0;
  string? ReviewIssue(Row row, HashSet<string> conflicts)
  {
@@ -277,7 +280,7 @@
    var uploadTimer=System.Diagnostics.Stopwatch.StartNew();
    using var response=await http.PostAsync("api/v1/tms/orders/convert-document?earlyReview=true",form);
    await ApiResponse.Check(response);
-   _needsReviewOnly=false;_reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
+   _needsReviewOnly=true;_reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
    foreach(var row in _rows){
     row.Draft.NativeStatusId=NativeWorkspace && Statuses.Any(s=>s.Id==NovaDocumentImport.DefaultStatus)?NovaDocumentImport.DefaultStatus:null;
     if(string.IsNullOrWhiteSpace(row.Draft.TagNumber))row.Draft.TagNumber=row.Order.Id;

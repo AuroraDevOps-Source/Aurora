@@ -1,7 +1,8 @@
 @inject IHttpClientFactory Clients
 
-<fieldset class="import-group" disabled="@_saving">
- <legend>@(Question.Field=="PRO" ? "Which identifier is the PRO?" : "Which account should be billed?")</legend>
+<fieldset class="mapping-alert" disabled="@_saving">
+ <legend><span class="mdi mdi-alert-outline" aria-hidden="true"></span> @(Question.Field=="PRO" ? "Which identifier is the PRO?" : "Which account should be billed?")</legend>
+ <div class="mapping-controls">
  <p>@Question.Reason</p>
  @foreach(var candidate in Question.Candidates)
  {
@@ -21,6 +22,7 @@
  }
  @if(_error is not null){<p role="alert">@_error</p>}
  <button type="button" class="outline-button" disabled="@(_choice is null && string.IsNullOrWhiteSpace(_value))" @onclick="Apply">Apply answer</button>
+ </div>
 </fieldset>
 @code {
  [Parameter,EditorRequired] public OrderDocumentDraft Draft {get;set;}=null!;
