@@ -12,7 +12,7 @@
      <InputFile @key="_fileVersion" OnChange="SelectFile" disabled="@(!string.IsNullOrWhiteSpace(_text))" aria-label="Upload document: browse or drop a file" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpeg,.jpg,.png,.webp,.gif,.bmp" />
     </div>
     @if(_file is not null){<div class="import-file"><span class="mdi mdi-file-document-outline" aria-hidden="true"></span><div><strong>@_file.Name</strong><small>@FileSize(_file.Size)</small></div><button type="button" class="text-button" @onclick="ClearFile">Remove</button></div>}
-    else {<p class="import-formats">PDF, Word, Excel, CSV, text, or images · Up to 10 MB</p>}
+    else {<p class="import-formats">PDF, Word, Excel, CSV, text, or images &middot; Up to 10 MB</p>}
     @if(!string.IsNullOrWhiteSpace(_text)){<p class="import-source-hint">Clear the pasted text to upload a file.</p>}
    </section>
    <section class="import-panel @(!string.IsNullOrWhiteSpace(_text) ? "is-selected" : null)">
@@ -28,23 +28,23 @@
     else if(!string.IsNullOrWhiteSpace(_text)){<span class="mdi mdi-check-circle-outline" aria-hidden="true"></span><span>Text ready to convert</span>}
     else {<span>Upload a document or paste text to begin.</span>}
    </div>
-   <button class="primary-button import-convert" disabled="@(!CanConvert || _busy)" @onclick="Convert">@(_busy ? "Converting…" : "Convert to orders")<span class="mdi mdi-arrow-right" aria-hidden="true"></span></button>
+   <button class="primary-button import-convert" disabled="@(!CanConvert || _busy)" @onclick="Convert">@(_busy ? "Converting..." : "Convert to orders")<span class="mdi mdi-arrow-right" aria-hidden="true"></span></button>
   </div>
  </fieldset>
 </section>
 <section class="import-history" aria-labelledby="import-history-heading">
  <header><div><h2 id="import-history-heading">Recent imports</h2><p>Latest 20 imports for your company</p></div><button class="outline-button" disabled="@(_historyLoading || _busy)" @onclick="LoadHistory">Refresh</button></header>
  @if(_historyError is not null){<p class="alert" role="alert">@_historyError</p>}
- else if(_historyLoading){<p class="import-history-empty" role="status">Loading recent imports…</p>}
+ else if(_historyLoading){<p class="import-history-empty" role="status">Loading recent imports...</p>}
  else if(_history.Count==0){<div class="import-history-empty"><span class="mdi mdi-history" aria-hidden="true"></span><strong>No imports yet</strong><p>Your converted documents and created order counts will appear here.</p></div>}
  else {
   <div class="import-history-scroll"><table><thead><tr><th>Source</th><th>Date</th><th>Order number</th><th>Orders created</th><th>Status</th></tr></thead><tbody>
-   @foreach(var item in _history){<tr @key="item.Id"><td><span class="mdi mdi-file-document-outline" aria-hidden="true"></span>@(item.FileName=="pasted-orders.txt" ? "Pasted text" : item.FileName)</td><td>@item.CreatedAt.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")</td><td class="import-order-numbers">@if(item.CreatedPros.Length==0){<span>—</span>}else{@foreach(var pro in item.CreatedPros){<a href="@($"/data-entry?import={item.Id}&order={Uri.EscapeDataString(pro)}")" @onclick="()=>OpenImportedOrder(item.Id,pro)" @onclick:preventDefault="true" data-enhance-nav="false" aria-label="@($"Open order {pro}")">@pro</a>}}</td><td>@item.CreatedCount <span class="import-count-detail">/ @item.ExtractedCount extracted</span></td><td><span class="import-history-status @HistoryClass(item.Status)">@item.Status</span></td></tr>}
+   @foreach(var item in _history){<tr @key="item.Id"><td><span class="mdi mdi-file-document-outline" aria-hidden="true"></span>@(item.FileName=="pasted-orders.txt" ? "Pasted text" : item.FileName)</td><td>@item.CreatedAt.ToLocalTime().ToString("MMM d, yyyy \u00b7 h:mm tt")</td><td class="import-order-numbers">@if(item.CreatedPros.Length==0){<span>&mdash;</span>}else{@foreach(var pro in item.CreatedPros){<a href="@($"/data-entry?import={item.Id}&order={Uri.EscapeDataString(pro)}")" @onclick="()=>OpenImportedOrder(item.Id,pro)" @onclick:preventDefault="true" data-enhance-nav="false" aria-label="@($"Open order {pro}")">@pro</a>}}</td><td>@item.CreatedCount <span class="import-count-detail">/ @item.ExtractedCount extracted</span></td><td><span class="import-history-status @HistoryClass(item.Status)">@item.Status</span></td></tr>}
   </tbody></table></div>
  }
 </section>
 @if(_review){
-<EditPopup Title="@(_editing is null ? "Review orders" : "Edit order · " + _editPro)" Busy="_busy" OnClose="Close" Class="order-dialog">
+<EditPopup Title="@(_editing is null ? "Review orders" : "Edit order \u00b7 " + _editPro)" Busy="_busy" OnClose="Close" Class="order-dialog">
  @if(_error is not null){<p class="alert" role="alert">@_error</p>}
  @if(_saved>0){
   <div class="import-success" role="status">
@@ -52,26 +52,46 @@
    @foreach(var note in _addressNotes){<p>@(_saved>1 ? $"Order {note.Pro}: " : "")@note.Text</p>}
   </div>
  }
- @if(_checking){<p role="status">Checking Nova addresses and existing PROs� You can review and edit now.</p>}
+ @if(_checking){<p role="status">Checking Nova addresses and existing PROs... You can review and edit now.</p>}
  @if(_checkFailed){<button class="outline-button" @onclick="ReviewChecks">Retry address and duplicate checks</button>}
  @foreach(var warning in _warnings){<p class="alert" role="status">@warning</p>}
  <fieldset disabled="@_busy" class="import-review-fields">
-   @if(_rows.Count>10){<div class="import-action-bar"><button class="outline-button" disabled="@(ReviewIndex==0)" @onclick="()=>_reviewIndex=ReviewIndex-1">Previous order</button><label>Order <select value="@ReviewIndex" @onchange="e=>_reviewIndex=int.Parse(e.Value!.ToString()!)">@for(var i=0;i<_rows.Count;i++){<option value="@i">@(i+1) · @_rows[i].Order.Id · @_rows[i].Order.Customer</option>}</select> of @_rows.Count</label><button class="outline-button" disabled="@(ReviewIndex>=_rows.Count-1)" @onclick="()=>_reviewIndex=ReviewIndex+1">Next order</button></div>}
-   @{var conflicts=ConflictingPros.ToHashSet();}
-   @foreach(var row in (_rows.Count>10?_rows.Skip(ReviewIndex).Take(1):_rows)){
-    <details class="import-order" @key="row" open>
-     <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) · @row.Order.Customer</summary>
+   @if (_editing is null)
+   {
+    <label><input type="checkbox" @bind="_needsReviewOnly" @bind:after="ResetReviewIndex" /> Only show orders needing review</label>
+   }
+   @{
+    var conflicts = ConflictingPros.ToHashSet();
+    var visible = _needsReviewOnly && _editing is null ? _rows.Where(r => ReviewIssue(r, conflicts) is not null).ToList() : _rows;
+    var index = Math.Clamp(_reviewIndex, 0, Math.Max(0, visible.Count - 1));
+   }
+   @if (visible.Count > 10)
+   {
+    <div class="import-action-bar">
+     <button class="outline-button" disabled="@(index==0)" @onclick="()=>_reviewIndex=index-1">Previous order</button>
+     <label>Order <select value="@index" @onchange="e=>_reviewIndex=int.Parse(e.Value!.ToString()!)">
+      @for(var i=0;i<visible.Count;i++){<option value="@i">@(i+1) &middot; @visible[i].Order.Id &middot; @visible[i].Order.Customer</option>}
+     </select> of @visible.Count</label>
+     <button class="outline-button" disabled="@(index==visible.Count-1)" @onclick="()=>_reviewIndex=index+1">Next order</button>
+    </div>
+   }
+   @if (_needsReviewOnly && visible.Count==0 && _rows.Count>0){<p role="status">@(_checking ? "Checking orders..." : _checkFailed ? "Retry the checks to finish reviewing these orders." : "No orders need review.")</p>}
+   @foreach(var row in (visible.Count>10?visible.Skip(index).Take(1):visible)){
+    <details class="import-order" @key="row" open="@(_editing is not null)">
+     <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) &middot; @row.Order.Customer
+      @if(_editing is null && ReviewIssue(row,conflicts) is {} issue){<span> &mdash; @issue</span>}
+     </summary>
      @foreach(var decision in row.Draft.MappingDecisions){<p class="import-source-hint">@decision</p>}
-     @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms � @row.Draft.BillingEvidence</p>}
+     @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms &middot; @row.Draft.BillingEvidence</p>}
      @foreach(var question in row.Draft.MappingQuestions){
       <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="ReviewChecks" />
      }
      @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
      @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
-     @if(_editing is null && MappedPro(row)==""){<p class="import-source-hint">Enter the order�s Tag or PRO to create it.</p>}
+     @if(_editing is null && MappedPro(row)==""){<p class="import-source-hint">Enter the order's Tag or PRO to create it.</p>}
      else if(conflicts.Contains(MappedPro(row))){<p class="alert">PRO @MappedPro(row) occurs more than once in this import. Review the original Tags.</p>}
      <section class="import-group"><h3>Order &amp; references</h3><div class="manifest-edit-grid">
-      <label class="field">Tag # / numeric PRO<input @bind="row.Draft.TagNumber" @bind:event="oninput" maxlength="200" readonly="@(_editing is not null)" /></label>
+      <label class="field">Tag # / numeric PRO<input @bind="row.Draft.TagNumber" maxlength="200" readonly="@(_editing is not null)" /></label>
       <label class="field">Nova PRO (from Tag)<input value="@MappedPro(row)" readonly /></label>
       <label class="field">Terminal<select @bind="row.Order.TerminalId"><option value="">Choose terminal</option>@foreach(var terminal in Terminals){<option value="@terminal.Id">@terminal.Code - @terminal.Name</option>}</select></label>
       @if(NativeWorkspace){<label class="field">Nova status<InputSelect @bind-Value="row.Draft.NativeStatusId"><option value="">Choose status</option>@if(row.Draft.NativeStatusId is {} existingStatus && !Statuses.Any(s=>s.Id==existingStatus)){<option value="@existingStatus">@existingStatus</option>}@foreach(var status in Statuses){<option value="@status.Id">@status.Name</option>}</InputSelect></label>}
@@ -84,9 +104,9 @@
      <div class="import-parties">
      @foreach(var group in AddressGroups){
       <section class="import-group import-address"><h3>@group.Title</h3><div class="manifest-edit-grid">
-       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @oninput="e=>row.Draft.SetAccountId(group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
+       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @onchange="e=>row.Draft.SetAccountId(group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
        @foreach(var field in TextFields.Skip(group.Start).Take(7)){
-        <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @oninput="e=>EditAddress(row,group.Part,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
+        <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>EditAddress(row,group.Part,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
        }
       </div></section>
      }
@@ -96,17 +116,17 @@
       <label class="field">Work type<select @bind="row.Order.WorkType"><option>Delivery</option><option>Pickup</option></select></label>
       <label class="field">Pieces<InputNumber @bind-Value="row.Order.Pieces" /></label>
       <label class="field">Total weight (lb)<InputNumber @bind-Value="row.Order.Weight" /></label>
-      <label class="field">Total cube (ft³)<InputNumber @bind-Value="row.Order.Cube" /></label>
+      <label class="field">Total cube (ft&sup3;)<InputNumber @bind-Value="row.Order.Cube" /></label>
       <label class="field import-notes">Notes<textarea @bind="row.Order.Notes" maxlength="4000"></textarea></label>
      </div></section>
      <section class="import-group"><h3>Freight line items</h3>
       @{var lines=row.Draft.FreightLines??[];var pending=_editing is null;
         if(pending && lines.Length==0 && (row.Order.Pieces!=0 || row.Order.Weight!=0 || row.Order.Cube!=0))lines=[new DocumentFreightLine()];}
       @if(lines.Length>0){
-       <div class="import-line-scroll"><table class="import-lines"><thead><tr><th>Qty</th><th>Description</th><th>Weight (lb)</th><th>Cube (ft�)</th></tr></thead><tbody>
+       <div class="import-line-scroll"><table class="import-lines"><thead><tr><th>Qty</th><th>Description</th><th>Weight (lb)</th><th>Cube (ft&sup3;)</th></tr></thead><tbody>
         @foreach(var line in lines){
          var single=pending && lines.Length==1;
-         <tr><td>@Measure(single?row.Order.Pieces:line.Pieces)</td><td>@(string.IsNullOrWhiteSpace(line.Description)?"�":line.Description)</td><td>@Measure(single?row.Order.Weight:line.WeightLb)</td><td>@Measure(line.Volume??(single && row.Order.Cube>0?row.Order.Cube:null))</td></tr>
+         <tr><td>@Measure(single?row.Order.Pieces:line.Pieces)</td><td>@(string.IsNullOrWhiteSpace(line.Description)?"\u2014":line.Description)</td><td>@Measure(single?row.Order.Weight:line.WeightLb)</td><td>@Measure(line.Volume??(single && row.Order.Cube>0?row.Order.Cube:null))</td></tr>
         }
        </tbody></table></div>
       }else{<p class="import-source-hint">No freight line items.</p>}
@@ -124,7 +144,18 @@
 @code {
  List<OrderImportHistory> _history=[];
  int _reviewIndex;
- int ReviewIndex=>Math.Clamp(_reviewIndex,0,Math.Max(0,_rows.Count-1));
+ bool _needsReviewOnly;
+ void ResetReviewIndex()=>_reviewIndex=0;
+ string? ReviewIssue(Row row, HashSet<string> conflicts)
+ {
+  if (row.Draft.MappingQuestions.Length > 0) return "Unanswered question";
+  var pro=MappedPro(row);
+  if (pro.Length==0) return "Missing or invalid PRO";
+  if (_existing.Contains(pro) || conflicts.Contains(pro)) return "Duplicate PRO";
+  if (string.IsNullOrWhiteSpace(row.Order.Shipper) && string.IsNullOrWhiteSpace(row.Draft.ShipperAccountId)) return "Missing shipper";
+  if (string.IsNullOrWhiteSpace(row.Order.Customer) && string.IsNullOrWhiteSpace(row.Draft.ConsigneeAccountId)) return "Missing consignee";
+  return null;
+ }
  bool _historyLoading;
  string? _historyError;
  [Parameter] public Guid? ImportBatch {get;set;}
@@ -162,7 +193,7 @@
  async Task SaveImportedOrder()
  {
   if(_busy || _editing is null)return;
-  _busy=true;_error=null;_progress="Saving order…";
+  _busy=true;_error=null;_progress="Saving order...";
   try
   {
    var row=_rows.Single();
@@ -212,7 +243,7 @@
  readonly List<string> _warnings=[];
  List<Row> _rows=[];
  sealed class Row(OrderDocumentDraft draft){public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
- static string Measure(decimal? value)=>value?.ToString("0.####")??"�";
+ static string Measure(decimal? value)=>value?.ToString("0.####")??"\u2014";
  static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "";}}
  static readonly (string Name,string Label)[] TextFields=[
   ("Customer","Consignee"),("Address","Consignee address"),("Address2","Consignee address 2"),("City","Consignee city"),("State","Consignee state"),("PostalCode","Consignee ZIP"),("Country","Consignee country"),
@@ -237,7 +268,7 @@
  {
   if(_busy || !CanConvert)return;
   if(_pasteText && System.Text.Encoding.UTF8.GetByteCount(_text)>MaxImportBytes){_error="Pasted text must be 10 MB or less. Split the orders into smaller batches.";return;}
-  _busy=true;_editing=null;_error=null;_createdPros.Clear();_addressNotes.Clear();_warnings.Clear();_existing.Clear();_progress="Extracting orders… This may take a few minutes.";
+  _busy=true;_editing=null;_error=null;_createdPros.Clear();_addressNotes.Clear();_warnings.Clear();_existing.Clear();_progress="Extracting orders... This may take a few minutes.";
   try{
    using var http=Clients.CreateClient(ApiClients.Authorized);http.Timeout=TimeSpan.FromMinutes(6);
    using var form=new MultipartFormDataContent();
@@ -246,7 +277,7 @@
    var uploadTimer=System.Diagnostics.Stopwatch.StartNew();
    using var response=await http.PostAsync("api/v1/tms/orders/convert-document?earlyReview=true",form);
    await ApiResponse.Check(response);
-   _reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
+   _needsReviewOnly=false;_reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
    foreach(var row in _rows){
     row.Draft.NativeStatusId=NativeWorkspace && Statuses.Any(s=>s.Id==NovaDocumentImport.DefaultStatus)?NovaDocumentImport.DefaultStatus:null;
     if(string.IsNullOrWhiteSpace(row.Draft.TagNumber))row.Draft.TagNumber=row.Order.Id;
@@ -332,7 +363,7 @@
  async Task Create()
  {
   if(_busy || _rows.Count==0 || CannotCreate)return;
-  _busy=true;_error=null;_progress="Checking import…";
+  _busy=true;_error=null;_progress="Checking import...";
   var creationStarted=false;
   try{
    foreach(var row in _rows){
@@ -345,7 +376,7 @@
    using var http=Clients.CreateClient(ApiClients.Authorized);
    _existing.Clear();_existing.UnionWith(await FindExisting(http,_rows.Select(r=>r.Order.Id).ToArray()));
    if(_existing.Count>0)throw new FormatException("These PROs already exist in Aurora or Nova: "+string.Join(", ",_existing)+". Remove them from the import.");
-   _progress="Creating orders…";
+   _progress="Creating orders...";
    while(_rows.Count>0){
     creationStarted=true;
     using var response=await http.PostAsJsonAsync(NativeWorkspace?"api/v1/aurora/firebird/orders/import":"api/v1/tms/orders/import",_rows[0].Draft);
