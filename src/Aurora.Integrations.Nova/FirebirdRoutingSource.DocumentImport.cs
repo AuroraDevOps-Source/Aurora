@@ -15,7 +15,9 @@ public sealed partial class FirebirdRoutingSource
             if(part=="header")values["PB_BILL_ID"]=address.Code.Trim();
             else
             {
-                values["OPS_ACCTID"]=address.Code.Trim();values["OPS_ADDR3"]=address.Address3?.Trim();
+                values["OPS_ACCTID"]=address.Code.Trim();
+                if(draft.EditedAddressParts?.Contains(part)==true)continue;
+                values["OPS_ADDR3"]=address.Address3?.Trim();
                 if(HasCoordinates(address.Latitude,address.Longitude))
                 {values["OPS_LATITUDE"]=address.Latitude?.ToString(CultureInfo.InvariantCulture);values["OPS_LONGITUDE"]=address.Longitude?.ToString(CultureInfo.InvariantCulture);}
             }

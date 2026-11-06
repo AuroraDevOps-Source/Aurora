@@ -5,6 +5,13 @@ namespace Aurora.Contracts;
 
 public sealed class OrderDocumentDraft
 {
+    public string MappingSender {get;set;}="";
+    public List<string> MappingDecisions {get;set;}=[];
+    public string MappingForm {get;set;}="";
+    public DocumentMappingQuestion[] MappingQuestions {get;set;}=[];
+    public HashSet<string> EditedAddressParts {get;set;}=[];
+    public string FreightTerms {get;set;}="";
+    public string BillingEvidence {get;set;}="";
     public Guid? ImportId { get; set; }
     public string[] AddressLookupMessages {get;set;}=[];
     public int? NativeStatusId { get; set; }

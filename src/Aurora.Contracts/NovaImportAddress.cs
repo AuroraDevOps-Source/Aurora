@@ -41,6 +41,12 @@ public sealed class NovaImportAddress
             if(code.Length==0 && string.IsNullOrWhiteSpace(Get(0)))continue;
             var match=code.Length==0?Match(accounts,Get(0),Get(3),Get(4),Get(5)):accounts.FirstOrDefault(a=>Clean(a.Code)==code);
             if(match is null){messages.Add($"{label}: no unique Nova address match; kept the imported address.");continue;}
+            if(draft.EditedAddressParts?.Contains(part)==true)
+            {
+                if(code.Length>0)result[part]=match;
+                messages.Add($"{label}: kept the reviewed address.");
+                continue;
+            }
             draft.SetAccountId(part,match.Code.Trim());
             string[] values=[match.Name,match.Address,match.Address2,match.City,match.State,match.Zip,match.Country];
             for(var i=code.Length>0 && !string.IsNullOrWhiteSpace(Get(0))?1:0;i<properties.Length;i++)if(!string.IsNullOrWhiteSpace(match.Address) || !string.IsNullOrWhiteSpace(values[i]))typeof(TmsOrder).GetProperty(properties[i])!.SetValue(draft.Order,values[i]?.Trim()??"");

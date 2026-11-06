@@ -1,0 +1,70 @@
+@inject IHttpClientFactory Clients
+
+<fieldset class="import-group" disabled="@_saving">
+ <legend>@(Question.Field=="PRO" ? "Which identifier is the PRO?" : "Which account should be billed?")</legend>
+ <p>@Question.Reason</p>
+ @foreach(var candidate in Question.Candidates)
+ {
+  <label class="field"><span><input type="radio" name="@_group" checked="@(_choice==candidate)" @onchange="()=>Select(candidate)" />
+   @candidate.Label · @candidate.Value @(candidate.Page is >0 ? $"(page {candidate.Page})" : "")</span></label>
+ }
+ @if(Question.Candidates.Length>0){<label><input type="radio" name="@_group" checked="@(_manual)" @onchange="()=>Select(null)" /> Enter another value</label>}
+ @if(_manual || Question.Candidates.Length==0)
+ {
+  <label class="field">@(Question.Field=="PRO"?"PRO":"Bill To name")<input @bind="_value" @bind:event="oninput" maxlength="200" /></label>
+  @if(Question.Field=="BillTo"){<label class="field">Nova account code (if known)<input @bind="_account" maxlength="80" /></label>}
+ }
+ @if(CanReuse)
+ {
+  @if(Drafts.Count>1){<label><input type="checkbox" @bind="_batch" /> Apply this printed label to matching tickets in this import</label>}
+  <label><input type="checkbox" @bind="_remember" /> Remember “@_choice!.Label” for @Draft.MappingSender · @Draft.MappingForm</label>
+ }
+ @if(_error is not null){<p role="alert">@_error</p>}
+ <button type="button" class="outline-button" disabled="@(_choice is null && string.IsNullOrWhiteSpace(_value))" @onclick="Apply">Apply answer</button>
+</fieldset>
+@code {
+ [Parameter,EditorRequired] public OrderDocumentDraft Draft {get;set;}=null!;
+ [Parameter,EditorRequired] public DocumentMappingQuestion Question {get;set;}=null!;
+ [Parameter,EditorRequired] public List<OrderDocumentDraft> Drafts {get;set;}=[];
+ [Parameter] public EventCallback OnAnswered {get;set;}
+ readonly string _group=Guid.NewGuid().ToString("N");
+ MappingCandidate? _choice;
+ bool _manual,_batch,_remember,_saving;
+ string _value="",_account="";
+ string? _error;
+ bool CanReuse=>_choice is not null && !string.IsNullOrWhiteSpace(Draft.MappingSender) && !string.IsNullOrWhiteSpace(Draft.MappingForm)
+     && Question.Candidates.Count(c=>Same(c.Label,_choice.Label))==1;
+ static bool Same(string a,string b)=>string.Equals(a?.Trim(),b?.Trim(),StringComparison.OrdinalIgnoreCase);
+ void Select(MappingCandidate? candidate){_choice=candidate;_manual=candidate is null;_batch=false;_remember=false;_error=null;}
+ async Task Apply()
+ {
+  if(_saving)return;
+  _saving=true;_error=null;
+  try
+  {
+   var choice=_choice??new MappingCandidate("",_value.Trim(),AccountId:_account.Trim());
+   if(string.IsNullOrWhiteSpace(choice.Value))return;
+   if(Question.Field=="PRO")OrderDocumentDraft.SplitTag(choice.Value);
+   if(CanReuse && _remember)
+   {
+    using var http=Clients.CreateClient(ApiClients.Authorized);
+    using var response=await http.PostAsJsonAsync("api/v1/tms/orders/import/mapping-rule",new DocumentMappingRule(Draft.MappingSender,Draft.MappingForm,Question.Field,choice.Label));
+    await ApiResponse.Check(response);
+   }
+   DocumentMappings.Answer(Draft,Question,choice);
+   if(CanReuse && _batch)
+   foreach(var other in Drafts.Where(d=>d!=Draft && Same(d.MappingSender,Draft.MappingSender) && Same(d.MappingForm,Draft.MappingForm)))
+   {
+    var q=other.MappingQuestions.FirstOrDefault(x=>x.Field==Question.Field);
+    var matches=q?.Candidates.Where(c=>Same(c.Label,choice.Label)).ToArray();
+    if(q is not null && matches is [var candidate])
+    {
+     try{DocumentMappings.Answer(other,q,candidate);}catch(FormatException){/* Keep this row for individual review. */}
+    }
+   }
+   await OnAnswered.InvokeAsync();
+  }
+  catch(Exception ex){_error=ex.Message;}
+  finally{_saving=false;}
+ }
+}

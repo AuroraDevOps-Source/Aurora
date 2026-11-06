@@ -230,6 +230,7 @@ builder.Services.AddHttpClient<IInvitationEmail, ResendInvitationEmail>(client =
 builder.Services.AddScoped<TenantSettingsService>();
 builder.Services.AddScoped<OrderImportHistoryStore>();
 builder.Services.AddScoped<OrderDocumentConversion>();
+builder.Services.AddScoped<DocumentMappingStore>();
 builder.Services.AddScoped<AppLog>();
 builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Integrations.Nova.FirebirdRoutingOptions>>(sp =>
 {

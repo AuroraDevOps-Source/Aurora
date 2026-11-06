@@ -149,6 +149,20 @@ try
  }
  context.User=admin;
  // Exercise both conversion paths with tenant-scoped PostgreSQL access and an in-memory Hub.
+ var rules=new DocumentMappingStore(factory,context);
+ var rule=new DocumentMappingRule("Fixture Sender","Fixture Ticket","PRO","Load ID");
+ await rules.Save(rule,default);
+ OrderDocumentDraft Ambiguous()=>new(){MappingSender=rule.Sender,MappingForm=rule.Form,MappingQuestions=[
+     new(){Field="PRO",Candidates=[new("Order #","100",1),new("Load ID","200",2)]}]};
+ var mapped=Ambiguous();
+ await rules.Apply([mapped],false,default);
+ Check(mapped.Order.Id=="200" && mapped.MappingQuestions.Length==0 && mapped.MappingDecisions.Single().Contains("page 2"),"remembered label resolves the current ticket with printed evidence");
+ var strict=Ambiguous();await rules.Apply([strict],true,default);
+ Check(strict.MappingQuestions.Length==1,"remembered field cannot bypass printed Lykes tag policy");
+ context.Company=b;
+ var isolated=Ambiguous();await rules.Apply([isolated],false,default);
+ Check(isolated.MappingQuestions.Length==1,"remembered mapping does not cross tenant boundaries");
+ context.Company=a;
  using var hub=new SampleHub();
  var hubSettings=new ConfigurationManager();
  foreach(var id in new[]{a,b})

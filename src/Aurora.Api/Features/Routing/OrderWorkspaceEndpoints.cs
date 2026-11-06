@@ -44,6 +44,7 @@ public static class OrderWorkspaceEndpoints
         group.MapPost("/firebird/orders/import", (OrderDocumentDraft draft,FirebirdRoutingSource source,TmsStore store,
             Aurora.Infrastructure.Data.NpgsqlConnectionFactory factory,Aurora.Infrastructure.Tenancy.ITenantContext tenant,
             NovaUserConnections connections,OrderImportHistoryStore history,CancellationToken ct)=>Guard(async()=>{
+            if (draft.MappingQuestions is {Length:>0}) throw new FormatException("Answer the document mapping questions before creating this order.");
             await history.Validate(draft.ImportId,ct);
             var pro=OrderDocumentDraft.SplitTag(string.IsNullOrWhiteSpace(draft.TagNumber)?draft.Order.Id:draft.TagNumber).Pro;
             if((await OrderImportChecks.Existing([pro],store,factory,tenant,connections,ct)).Length>0)

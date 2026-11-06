@@ -102,3 +102,9 @@ Printed freight totals take precedence. Otherwise Aurora sums extracted freight 
 Recent imports displays successfully created PROs as links. Each link opens the same grouped review form with current saved order values and a Save changes action. Saving updates the existing order, without creating another order or changing the import count. Converted documents with no created orders show no order number. Links also support opening `/data-entry?import={batchId}&order={pro}` directly.
 
 The authenticated editor requires the PRO to belong to the current tenant's import history. Server configuration chooses native Nova or local storage. The PRO is read-only; revision checks prevent overwriting intervening edits. Native saves preserve fields outside the compact form, inactive appointment windows, and unedited stop-specific BOLs. Orders expanded to multiple pickup/delivery stops must use the full Orders editor. Work type and document references are retained in labeled order notes. Editing remains independent of optimization planning configuration.
+
+## Assisted review
+
+Global extraction instructions apply across companies alongside each company's own instructions. When the PRO or Bill To is unclear, the review dialog shows the available printed labels, values, and page numbers. Operators can select a value or enter a correction. Applying a printed label to the batch uses each ticket's own value. Remembering a label scopes that choice to the current company, sender, form, and field.
+
+Review opens as soon as extraction completes. Address and duplicate checks run concurrently, and Create waits for both checks and any mapping answers. For the reviewed Waylanders Atlas profile, Aurora reads recognized PDF tickets directly, including freight rows carried over to another page. Unrecognized layouts, handling instructions, or edited extraction settings use the normal AI path.

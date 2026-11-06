@@ -8,6 +8,25 @@ using Dapper;
 using Npgsql;
 int count=0;
 void Check(bool ok,string message){if(!ok)throw new Exception(message);count++;}
+const string billingRules="Prepaid: the shipper is the Bill To. Collect: the consignee is the Bill To.";
+foreach(var terms in new[]{"Prepaid","Collect","Third Party"})
+{
+ var billing=new OrderDocumentDraft{ FreightTerms=terms, ShipperAccountId="S1",ConsigneeAccountId="C2",Order=new(){Shipper="Sender",Customer="Receiver",OriginCity="Seattle",City="Austin"} };
+ DocumentMappings.PrepareBilling(billing,billingRules);
+ Check(terms switch {
+     "Prepaid"=>billing.Order.BillTo=="Sender" && billing.Order.BillToCity=="Seattle" && billing.BillToAccountId=="S1",
+     "Collect"=>billing.Order.BillTo=="Receiver" && billing.Order.BillToCity=="Austin" && billing.BillToAccountId=="C2",
+     _=>billing.MappingQuestions.Single().Field=="BillTo" && billing.Order.BillTo==""}, "BOL freight terms "+terms);
+}
+var reviewedAddress=new OrderDocumentDraft{EditedAddressParts=["delivery"],ConsigneeAccountId="C2",Order=new(){Customer="Receiver",Address="Edited dock"}};
+NovaImportAddress.Apply(reviewedAddress,[new(){Code="C2",Name="Receiver",Address="Main dock"}]);
+Check(reviewedAddress.Order.Address=="Edited dock","late address match preserves the reviewed address");
+if(Environment.GetEnvironmentVariable("ATLAS_REPORT_CHECK") is {} atlasPath){
+ using var file=File.OpenRead(atlasPath);
+ var atlas=AtlasDeliveryTickets.Read(file,default);
+ Check(atlas is {Count:6} && atlas.Sum(d=>d.FreightLines.Length)==18 && atlas.Single(d=>d.Order.Id=="3833862").FreightLines.Length==9,"Atlas ticket continuation and all freight rows");
+ Check(atlas![0].Order.Notes.Contains("November 23rd") && atlas[0].LocalScheduledAt is null,"Atlas lower bound stays in handling instructions");
+}
 var id=Guid.NewGuid();
 foreach(var (accountCode,name) in new[]{("EXP1034","EXPEDITORS INTL - AUS TRANSCON"),("PEG9001","PEGASUS LOGISTICS - MCO")}){
  var account=new OrderDocumentDraft{PrintedBillToAccountLine=$"Account: {accountCode} - {name}"};account.ApplyPrintedAccount();

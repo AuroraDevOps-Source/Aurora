@@ -16,6 +16,7 @@
     <PackageReference Include="OpenIddict.AspNetCore" Version="7.6.0" />
     <PackageReference Include="OpenIddict.Server.AspNetCore" Version="7.6.0" />
     <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.6.0" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
   </ItemGroup>
 
   <ItemGroup>

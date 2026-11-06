@@ -52,6 +52,8 @@
    @foreach(var note in _addressNotes){<p>@(_saved>1 ? $"Order {note.Pro}: " : "")@note.Text</p>}
   </div>
  }
+ @if(_checking){<p role="status">Checking Nova addresses and existing PROs… You can review and edit now.</p>}
+ @if(_checkFailed){<button class="outline-button" @onclick="ReviewChecks">Retry address and duplicate checks</button>}
  @foreach(var warning in _warnings){<p class="alert" role="status">@warning</p>}
  <fieldset disabled="@_busy" class="import-review-fields">
    @if(_rows.Count>10){<div class="import-action-bar"><button class="outline-button" disabled="@(ReviewIndex==0)" @onclick="()=>_reviewIndex=ReviewIndex-1">Previous order</button><label>Order <select value="@ReviewIndex" @onchange="e=>_reviewIndex=int.Parse(e.Value!.ToString()!)">@for(var i=0;i<_rows.Count;i++){<option value="@i">@(i+1) Â· @_rows[i].Order.Id Â· @_rows[i].Order.Customer</option>}</select> of @_rows.Count</label><button class="outline-button" disabled="@(ReviewIndex>=_rows.Count-1)" @onclick="()=>_reviewIndex=ReviewIndex+1">Next order</button></div>}
@@ -59,6 +61,11 @@
    @foreach(var row in (_rows.Count>10?_rows.Skip(ReviewIndex).Take(1):_rows)){
     <details class="import-order" @key="row" open>
      <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) Â· @row.Order.Customer</summary>
+     @foreach(var decision in row.Draft.MappingDecisions){<p class="import-source-hint">@decision</p>}
+     @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms · @row.Draft.BillingEvidence</p>}
+     @foreach(var question in row.Draft.MappingQuestions){
+      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="_rows.Select(r=>r.Draft).ToList()" OnAnswered="ReviewChecks" />
+     }
      @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
      @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
      @if(_editing is null && MappedPro(row)==""){<p class="import-source-hint">Enter the order’s Tag or PRO to create it.</p>}
@@ -77,9 +84,9 @@
      <div class="import-parties">
      @foreach(var group in AddressGroups){
       <section class="import-group import-address"><h3>@group.Title</h3><div class="manifest-edit-grid">
-       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @onchange="e=>row.Draft.SetAccountId(group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
+       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @oninput="e=>row.Draft.SetAccountId(group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
        @foreach(var field in TextFields.Skip(group.Start).Take(7)){
-        <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>SetText(row.Order,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
+        <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @oninput="e=>EditAddress(row,group.Part,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
        }
       </div></section>
      }
@@ -134,7 +141,7 @@
  }
  async Task OpenImportedOrder(Guid batch,string pro)
  {
-  if(_busy)return;
+  if(_busy || _review)return;
   _busy=true;_error=null;_createdPros.Clear();_addressNotes.Clear();_existing.Clear();_warnings.Clear();_rows.Clear();_editing=null;
   try
   {
@@ -199,7 +206,9 @@
  string? _error,_progress;
  readonly HashSet<string> _existing=[];
  IEnumerable<string> ConflictingPros => _rows.Select(MappedPro).Where(pro=>pro.Length>0).GroupBy(pro=>pro).Where(g=>g.Count()>1).Select(g=>g.Key);
- bool CannotCreate => _rows.Any(row=>MappedPro(row)=="" || _existing.Contains(MappedPro(row))) || ConflictingPros.Any();
+ bool _checking,_checkFailed;
+ int _reviewVersion;
+ bool CannotCreate => _checking || _checkFailed || _rows.Any(r=>r.Draft.MappingQuestions.Length>0) || _rows.Any(row=>MappedPro(row)=="" || _existing.Contains(MappedPro(row))) || ConflictingPros.Any();
  readonly List<string> _warnings=[];
  List<Row> _rows=[];
  sealed class Row(OrderDocumentDraft draft){public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
@@ -210,6 +219,11 @@
   ("Shipper","Shipper"),("OriginAddress","Shipper address"),("OriginAddress2","Shipper address 2"),("OriginCity","Shipper city"),("OriginState","Shipper state"),("OriginPostalCode","Shipper ZIP"),("OriginCountry","Shipper country"),
   ("BillTo","Bill to"),("BillToAddress","Bill-to address"),("BillToAddress2","Bill-to address 2"),("BillToCity","Bill-to city"),("BillToState","Bill-to state"),("BillToPostalCode","Bill-to ZIP"),("BillToCountry","Bill-to country")];
  static string GetText(TmsOrder o,string name)=>(string?)typeof(TmsOrder).GetProperty(name)!.GetValue(o)??"";
+ static void EditAddress(Row row,string part,string field,string value)
+ {
+  row.Draft.EditedAddressParts.Add(part);
+  SetText(row.Order,field,value);
+ }
  static void SetText(TmsOrder o,string name,string value)=>typeof(TmsOrder).GetProperty(name)!.SetValue(o,value);
  void ClearFile(){_file=null;_fileVersion++;_error=null;}
  void SelectFile(InputFileChangeEventArgs e){
@@ -218,7 +232,7 @@
   if(e.File.Size is <=0 or >MaxImportBytes){_error="Choose a nonempty file up to 10 MB.";return;}
   _file=e.File;
  }
- async Task Close(){if(_busy)return;_review=false;_editing=null;_rows.Clear();_error=null;await LoadHistory();await OnClose.InvokeAsync();}
+ async Task Close(){if(_busy)return;_reviewVersion++;_checking=false;_checkFailed=false;_review=false;_editing=null;_rows.Clear();_error=null;await LoadHistory();await OnClose.InvokeAsync();}
  async Task Convert()
  {
   if(_busy || !CanConvert)return;
@@ -229,7 +243,8 @@
    using var form=new MultipartFormDataContent();
    if(_pasteText)form.Add(new StringContent(_text,System.Text.Encoding.UTF8,"text/plain"),"file","pasted-orders.txt");
    else form.Add(new StreamContent(_file!.OpenReadStream(MaxImportBytes)),"file",_file.Name);
-   using var response=await http.PostAsync("api/v1/tms/orders/convert-document",form);
+   var uploadTimer=System.Diagnostics.Stopwatch.StartNew();
+   using var response=await http.PostAsync("api/v1/tms/orders/convert-document?earlyReview=true",form);
    await ApiResponse.Check(response);
    _reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
    foreach(var row in _rows){
@@ -237,19 +252,68 @@
     if(string.IsNullOrWhiteSpace(row.Draft.TagNumber))row.Draft.TagNumber=row.Order.Id;
     row.Order.TerminalId=Terminals.FirstOrDefault(t=>string.Equals(t.Code,row.Order.TerminalCode,StringComparison.OrdinalIgnoreCase))?.Id;
    }
-   var ids=_rows.Select(r=>r.Order.Id).Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct().ToArray();
-   if(ids.Length>0)await CheckExisting(http,ids);
+
+   Console.WriteLine($"Document upload to draft: {uploadTimer.ElapsedMilliseconds} ms");
    if(_rows.Count==0)_error="No orders were found. Check the file or pasted text and try again.";
-  }catch(Exception ex){_error=ex.Message;}finally{_busy=false;_review=_rows.Count>0;await LoadHistory();}
+  }catch(Exception ex){_error=ex.Message;}finally{_busy=false;_review=_rows.Count>0;}
+  if(_review)await ReviewChecks();
+  await LoadHistory();
  }
- async Task CheckExisting(HttpClient http,string[] ids)
+ async Task ReviewChecks()
  {
-  _existing.Clear();
+  var version=++_reviewVersion;
+  _checking=true;_checkFailed=false;_error=null;
+  var rows=_rows.ToArray();
+  StateHasChanged();
+  try
+  {
+   using var http=Clients.CreateClient(ApiClients.Authorized);
+   http.Timeout=TimeSpan.FromMinutes(5);
+   var duplicates=FindExisting(http,rows.Select(MappedPro).Where(id=>id.Length>0).Distinct().ToArray());
+   await Task.WhenAll(duplicates,CheckAddresses(http,rows,version));
+   if(version==_reviewVersion){_existing.Clear();_existing.UnionWith(await duplicates);}
+  }
+  catch(Exception ex){if(version==_reviewVersion){_checkFailed=true;_error=ex.Message;}}
+  finally{if(version==_reviewVersion)_checking=false;}
+ }
+ static string[] PartyValues(OrderDocumentDraft draft,string part,string[] props)=>
+    new[]{draft.AccountId(part)}.Concat(props.Select(p=>GetText(draft.Order,p))).ToArray();
+ async Task CheckAddresses(HttpClient http, Row[] rows,int version)
+ {
+  foreach(var batch in rows.Chunk(100))
+  {
+   if(version!=_reviewVersion)return;
+   var before=batch.Select(r=>NovaImportAddress.Parties.Select(p=>PartyValues(r.Draft,p.Part,p.Properties)).ToArray()).ToArray();
+   using var response=await http.PostAsJsonAsync("api/v1/tms/orders/import/addresses",batch.Select(r=>r.Draft).ToArray());
+   await ApiResponse.Check(response);
+   var found=await response.Content.ReadFromJsonAsync<OrderDocumentDraft[]>();
+   if(version!=_reviewVersion)return;
+   if(found?.Length!=batch.Length)throw new FormatException("Incomplete address lookup. Retry the checks.");
+   for(var i=0;i<batch.Length;i++)
+   {
+    var draft=batch[i].Draft;
+    var messages=new List<string>();
+    for(var j=0;j<NovaImportAddress.Parties.Length;j++)
+    {
+     var (part,label,props)=NovaImportAddress.Parties[j];
+     if(draft.EditedAddressParts.Contains(part) || !before[i][j].SequenceEqual(PartyValues(draft,part,props)))continue;
+     draft.SetAccountId(part,found[i].AccountId(part));
+     foreach(var prop in props)SetText(draft.Order,prop,GetText(found[i].Order,prop));
+     messages.AddRange(found[i].AddressLookupMessages.Where(m=>m.StartsWith(label+":",StringComparison.Ordinal)));
+    }
+    draft.AddressLookupMessages=[..messages,..found[i].AddressLookupMessages.Where(m=>!m.Contains(':'))];
+   }
+  }
+ }
+ static async Task<HashSet<string>> FindExisting(HttpClient http,string[] ids)
+ {
+  var existing=new HashSet<string>();
   foreach(var batch in ids.Chunk(100)){
    using var response=await http.PostAsJsonAsync("api/v1/tms/orders/import/check",batch);
    await ApiResponse.Check(response);
-   _existing.UnionWith(await response.Content.ReadFromJsonAsync<string[]>()??[]);
+   existing.UnionWith(await response.Content.ReadFromJsonAsync<string[]>()??[]);
   }
+  return existing;
  }
  void AddLocationMessages(string pro,IEnumerable<string> messages)
  {
@@ -279,7 +343,7 @@
    }
    if(_rows.GroupBy(r=>r.Order.Id).Any(g=>g.Count()>1))throw new FormatException("Order numbers must be unique within the import.");
    using var http=Clients.CreateClient(ApiClients.Authorized);
-   await CheckExisting(http,_rows.Select(r=>r.Order.Id).ToArray());
+   _existing.Clear();_existing.UnionWith(await FindExisting(http,_rows.Select(r=>r.Order.Id).ToArray()));
    if(_existing.Count>0)throw new FormatException("These PROs already exist in Aurora or Nova: "+string.Join(", ",_existing)+". Remove them from the import.");
    _progress="Creating ordersâ€¦";
    while(_rows.Count>0){

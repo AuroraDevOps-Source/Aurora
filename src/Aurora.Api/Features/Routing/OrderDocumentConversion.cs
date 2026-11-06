@@ -11,10 +11,12 @@ namespace Aurora.Api.Features.Routing;
 
 public sealed class OrderDocumentConversion(ITenantContext tenant, IConfiguration config, IHttpClientFactory clients,
     NpgsqlConnectionFactory connections, OrderImportHistoryStore history, FirebirdRoutingSource native,
-    IOptions<FirebirdRoutingOptions> nativeOptions)
+    IOptions<FirebirdRoutingOptions> nativeOptions, ILogger<OrderDocumentConversion>? logger = null)
 {
-    public async Task<IResult> Convert(IFormFile file, string? previewInstructions, CancellationToken ct, string? previewGlobal = null)
+    public async Task<IResult> Convert(IFormFile file, string? previewInstructions, CancellationToken ct, string? previewGlobal = null, bool deferAddressLookup = false)
     {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        string route = "Crown";
         if (file.Length is <= 0 or > OrderDocumentImport.MaxBytes)
             return Results.BadRequest(new ApiErrorDto("Choose a nonempty document up to 10 MB."));
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -58,25 +60,40 @@ public sealed class OrderDocumentConversion(ITenantContext tenant, IConfiguratio
                 if (saved is null || (previewGlobal is not null && (!preview || !saved.CanEditGlobal))) return Results.Forbid();
                 var global = DocumentExtractionPrompt.ValidateInstructions(previewGlobal ?? saved.Global, TenantSettingsDto.MaxGlobalInstructionsLength);
                 var company = DocumentExtractionPrompt.ValidateInstructions(previewInstructions ?? saved.Company);
-                var prompt = DocumentExtractionPrompt.Build(global, company);
-                if (!preview) batch = await history.Start(file.FileName, ct);
-                try
+                if (!preview && extension==".pdf" && !settings.GetValue<bool>("RequirePrintedLykesTag") && AtlasDeliveryTickets.Supports(company, global))
                 {
-                    var extraction = await Extract(file, extension, baseUrl!, credential!, prompt, ct);
-                    if (preview && extraction.ValueKind == JsonValueKind.Array && extraction.GetArrayLength() == 0)
-                        return Results.Ok(Array.Empty<DocumentExtractionSample>());
-                    drafts = OrderDocumentImport.Parse(extraction,
-                        TimeZoneInfo.FindSystemTimeZoneById(nativeOptions.Value.TimeZoneId), settings.GetValue<bool>("RequirePrintedLykesTag"));
-                    if (preview)
-                        return Results.Ok(drafts.Select((draft, i) => new DocumentExtractionSample(draft.Order.Id, draft.Order.Customer, extraction[i])).ToArray());
+                    await using var pdf = file.OpenReadStream();
+                    drafts = AtlasDeliveryTickets.Read(pdf, ct);
+                    route = "Atlas";
                 }
-                catch (Exception ex) when (ex is JsonException or FormatException)
+                if (drafts is null)
                 {
-                    return Results.BadRequest(new ApiErrorDto("The converted document did not contain usable orders. " + ex.Message));
+                    route = "Hub";
+                    var prompt = DocumentExtractionPrompt.Build(global, company);
+                    if (!preview) batch = await history.Start(file.FileName, ct);
+                    try
+                    {
+                        var hubTimer = System.Diagnostics.Stopwatch.StartNew();
+                        var extraction = await Extract(file, extension, baseUrl!, credential!, prompt, ct);
+                        logger?.LogInformation("Integration Hub extraction for {Extension} in {ElapsedMs} ms",extension,hubTimer.ElapsedMilliseconds);
+                        if (preview && extraction.ValueKind == JsonValueKind.Array && extraction.GetArrayLength() == 0)
+                            return Results.Ok(Array.Empty<DocumentExtractionSample>());
+                        drafts = OrderDocumentImport.Parse(extraction,
+                            TimeZoneInfo.FindSystemTimeZoneById(nativeOptions.Value.TimeZoneId), settings.GetValue<bool>("RequirePrintedLykesTag"));
+                        foreach (var draft in drafts) DocumentMappings.PrepareBilling(draft,global);
+                        if (!preview) await new DocumentMappingStore(connections,tenant).Apply(drafts,settings.GetValue<bool>("RequirePrintedLykesTag"),ct);
+                        if (preview)
+                            return Results.Ok(drafts.Select((draft, i) => new DocumentExtractionSample(draft.Order.Id, draft.Order.Customer, extraction[i])).ToArray());
+                    }
+                    catch (Exception ex) when (ex is JsonException or FormatException)
+                    {
+                        return Results.BadRequest(new ApiErrorDto("The converted document did not contain usable orders. " + ex.Message));
+                    }
                 }
             }
+            logger?.LogInformation("Document extraction {Route} {Extension} {Bytes} bytes {Orders} orders in {ElapsedMs} ms",route,extension,file.Length,drafts.Count,timer.ElapsedMilliseconds);
             batch ??= await history.Start(file.FileName, ct);
-            await native.ResolveDocumentAddresses(drafts, ct);
+            if (!deferAddressLookup) await native.ResolveDocumentAddresses(drafts, ct);
             await history.Converted(batch.Value, drafts.Count, ct);
             foreach (var draft in drafts) draft.ImportId = batch;
             batch = null;
