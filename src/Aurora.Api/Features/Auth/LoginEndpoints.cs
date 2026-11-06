@@ -1,4 +1,7 @@
 using Aurora.Infrastructure.Entities;
+using Aurora.Infrastructure.Data;
+using Dapper;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication;
 
@@ -16,6 +19,7 @@ public static class LoginEndpoints
             LoginRequest request,
             SignInManager<ApplicationUser> signInManager,
             UserManager<ApplicationUser> userManager,
+            NpgsqlConnectionFactory connections,
             HttpContext context) =>
         {
             var user = await userManager.FindByNameAsync(request.UserName);
@@ -32,7 +36,28 @@ public static class LoginEndpoints
                 return Results.Unauthorized();
             }
 
-            await signInManager.SignInAsync(user, isPersistent: false);
+            if (user.AuroraUser)
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], "Password"));
+                await using var db = await connections.OpenConnectionAsync(context.RequestAborted);
+                if (request.TenantId is not {} selected)
+                {
+                    await context.SignOutAsync(IdentityConstants.ApplicationScheme);
+                    var tenants = await db.QueryAsync<LoginTenant>("SELECT * FROM public.aurora_login_tenants()");
+                    return Results.Json(tenants, statusCode: StatusCodes.Status202Accepted);
+                }
+                if (!await db.ExecuteScalarAsync<bool>("SELECT public.aurora_select_login_tenant(@selected)", new { selected }))
+                    return Results.BadRequest();
+                var properties = new AuthenticationProperties();
+                properties.Items["selected_tenant"] = selected.ToString();
+                await signInManager.SignInAsync(user, properties);
+            }
+            else
+            {
+                if (request.TenantId.HasValue) return Results.BadRequest();
+                await signInManager.SignInAsync(user, isPersistent: false);
+            }
             return Results.Ok();
         }).AllowAnonymous();
 
@@ -61,4 +86,5 @@ public static class LoginEndpoints
     }
 }
 
-public sealed record LoginRequest(string UserName, string Password);
+public sealed record LoginRequest(string UserName, string Password, Guid? TenantId = null);
+public sealed record LoginTenant(Guid Id, string Name);

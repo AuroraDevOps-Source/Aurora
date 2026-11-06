@@ -1,0 +1,95 @@
+@inject IHttpClientFactory Clients
+@using System.Text.Json
+
+@if (Settings.GlobalDocumentSettings is {} global)
+{
+ <label class="field">Global extraction instructions
+  <textarea rows="5" readonly="@(!global.CanEdit)" maxlength="@TenantSettingsDto.MaxGlobalInstructionsLength"
+            value="@(Settings.GlobalInstructionsEdit ?? global.Instructions)" @oninput="EditGlobal"></textarea>
+ </label>
+ <p class="preview-footnote">These rules apply to every tenant.</p>
+}
+<label class="field">Company extraction instructions
+ <textarea rows="9" maxlength="@TenantSettingsDto.MaxDocumentInstructionsLength"
+           @bind="Settings.DocumentExtractionInstructions" @bind:event="oninput" @bind:after="ClearPreview"></textarea>
+</label>
+<p class="preview-footnote">Describe how to read your company’s forms. Leave blank to use Aurora’s standard fields and extraction rules.</p>
+
+<fieldset class="edit-group">
+ <legend>Test with a sample</legend>
+ <label class="field">Sample document (up to 10 MB)
+  <InputFile OnChange="ChooseSample" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpg,.jpeg,.png,.webp,.gif,.bmp" />
+ </label>
+ <button type="button" class="outline-button" disabled="@(_sample is null || _previewing)" @onclick="Preview">Preview extraction</button>
+ <p class="preview-footnote">Test the instructions above before saving. The sample stays out of Recent imports.</p>
+ @if (_previewing) { <p role="status">Extracting orders from the sample…</p> }
+ @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+ @if (_orders is not null)
+ {
+  <p role="status">@_orders.Length @(_orders.Length == 1 ? "order extracted" : "orders extracted").</p>
+  @foreach (var draft in _orders)
+  {
+   <details class="sample-order" open="@(_orders.Length == 1)">
+    <summary>@(string.IsNullOrWhiteSpace(draft.Pro) ? "Unassigned PRO" : $"PRO {draft.Pro}") · @(string.IsNullOrWhiteSpace(draft.Consignee) ? "Consignee missing" : draft.Consignee)</summary>
+    <pre>@JsonSerializer.Serialize(draft.Fields, PreviewJson)</pre>
+   </details>
+  }
+ }
+</fieldset>
+
+@code {
+    [Parameter, EditorRequired] public TenantSettingsDto Settings { get; set; } = null!;
+    [Parameter] public EventCallback<bool> PreviewingChanged { get; set; }
+    const long MaxBytes = 10 * 1024 * 1024;
+    static readonly JsonSerializerOptions PreviewJson = new() { WriteIndented = true };
+    IBrowserFile? _sample;
+    DocumentExtractionSample[]? _orders;
+    bool _previewing;
+    string? _error;
+
+    void EditGlobal(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? "";
+        Settings.GlobalInstructionsEdit = value == Settings.GlobalDocumentSettings?.Instructions ? null : value;
+        ClearPreview();
+    }
+
+    void ClearPreview() { _orders = null; _error = null; }
+
+    void ChooseSample(InputFileChangeEventArgs e)
+    {
+        ClearPreview();
+        _sample = e.File;
+        if (_sample.Size is <= 0 or > MaxBytes)
+        {
+            _sample = null;
+            _error = "Choose a nonempty sample up to 10 MB.";
+        }
+    }
+
+    async Task Preview()
+    {
+        if (_previewing || _sample is null) return;
+        ClearPreview();
+        _previewing = true;
+        await PreviewingChanged.InvokeAsync(true);
+        try
+        {
+            using var http = Clients.CreateClient(ApiClients.Authorized);
+            http.Timeout = TimeSpan.FromMinutes(6);
+            using var form = new MultipartFormDataContent();
+            form.Add(new StreamContent(_sample.OpenReadStream(MaxBytes)), "file", _sample.Name);
+            form.Add(new StringContent(Settings.DocumentExtractionInstructions ?? ""), "instructions");
+            if (Settings.GlobalInstructionsEdit is {} global) form.Add(new StringContent(global), "globalInstructions");
+            using var response = await http.PostAsync("api/v1/admin/settings/document-preview", form);
+            await ApiResponse.Check(response);
+            _orders = await response.Content.ReadFromJsonAsync<DocumentExtractionSample[]>();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally
+        {
+            _previewing = false;
+            await PreviewingChanged.InvokeAsync(false);
+        }
+    }
+}

@@ -76,3 +76,8 @@
 .import-order-numbers a { display:block; width:fit-content; text-decoration:underline; text-underline-offset:2px; margin:3px 0; }
 .import-success{padding:12px 16px;margin:0 0 12px;border:1px solid #cbded7;border-radius:6px;background:#f5faf7;color:#21493a}
 .import-success p{margin:5px 0 0;color:#475569}
+
+.import-line-scroll{overflow-x:auto}
+.import-lines{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.import-lines th,.import-lines td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid #d5e0eb}
+.import-lines th{color:#425775;background:#edf2f8}

@@ -15,7 +15,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
 {
     static string Role(string level)=>level switch {"Administrator"=>"aurora:Admin","Power User"=>"aurora:PowerUser","User"=>"aurora:User",_=>throw new FormatException("Choose Administrator, Power User, or User.")};
     const string UserSql="""
-        SELECT u."Id",u."UserName",u."Email",u."ConcurrencyStamp" AS Revision,u."ManagementTenantId" AS Owner,
+        SELECT u."Id",u."UserName",u."Email",u."ConcurrencyStamp" AS Revision,CASE WHEN NOT u."Aurora_User" THEN u."ManagementTenantId" END AS Owner,
 
             CASE WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:Admin') THEN 'Administrator'
             WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:PowerUser') THEN 'Power User' ELSE 'User' END AS Level

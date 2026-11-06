@@ -26,7 +26,7 @@
             <input id="aurora-password" name="password" type="password" autocomplete="current-password" required />
         </div>
 
-        @if (_error is not null)
+        @if (_error is not null && _tenants is null)
         {
             <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
         }
@@ -41,7 +41,32 @@
     </MudPaper>
 </MudContainer>
 
+@if (_tenants is not null)
+{
+    <EditPopup Title="Select a tenant" Class="login-tenant-dialog" OnClose="CancelSelection" Busy="_signingIn">
+        @if (_error is not null) { <p role="alert">@_error</p> }
+        <div class="login-tenant-options">
+            @foreach (var tenant in _tenants)
+            {
+                <button type="button" class="outline-button" aria-pressed="@(_selected == tenant.Id ? "true" : "false")"
+                        disabled="@_signingIn" @onclick="() => _selected = tenant.Id">@tenant.Name</button>
+            }
+        </div>
+        <div class="popup-actions">
+            <button type="button" class="outline-button" disabled="@_signingIn" @onclick="CancelSelection">Cancel</button>
+            <button type="button" class="primary-button" disabled="@(_selected is null || _signingIn)" @onclick="SignInAsync">@(_signingIn ? "Signing in…" : "Continue")</button>
+        </div>
+    </EditPopup>
+}
+
 @code {
+    private void CancelSelection()
+    {
+        _selected = null;
+        _tenants = null;
+        _error = null;
+    }
+
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery] public bool Expired { get; set; }
     [SupplyParameterFromQuery] public bool NovaLaunchFailed { get; set; }
@@ -53,6 +78,9 @@
     private ElementReference _loginForm;
     private string? _error;
     private bool _signingIn;
+    public sealed record TenantOption(Guid Id, string Name);
+    private TenantOption[]? _tenants;
+    private Guid? _selected;
 
     private async Task SignInAsync()
     {
@@ -74,16 +102,23 @@
             var client = HttpClientFactory.CreateClient(ApiClients.Anonymous);
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
             {
-                Content = JsonContent.Create(credentials)
+                Content = JsonContent.Create(new { credentials.UserName, credentials.Password, TenantId = _selected })
             };
             // Cross-origin (different port) â€” the Set-Cookie response is only honoured if the
             // browser fetch is told to include credentials.
             request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
 
             using var response = await client.SendAsync(request);
+            if (response.StatusCode == System.Net.HttpStatusCode.Accepted)
+            {
+                _tenants = await response.Content.ReadFromJsonAsync<TenantOption[]>();
+                if (_tenants?.Length == 0) _error = "No active companies are available.";
+                return;
+            }
             if (!response.IsSuccessStatusCode)
             {
-                _error = "Invalid username or password.";
+                _selected = null; _tenants = null;
+                _error = "Sign-in failed. Check your credentials and try again.";
                 return;
             }
 

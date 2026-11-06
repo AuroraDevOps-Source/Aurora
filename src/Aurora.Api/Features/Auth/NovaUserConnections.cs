@@ -51,7 +51,7 @@ public sealed class UserAccessMiddleware(RequestDelegate next)
         if(context.Request.Path.StartsWithSegments("/api/v1") && context.User.Identity?.IsAuthenticated==true)
         {
             await using var db=await factory.OpenConnectionAsync(context.RequestAborted);
-            var membership=await db.QuerySingleOrDefaultAsync<Member>(new CommandDefinition("SELECT public.aurora_tenant_nova_connection() AS Json FROM user_tenant m WHERE m.tenant_id=@TenantId AND m.user_id=@UserId",new{tenant.TenantId,tenant.UserId},cancellationToken:context.RequestAborted));
+            var membership=await db.QuerySingleOrDefaultAsync<Member>(new CommandDefinition("SELECT public.aurora_tenant_nova_connection() AS Json FROM user_tenant m JOIN tenant t ON t.id=m.tenant_id WHERE m.tenant_id=@TenantId AND m.user_id=@UserId AND (t.is_active OR NOT EXISTS (SELECT 1 FROM \"AspNetUsers\" u WHERE u.\"Id\"=@UserId AND u.\"Aurora_User\"))",new{tenant.TenantId,tenant.UserId},cancellationToken:context.RequestAborted));
             if(membership is null){context.Response.StatusCode=401;return;}
             var roles=(await db.QueryAsync<string>(new CommandDefinition("""
                 SELECT r."Name" FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId"

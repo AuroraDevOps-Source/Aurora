@@ -55,7 +55,7 @@ public static class CrownOrderReport
             foreach(var key in new[]{"Ship ID","CID","Pcs","Wt","Service Date","Shipper","Shipper City","Shipper State","Shipper Zip","Consignee","Consignee City","Consignee State","Consignee Zip","HAWB","MAWB","Service Level"})
                 if(group.Select(x=>x.GetValueOrDefault(key)??"").Distinct().Count()>1)throw new FormatException($"Tag {Get("CID")} has conflicting {key} values. Review those rows before importing.");
             var service=Get("Service Level").ToUpperInvariant();
-            var draft=new OrderDocumentDraft{TagNumber=Get("CID"),HouseAirWaybill=Get("HAWB"),MasterAirWaybill=Get("MAWB"),Order=new(){
+            var draft=new OrderDocumentDraft{TagNumber=Get("CID"),BillToAccountId=Get("Account ID"),HouseAirWaybill=Get("HAWB"),MasterAirWaybill=Get("MAWB"),Order=new(){
                 Id=OrderDocumentDraft.SplitTag(group.Key).Pro,TerminalCode=Get("Terminal"),Shipper=Get("Shipper"),OriginCity=Get("Shipper City"),OriginState=Get("Shipper State"),OriginPostalCode=Get("Shipper Zip"),
                 Customer=Get("Consignee"),City=Get("Consignee City"),State=Get("Consignee State"),PostalCode=Get("Consignee Zip"),BillTo=Get("Cus Name")[..Math.Min(40,Get("Cus Name").Length)],
                 Pieces=Number("Pcs"),Weight=Number("Wt"),WorkType=service is "PICKUP ONLY" or "PICKUP + TRANSFER"?"Pickup":"Delivery",
@@ -69,18 +69,6 @@ public static class CrownOrderReport
             draft.Normalize();output.Add(draft);
         }
         if(output.Count is <1 or >5000)throw new FormatException("Import 1–5,000 Crown shipments at a time.");
-        // Distinct full Tags can share the same numeric suffix across terminals.
-        // Use Crown's shipment identity only for those collisions, retaining the Tag.
-        foreach(var group in output.GroupBy(d=>d.Order.Id).Where(g=>g.Count()>1).ToArray())
-            foreach(var draft in group)
-            {
-                var original=draft.TagNumber;
-                var source=data.First(r=>r["CID"].Trim().Equals(original,StringComparison.OrdinalIgnoreCase));
-                var shipId=OrderDocumentDraft.SplitTag(source["Ship ID"]).Pro;
-                draft.Order.Notes=$"Crown Tag: {original}\nNova PRO uses Crown Ship ID because the Tag number is shared across terminals.\n"+draft.Order.Notes;
-                draft.TagNumber=OrderDocumentDraft.SplitTag(original).Terminal+shipId;draft.Normalize();
-            }
-        if(output.Select(d=>d.Order.Id).Distinct().Count()!=output.Count)throw new FormatException("Crown shipment identifiers still overlap after resolving shared Tag numbers.");
         return output;
     }
 }

@@ -155,6 +155,12 @@ public sealed partial class FirebirdRoutingSource
             {
                 var stop=parts[key];stop["OPS_STOP_ID"]=await NextId(db,tx,false,ct);stop["OPS_ORDER_ID"]=id;stop["OPS_STOP_NUMBER"]=key=="pickup"?1:2;stop["OPS_TYPE"]=key=="pickup"?"P":"D";
                 await Insert(db,tx,"OPS_STOP_REC",stop,ct);
+                if (key=="pickup" && document is not null)
+                {
+                    var pickupId=Convert.ToInt64(stop["OPS_STOP_ID"]);
+                    await WriteImportLines(db,tx,id,pickupId,document,ct);
+                    await WriteImportReferences(db,tx,id,pickupId,document,null,ct);
+                }
             }
         }
         var saved=await ReadRecord(db,tx,kind,id,false,ct);

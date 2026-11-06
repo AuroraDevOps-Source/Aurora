@@ -1,7 +1,17 @@
 namespace Aurora.Contracts;
 
+public sealed record DocumentExtractionSample(string Pro, string Consignee, System.Text.Json.JsonElement Fields);
+
+public sealed record GlobalDocumentSettings(string Instructions, int Revision, bool CanEdit);
+
 public sealed class TenantSettingsDto
 {
+    public const int MaxGlobalInstructionsLength = 8000;
+    public GlobalDocumentSettings? GlobalDocumentSettings { get; set; }
+    public string? GlobalInstructionsEdit { get; set; }
+    public const int MaxDocumentInstructionsLength = 16000;
+    // Older settings clients omit this field. An explicit empty string clears it.
+    public string? DocumentExtractionInstructions {get;set;}
     public int Revision {get;set;}
     public decimal DriverCostPerHour {get;set;}
     public string CompanyName {get;set;}="";

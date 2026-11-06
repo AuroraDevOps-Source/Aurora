@@ -2,6 +2,7 @@ using System.Text.Json;
 using Aurora.Contracts;
 using Aurora.Infrastructure.Data;
 using Aurora.Infrastructure.Tenancy;
+using Aurora.Api.Features.Routing;
 using Dapper;
 using Microsoft.AspNetCore.DataProtection;
 
@@ -9,9 +10,9 @@ namespace Aurora.Api.Features.Auth;
 
 public sealed class TenantSettingsService(NpgsqlConnectionFactory factory,ITenantContext tenant,NovaUserConnections nova,IDataProtectionProvider protection)
 {
-    sealed record Row(Guid NovaId,string? Nova,string? FreightOps,string? DispatchTrack,string? Zenventory,int Revision,decimal DriverCostPerHour,string Navigation);
+    sealed record Row(Guid NovaId,string? Nova,string? FreightOps,string? DispatchTrack,string? Zenventory,int Revision,decimal DriverCostPerHour,string Navigation,string DocumentExtractionInstructions);
     sealed record FreightOpsSecret(string ApiUrl,string UserName,string ProtectedPassword);
-    const string ReadSql="SELECT nova_id AS NovaId,nova::text AS Nova,freightops::text AS FreightOps,dispatchtrack::text AS DispatchTrack,zenventory::text AS Zenventory,revision,driver_cost_per_hour AS DriverCostPerHour,navigation::text AS Navigation FROM tenant_settings WHERE tenant_id=@TenantId";
+    const string ReadSql="SELECT nova_id AS NovaId,nova::text AS Nova,freightops::text AS FreightOps,dispatchtrack::text AS DispatchTrack,zenventory::text AS Zenventory,revision,driver_cost_per_hour AS DriverCostPerHour,navigation::text AS Navigation,document_extraction_instructions AS DocumentExtractionInstructions FROM tenant_settings WHERE tenant_id=@TenantId";
     public async Task<TenantSettingsDto> Read(CancellationToken ct)
     {
         await using var db=await factory.OpenConnectionAsync(ct);
@@ -19,12 +20,17 @@ public sealed class TenantSettingsService(NpgsqlConnectionFactory factory,ITenan
         var n=nova.Read(row?.Nova);
         var f=row?.FreightOps is {} json?JsonSerializer.Deserialize<FreightOpsSecret>(json):null;
         return new(){Navigation=JsonSerializer.Deserialize<TenantNavigationSettings>(row?.Navigation??"{}"),Revision=row?.Revision??0,DriverCostPerHour=row?.DriverCostPerHour??0,CompanyName=await db.QuerySingleAsync<string>(new CommandDefinition("SELECT name FROM tenant WHERE id=@TenantId",new{tenant.TenantId},cancellationToken:ct)),
+            GlobalDocumentSettings=await db.QuerySingleAsync<GlobalDocumentSettings>(new CommandDefinition(
+                "SELECT instructions, revision, public.can_edit_global_document_settings() AS CanEdit FROM global_document_settings", cancellationToken:ct)),
+            DocumentExtractionInstructions=row?.DocumentExtractionInstructions??"",
             Nova=n is null?new():new(){Host=n.Host,Port=n.Port,Database=n.Database,UserName=n.UserName,HasPassword=true},
             FreightOps=f is null?new():new(){ApiUrl=f.ApiUrl,UserName=f.UserName,HasPassword=true},DispatchTrack=ConnectionSettingsProtection.PublicDispatchTrack(row?.DispatchTrack),Zenventory=ConnectionSettingsProtection.PublicZenventory(row?.Zenventory)};
     }
     public async Task Save(TenantSettingsDto input,CancellationToken ct)
     {
         OptimizationLabor.Validate(input.DriverCostPerHour);
+        var instructions = input.DocumentExtractionInstructions;
+        if (instructions is not null) instructions = DocumentExtractionPrompt.ValidateInstructions(instructions);
         var companyName=input.CompanyName?.Trim();
         if(string.IsNullOrWhiteSpace(companyName) || companyName.Length>200)throw new FormatException("Enter a company name of 1 to 200 characters.");
         if(input.Nova is null || input.FreightOps is null || input.DispatchTrack is null || input.Zenventory is null)throw new FormatException("Connection sections are required.");
@@ -33,6 +39,14 @@ public sealed class TenantSettingsService(NpgsqlConnectionFactory factory,ITenan
         await db.ExecuteAsync(new CommandDefinition("SELECT pg_advisory_xact_lock(hashtextextended(@key,0))",new{key=$"sync-connection:{tenant.TenantId}"},tx,cancellationToken:ct));
         var row=await db.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(ReadSql+" FOR UPDATE",new{tenant.TenantId},tx,cancellationToken:ct));
         if(input.Revision!=(row?.Revision??0))throw new FormatException("Settings changed. Close and reopen Settings before saving.");
+        if (input.GlobalInstructionsEdit is {} edit)
+        {
+            var value = DocumentExtractionPrompt.ValidateInstructions(edit, TenantSettingsDto.MaxGlobalInstructionsLength);
+            var updated = await db.ExecuteAsync(new CommandDefinition(
+                "UPDATE global_document_settings SET instructions=@value,revision=revision+1 WHERE revision=@revision",
+                new {value, revision=input.GlobalDocumentSettings?.Revision}, tx, cancellationToken:ct));
+            if (updated != 1) throw new FormatException("Global instructions require Aurora staff administrator access and the current revision. Reopen Settings before saving.");
+        }
         var navigation=JsonSerializer.Serialize(input.Navigation??JsonSerializer.Deserialize<TenantNavigationSettings>(row?.Navigation??"{}"));
         var previous=nova.Read(row?.Nova);
         StoredNovaConnection? saved=null;
@@ -60,9 +74,9 @@ public sealed class TenantSettingsService(NpgsqlConnectionFactory factory,ITenan
         var zenventory=secrets.Zenventory(input.Zenventory,row?.Zenventory);
         var novaId=row?.NovaId??Guid.NewGuid();
         await db.ExecuteAsync(new CommandDefinition("""
-            INSERT INTO tenant_settings(tenant_id,nova_id,nova,freightops,dispatchtrack,zenventory,driver_cost_per_hour,navigation,revision) VALUES(@TenantId,@novaId,CAST(@n AS jsonb),CAST(@f AS jsonb),CAST(@dispatch AS jsonb),CAST(@zenventory AS jsonb),@DriverCostPerHour,CAST(@navigation AS jsonb),1)
-            ON CONFLICT(tenant_id) DO UPDATE SET nova=excluded.nova,freightops=excluded.freightops,dispatchtrack=excluded.dispatchtrack,zenventory=excluded.zenventory,driver_cost_per_hour=excluded.driver_cost_per_hour,navigation=excluded.navigation,revision=tenant_settings.revision+1
-            """,new{tenant.TenantId,novaId,dispatch,zenventory,navigation,input.DriverCostPerHour,n=saved is null?null:JsonSerializer.Serialize(saved),f=freight is null?null:JsonSerializer.Serialize(freight)},tx,cancellationToken:ct));
+            INSERT INTO tenant_settings(tenant_id,nova_id,nova,freightops,dispatchtrack,zenventory,driver_cost_per_hour,navigation,document_extraction_instructions,revision) VALUES(@TenantId,@novaId,CAST(@n AS jsonb),CAST(@f AS jsonb),CAST(@dispatch AS jsonb),CAST(@zenventory AS jsonb),@DriverCostPerHour,CAST(@navigation AS jsonb),@instructions,1)
+            ON CONFLICT(tenant_id) DO UPDATE SET nova=excluded.nova,freightops=excluded.freightops,dispatchtrack=excluded.dispatchtrack,zenventory=excluded.zenventory,driver_cost_per_hour=excluded.driver_cost_per_hour,navigation=excluded.navigation,document_extraction_instructions=excluded.document_extraction_instructions,revision=tenant_settings.revision+1
+            """,new{tenant.TenantId,novaId,dispatch,zenventory,navigation,instructions=instructions??row?.DocumentExtractionInstructions??"",input.DriverCostPerHour,n=saved is null?null:JsonSerializer.Serialize(saved),f=freight is null?null:JsonSerializer.Serialize(freight)},tx,cancellationToken:ct));
         await db.ExecuteAsync(new CommandDefinition("UPDATE tenant SET name=@companyName WHERE id=@TenantId",new{tenant.TenantId,companyName},tx,cancellationToken:ct));
         // Preserve existing synchronization state. New connections are saved disabled until explicitly enabled.
         // Keep the non-secret launcher address aligned with Connections, without changing
@@ -78,6 +92,8 @@ public static class TenantSettingsEndpoints
     public static void MapTenantSettingsEndpoints(this IEndpointRouteBuilder app)
     {
         var group=app.MapGroup("/api/v1/admin/settings").RequireAuthorization(p=>p.RequireRole("aurora:Admin"));
+        group.MapPost("/document-preview", (IFormFile file, [Microsoft.AspNetCore.Mvc.FromForm] string? instructions, HttpRequest request, OrderDocumentConversion conversion, CancellationToken ct) =>
+            conversion.Convert(file, instructions ?? "", ct, request.Form.TryGetValue("globalInstructions", out var draft) ? draft.ToString() : null)).WithDocumentUploadLimits();
         group.MapGet("",(TenantSettingsService service,CancellationToken ct)=>AdminUserEndpoints.Guard(async()=>Results.Ok(await service.Read(ct))));
         group.MapPut("",(TenantSettingsDto input,TenantSettingsService service,CancellationToken ct)=>AdminUserEndpoints.Guard(async()=>{await service.Save(input,ct);return Results.NoContent();}));
     }

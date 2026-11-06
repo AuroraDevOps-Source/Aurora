@@ -18,7 +18,12 @@ public sealed partial class FirebirdRoutingSource
         await using var tx=db.BeginTransaction(new FbTransactionOptions{TransactionBehavior=FbTransactionBehavior.Read|FbTransactionBehavior.Concurrency|FbTransactionBehavior.Wait});
         var record=await ReadRecord(db,tx,"orders",id,false,ct);
         var notes=await db.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PB_NOTES FROM OPS_HEADER WHERE PB_ID=@id",new{id},tx,cancellationToken:ct))??"";
-        return new(ImportRevision(record,notes),ImportedOrderMapping.Read(record,notes,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId)),true);
+        var draft=ImportedOrderMapping.Read(record,notes,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId));
+        var lines=await db.QueryAsync<(decimal? Pieces, string? Description,decimal? Weight,string? Cube)>(new CommandDefinition(
+            "SELECT OPL_PIECES,OPL_DESC,OPL_WEIGHT,OPL_CUBE FROM OPS_LINE_ITEMS WHERE OPL_ORDER_ID=@id ORDER BY OPL_SEQUENCE",new{id},tx,cancellationToken:ct));
+        draft.FreightLines=lines.Select(l=>new DocumentFreightLine{Pieces=l.Pieces,Description=l.Description,WeightLb=l.Weight,
+            CubeFt3=decimal.TryParse(l.Cube,NumberStyles.Number,CultureInfo.InvariantCulture,out var cube)?cube:null}).ToArray();
+        return new(ImportRevision(record,notes),draft,true);
     }
 
     public async Task SaveImportedOrder(string pro,ImportedOrderEdit input,CancellationToken ct,bool rollbackOnly=false)
@@ -30,6 +35,15 @@ public sealed partial class FirebirdRoutingSource
         var notes=await db.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PB_NOTES FROM OPS_HEADER WHERE PB_ID=@id",new{id},tx,cancellationToken:ct))??"";
         if(input.Revision!=ImportRevision(current,notes))throw new FormatException("This order changed in Nova. Close and reopen it before saving.");
         var values=ImportedOrderMapping.Edit(current,input.Draft,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId),notes,input.ClearSchedule);
+        var parties=ImportedOrderMapping.Parts(current);
+        foreach(var (part,_,_) in NovaImportAddress.Parties){
+            var key=part=="header"?"PB_BILL_ID":"OPS_ACCTID";
+            var code=input.Draft.AccountId(part)?.Trim();
+            if(string.Equals(code,values[parties[part].Key][key]?.Trim(),StringComparison.OrdinalIgnoreCase))continue;
+            var linked=string.IsNullOrWhiteSpace(code)?null:await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
+                "SELECT AC_CUST FROM ACCOUNT WHERE UPPER(TRIM(AC_CUST))=@code",new{code=code.ToUpperInvariant()},tx,cancellationToken:ct));
+            values[parties[part].Key][key]=linked?.Trim();
+        }
         var header=current.Parts.Single(p=>p.Key=="header");
         var terminalField=header.Fields.Single(f=>f.Key=="PB_LOCATION");
         if(values["header"]["PB_LOCATION"]!=terminalField.Value)await ValidTerminal(db,tx,ParseField(terminalField,values["header"]["PB_LOCATION"]),ct);
@@ -47,6 +61,9 @@ public sealed partial class FirebirdRoutingSource
             var sets=edits.Select((e,i)=>{args.Add("v"+i,e.Value);return e.Key+"=@v"+i;}).ToArray();
             await db.ExecuteAsync(new CommandDefinition($"UPDATE {(isStop?"OPS_STOP_REC":"OPS_HEADER")} SET {string.Join(',',sets)} WHERE {(isStop?"OPS_STOP_ID":"PB_ID")}=@id",args,tx,cancellationToken:ct));
         }
+        var pickup=ImportedOrderMapping.Parts(current)["pickup"];
+        await WriteImportReferences(db,tx,id,long.Parse(pickup.Key[5..],CultureInfo.InvariantCulture),input.Draft,
+            ImportedOrderMapping.Read(current,notes,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId)),ct);
         if(rollbackOnly)await tx.RollbackAsync(ct);else await tx.CommitAsync(ct);
     }
 }

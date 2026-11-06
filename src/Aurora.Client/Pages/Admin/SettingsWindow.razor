@@ -1,15 +1,17 @@
 @inject HttpClient Http
-<EditPopup Title="@(EditTenant ? "Edit Tenant" : "Settings")" OnClose="OnClose" Busy="_saving" Class="settings-dialog">
+<EditPopup Title="@(EditTenant ? "Edit Tenant" : "Settings")" OnClose="OnClose" Busy="Busy" Class="settings-dialog">
  <div class="planner-tabs" role="tablist" aria-label="Settings">
-  <button role="tab" aria-selected="@(!_connections)" class="@(!_connections?"active":null)" @onclick="()=>_connections=false">General</button>
-  <button role="tab" aria-selected="@_connections" class="@(_connections?"active":null)" @onclick="()=>_connections=true">Connections</button>
+  @foreach (var tab in Enum.GetValues<SettingsTab>())
+  {
+   <button role="tab" disabled="@Busy" aria-selected="@(_tab == tab)" class="@(_tab == tab ? "active" : null)" @onclick="()=>_tab=tab">@(tab == SettingsTab.Documents ? "Document conversion" : tab.ToString())</button>
+  }
  </div>
  @if(_error is not null){<p class="alert" role="alert">@_error</p>}
  @if(_loading){<p role="status">Loading settings...</p>}
  else if(_settings is {} settings)
  {
-  <fieldset disabled="@_saving">
-  @if(!_connections)
+  <fieldset disabled="@Busy">
+  @if(_tab == SettingsTab.General)
   {
    <label class="field">Company name<input @bind="settings.CompanyName" readonly="@(!EditTenant)" maxlength="200" /></label>
    @if(EditTenant && settings.Navigation is {} menu)
@@ -25,6 +27,10 @@
    }
    <label class="field">Driver cost per hour<MoneyInput @bind-Value="settings.DriverCostPerHour" min="0" max="99999.9999" step="0.01" /></label>
    <p class="preview-footnote">Added to the equipment cost of each truck during optimization.</p>
+  }
+  else if(_tab == SettingsTab.Documents)
+  {
+   <DocumentConversionSettings Settings="settings" PreviewingChanged="busy => _previewing = busy" />
   }
   else
   {
@@ -67,8 +73,8 @@
  }
  else {<button class="outline-button" @onclick="Load">Retry</button>}
  <div class="popup-actions">
-  <button class="outline-button" disabled="@_saving" @onclick="()=>OnClose.InvokeAsync()">Cancel</button>
-  @if(_settings is not null){<button class="primary-button" disabled="@_saving" @onclick="Save">@(_saving?"Saving...":"Save")</button>}
+  <button class="outline-button" disabled="@Busy" @onclick="()=>OnClose.InvokeAsync()">Cancel</button>
+  @if(_settings is not null){<button class="primary-button" disabled="@Busy" @onclick="Save">@(_saving?"Saving...":"Save")</button>}
  </div>
 </EditPopup>
 @code {
@@ -76,7 +82,10 @@
  [Parameter] public EventCallback OnSaved {get;set;}
  [Parameter] public bool EditTenant {get;set;}
  TenantSettingsDto? _settings;
- bool _loading=true,_saving,_connections;
+ enum SettingsTab { General, Connections, Documents }
+ SettingsTab _tab;
+ bool _loading=true,_saving,_previewing;
+ bool Busy => _saving || _previewing;
  string? _error;
  protected override Task OnInitializedAsync()=>Load();
  async Task Load()
@@ -88,7 +97,7 @@
  }
  async Task Save()
  {
-  if(_saving)return;_saving=true;_error=null;
+  if(Busy)return;_saving=true;_error=null;
   try{using var response=await Http.PutAsJsonAsync("api/v1/admin/settings",_settings);await ApiResponse.Check(response);await OnSaved.InvokeAsync();await OnClose.InvokeAsync();}
   catch(Exception ex){_error=ex.Message;}
   finally{_saving=false;}

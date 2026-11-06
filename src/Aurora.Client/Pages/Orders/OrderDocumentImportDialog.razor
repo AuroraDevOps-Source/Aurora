@@ -55,17 +55,21 @@
  @foreach(var warning in _warnings){<p class="alert" role="status">@warning</p>}
  <fieldset disabled="@_busy" class="import-review-fields">
    @if(_rows.Count>10){<div class="import-action-bar"><button class="outline-button" disabled="@(ReviewIndex==0)" @onclick="()=>_reviewIndex=ReviewIndex-1">Previous order</button><label>Order <select value="@ReviewIndex" @onchange="e=>_reviewIndex=int.Parse(e.Value!.ToString()!)">@for(var i=0;i<_rows.Count;i++){<option value="@i">@(i+1) Â· @_rows[i].Order.Id Â· @_rows[i].Order.Customer</option>}</select> of @_rows.Count</label><button class="outline-button" disabled="@(ReviewIndex>=_rows.Count-1)" @onclick="()=>_reviewIndex=ReviewIndex+1">Next order</button></div>}
+   @{var conflicts=ConflictingPros.ToHashSet();}
    @foreach(var row in (_rows.Count>10?_rows.Skip(ReviewIndex).Take(1):_rows)){
     <details class="import-order" @key="row" open>
      <summary>@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) Â· @row.Order.Customer</summary>
      @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
-     @if(_existing.Contains(row.Order.Id)){<p class="alert import-duplicate" role="alert">PRO @row.Order.Id already exists</p>}
+     @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
+     @if(_editing is null && MappedPro(row)==""){<p class="import-source-hint">Enter the order’s Tag or PRO to create it.</p>}
+     else if(conflicts.Contains(MappedPro(row))){<p class="alert">PRO @MappedPro(row) occurs more than once in this import. Review the original Tags.</p>}
      <section class="import-group"><h3>Order &amp; references</h3><div class="manifest-edit-grid">
-      <label class="field">Tag # / numeric PRO<input @bind="row.Draft.TagNumber" maxlength="200" readonly="@(_editing is not null)" /></label>
+      <label class="field">Tag # / numeric PRO<input @bind="row.Draft.TagNumber" @bind:event="oninput" maxlength="200" readonly="@(_editing is not null)" /></label>
       <label class="field">Nova PRO (from Tag)<input value="@MappedPro(row)" readonly /></label>
       <label class="field">Terminal<select @bind="row.Order.TerminalId"><option value="">Choose terminal</option>@foreach(var terminal in Terminals){<option value="@terminal.Id">@terminal.Code - @terminal.Name</option>}</select></label>
       @if(NativeWorkspace){<label class="field">Nova status<InputSelect @bind-Value="row.Draft.NativeStatusId"><option value="">Choose status</option>@if(row.Draft.NativeStatusId is {} existingStatus && !Statuses.Any(s=>s.Id==existingStatus)){<option value="@existingStatus">@existingStatus</option>}@foreach(var status in Statuses){<option value="@status.Id">@status.Name</option>}</InputSelect></label>}
       <label class="field">BOL #<input @bind="row.Draft.BillOfLading" maxlength="200" /></label>
+      <label class="field">P.O. #<input @bind="row.Draft.PurchaseOrder" maxlength="80" /></label>
       <label class="field">Shipment reference<input @bind="row.Draft.ShipmentReference" maxlength="200" /></label>
       <label class="field">HAWB #<input @bind="row.Draft.HouseAirWaybill" maxlength="200" /></label>
       <label class="field">MAWB #<input @bind="row.Draft.MasterAirWaybill" maxlength="200" /></label>
@@ -73,6 +77,7 @@
      <div class="import-parties">
      @foreach(var group in AddressGroups){
       <section class="import-group import-address"><h3>@group.Title</h3><div class="manifest-edit-grid">
+       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @onchange="e=>row.Draft.SetAccountId(group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
        @foreach(var field in TextFields.Skip(group.Start).Take(7)){
         <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>SetText(row.Order,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
        }
@@ -87,11 +92,23 @@
       <label class="field">Total cube (ftÂ³)<InputNumber @bind-Value="row.Order.Cube" /></label>
       <label class="field import-notes">Notes<textarea @bind="row.Order.Notes" maxlength="4000"></textarea></label>
      </div></section>
+     <section class="import-group"><h3>Freight line items</h3>
+      @{var lines=row.Draft.FreightLines??[];var pending=_editing is null;
+        if(pending && lines.Length==0 && (row.Order.Pieces!=0 || row.Order.Weight!=0 || row.Order.Cube!=0))lines=[new DocumentFreightLine()];}
+      @if(lines.Length>0){
+       <div class="import-line-scroll"><table class="import-lines"><thead><tr><th>Qty</th><th>Description</th><th>Weight (lb)</th><th>Cube (ft³)</th></tr></thead><tbody>
+        @foreach(var line in lines){
+         var single=pending && lines.Length==1;
+         <tr><td>@Measure(single?row.Order.Pieces:line.Pieces)</td><td>@(string.IsNullOrWhiteSpace(line.Description)?"—":line.Description)</td><td>@Measure(single?row.Order.Weight:line.WeightLb)</td><td>@Measure(line.Volume??(single && row.Order.Cube>0?row.Order.Cube:null))</td></tr>
+        }
+       </tbody></table></div>
+      }else{<p class="import-source-hint">No freight line items.</p>}
+     </section>
      @if(_editing is null){<button class="text-button" @onclick="()=>_rows.Remove(row)">Remove from import</button>}
     </details>
    }
    @if(_editing is not null){<button class="primary-button" disabled="@_busy" @onclick="SaveImportedOrder">Save changes</button>}
-   else if(_rows.Count>0){<button class="primary-button" disabled="@(_busy || HasDuplicates)" @onclick="Create">Create @_rows.Count @(_rows.Count==1?"order":"orders")</button>}
+   else if(_rows.Count>0){<button class="primary-button" disabled="@(_busy || CannotCreate)" @onclick="Create">Create @_rows.Count @(_rows.Count==1?"order":"orders")</button>}
  </fieldset>
  @if(_busy){<p role="status">@_progress</p>}
  <div class="popup-actions"><button class="outline-button" disabled="@_busy" @onclick="Close">Close</button></div>
@@ -172,7 +189,7 @@
  bool _review;
  int _fileVersion;
  bool _pasteText=>_file is null;
- static readonly (string Title,int Start)[] AddressGroups=[("Shipper",7),("Consignee",0),("Bill to",14)];
+ static readonly (string Title,int Start,string Part)[] AddressGroups=[("Shipper",7,"pickup"),("Consignee",0,"delivery"),("Bill to",14,"header")];
  string _text="";
  bool CanConvert=>_pasteText?!string.IsNullOrWhiteSpace(_text):_file is not null;
  bool _busy;
@@ -181,11 +198,13 @@
  int _saved => _createdPros.Count;
  string? _error,_progress;
  readonly HashSet<string> _existing=[];
- bool HasDuplicates=>_rows.Any(row=>_existing.Contains(row.Order.Id));
+ IEnumerable<string> ConflictingPros => _rows.Select(MappedPro).Where(pro=>pro.Length>0).GroupBy(pro=>pro).Where(g=>g.Count()>1).Select(g=>g.Key);
+ bool CannotCreate => _rows.Any(row=>MappedPro(row)=="" || _existing.Contains(MappedPro(row))) || ConflictingPros.Any();
  readonly List<string> _warnings=[];
  List<Row> _rows=[];
  sealed class Row(OrderDocumentDraft draft){public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
- static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "Enter a valid Tag / PRO";}}
+ static string Measure(decimal? value)=>value?.ToString("0.####")??"—";
+ static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "";}}
  static readonly (string Name,string Label)[] TextFields=[
   ("Customer","Consignee"),("Address","Consignee address"),("Address2","Consignee address 2"),("City","Consignee city"),("State","Consignee state"),("PostalCode","Consignee ZIP"),("Country","Consignee country"),
   ("Shipper","Shipper"),("OriginAddress","Shipper address"),("OriginAddress2","Shipper address 2"),("OriginCity","Shipper city"),("OriginState","Shipper state"),("OriginPostalCode","Shipper ZIP"),("OriginCountry","Shipper country"),
@@ -248,7 +267,7 @@
  }
  async Task Create()
  {
-  if(_busy || _rows.Count==0 || HasDuplicates)return;
+  if(_busy || _rows.Count==0 || CannotCreate)return;
   _busy=true;_error=null;_progress="Checking importâ€¦";
   var creationStarted=false;
   try{

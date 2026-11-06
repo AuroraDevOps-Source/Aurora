@@ -64,8 +64,28 @@ public sealed class AuthorizationController(
 
         // user_tenant's RLS policy is scoped by user_id, not tenant_id (see its DbUp script) —
         // by design, since this lookup runs before any tenant is known.
-        var tenantId = await dbContext.UserTenants
-            .Where(ut => ut.UserId == user.Id && ut.IsDefault)
+        Guid? selected = null;
+        if (user.AuroraUser)
+        {
+            await using var selectionDb = await connectionFactory.OpenConnectionAsync(HttpContext.RequestAborted);
+            if (Guid.TryParse(result.Properties?.Items.TryGetValue("selected_tenant", out var value) == true ? value : null, out var choice)
+                && await selectionDb.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM public.aurora_login_tenants() WHERE id=@choice)", new { choice }))
+                selected = choice;
+            else
+            {
+                if (request.HasPromptValue("none"))
+                    return Forbid(new AuthenticationProperties(new Dictionary<string,string?> {
+                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.LoginRequired
+                    }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+                var query = Request.HasFormContentType ? QueryString.Create(await Request.ReadFormAsync(HttpContext.RequestAborted)) : Request.QueryString;
+                return LocalRedirect("/login?returnUrl=" + Uri.EscapeDataString(Request.PathBase + Request.Path + query));
+            }
+        }
+        var memberships = dbContext.UserTenants.Where(ut => ut.UserId == user.Id);
+        memberships = selected is {} tenantChoice
+            ? memberships.Where(ut => ut.TenantId == tenantChoice)
+            : memberships.Where(ut => ut.IsDefault);
+        var tenantId = await memberships
             .Select(ut => (Guid?)ut.TenantId)
             .SingleOrDefaultAsync()
             ?? throw new InvalidOperationException($"User '{user.Id}' has no default tenant.");
@@ -176,6 +196,8 @@ public sealed class AuthorizationController(
         if(!Guid.TryParse(tenantClaim,out var refreshTenant))return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         HttpContext.User=result.Principal;
         await using var refreshDb=await connectionFactory.OpenConnectionAsync(HttpContext.RequestAborted);
+        if (user.AuroraUser && !await refreshDb.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM public.aurora_login_tenants() WHERE id=@refreshTenant)", new { refreshTenant }))
+            return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var member=await refreshDb.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM user_tenant WHERE tenant_id=@refreshTenant AND user_id=@Id)",new{refreshTenant,user.Id});
         if(!member)return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var currentRoles=await refreshDb.QueryAsync<string>("""

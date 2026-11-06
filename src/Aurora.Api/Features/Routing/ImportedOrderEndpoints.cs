@@ -34,7 +34,7 @@ public static class ImportedOrderEndpoints
                 // execution status and all other fields remain the current server values.
                 foreach(var name in EditableFields)typeof(TmsOrder).GetProperty(name)!.SetValue(current,typeof(TmsOrder).GetProperty(name)!.GetValue(input.Draft.Order));
                 current.Reference=input.Draft.BillOfLading;
-                current.Notes=input.Draft.NotesWithReferences();
+                current.Notes=input.Draft.NotesWithReferences(includeLines:true);
                 await local.SaveOrder(current,false,ct,documentImport:true);
             }
             return Results.NoContent();

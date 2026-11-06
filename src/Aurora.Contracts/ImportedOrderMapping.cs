@@ -19,7 +19,15 @@ public static class ImportedOrderMapping
         var notes=new List<string>();
         foreach(var line in (order.Notes??"").Replace("\r\n","\n").Split('\n'))
         {
-            if(line.StartsWith("Original Tag: "))draft.TagNumber=line[14..];
+            if(line.StartsWith("Purchase order: "))draft.PurchaseOrder=line["Purchase order: ".Length..];
+            else if(line.StartsWith("Shipper account ID: "))draft.ShipperAccountId=line["Shipper account ID: ".Length..];
+            else if(line.StartsWith("Consignee account ID: "))draft.ConsigneeAccountId=line["Consignee account ID: ".Length..];
+            else if(line.StartsWith("Bill-to account ID: "))draft.BillToAccountId=line["Bill-to account ID: ".Length..];
+            else if(line.StartsWith("Imported freight rows: ")){
+                try{draft.FreightLines=System.Text.Json.JsonSerializer.Deserialize<DocumentFreightLine[]>(line["Imported freight rows: ".Length..])??[];}
+                catch(System.Text.Json.JsonException){notes.Add(line);}
+            }
+            else if(line.StartsWith("Original Tag: "))draft.TagNumber=line[14..];
             else if(line.StartsWith("Work type: ") && line[11..] is "Pickup" or "Delivery")order.WorkType=line[11..];
             else if(line.StartsWith("Shipment reference: "))draft.ShipmentReference=line[20..];
             else if(line.StartsWith("HAWB: "))draft.HouseAirWaybill=line[6..];
@@ -56,6 +64,13 @@ public static class ImportedOrderMapping
         foreach(var (part,field,property) in TextFields)typeof(TmsOrder).GetProperty(property)!.SetValue(order,Value(part,field));
         order.WorkType=Date("pickup","OPS_APPT_LOW") is not null && Date("delivery","OPS_APPT_LOW") is null?"Pickup":"Delivery";
         var draft=FromOrder(order);
+        draft.PurchaseOrder=Value("header","PBPURORD");
+        foreach(var (part,_,_) in NovaImportAddress.Parties){
+            var code=Value(part,part=="header"?"PB_BILL_ID":"OPS_ACCTID");
+            if(!string.IsNullOrWhiteSpace(code))draft.SetAccountId(part,code);
+        }
+        if (!string.IsNullOrWhiteSpace(draft.HouseAirWaybill) && draft.HouseAirWaybill==draft.BillOfLading)
+            draft.BillOfLading=Value("pickup","OPS_BOL");
         var active=order.WorkType=="Pickup"?"pickup":"delivery";
         order.AppointmentFrom=Date(active,"OPS_APPT_LOW");order.AppointmentTo=Date(active,"OPS_APPT_HIGH");
         order.ScheduledAt=order.AppointmentFrom??DateTimeOffset.UnixEpoch;
@@ -71,8 +86,10 @@ public static class ImportedOrderMapping
         // Start from the current record so contact fields, account IDs, address line 3,
         // inactive-stop appointments and other fields not shown in this form survive.
         foreach(var (part,field,property) in TextFields)Set(part,field,typeof(TmsOrder).GetProperty(property)!.GetValue(draft.Order));
+        Set("header","PBPURORD",draft.PurchaseOrder);
         Set("header","PB_STATUS",draft.NativeStatusId);Set("header","PB_LOCATION",draft.Order.TerminalCode);
-        Set("header","PBBOL",draft.BillOfLading);Set("header","PBTPIECE",draft.Order.Pieces);
+        Set("header","PBBOL",string.IsNullOrWhiteSpace(draft.HouseAirWaybill)?draft.BillOfLading:draft.HouseAirWaybill);
+        if (draft.MasterAirWaybill != Read(current,notes,zone).MasterAirWaybill) Set("header","PB_CUST_ORD",draft.MasterAirWaybill);Set("header","PBTPIECE",draft.Order.Pieces);
         Set("header","PBTWEIGH",draft.Order.Weight);Set("header","PB_TTL_CUBE",draft.Order.Cube);
         var original=Read(current,notes,zone);
         if(draft.BillOfLading!=original.BillOfLading)

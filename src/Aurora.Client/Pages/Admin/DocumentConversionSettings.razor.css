@@ -1,0 +1,4 @@
+textarea { width: 100%; resize: vertical; }
+.sample-order { margin-block: .5rem; }
+.sample-order summary { cursor: pointer; }
+.sample-order pre { max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

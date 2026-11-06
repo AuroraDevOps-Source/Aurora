@@ -9,6 +9,13 @@ using Npgsql;
 int count=0;
 void Check(bool ok,string message){if(!ok)throw new Exception(message);count++;}
 var id=Guid.NewGuid();
+foreach(var (accountCode,name) in new[]{("EXP1034","EXPEDITORS INTL - AUS TRANSCON"),("PEG9001","PEGASUS LOGISTICS - MCO")}){
+ var account=new OrderDocumentDraft{PrintedBillToAccountLine=$"Account: {accountCode} - {name}"};account.ApplyPrintedAccount();
+ Check(account.BillToAccountId==accountCode && account.Order.BillTo==name && account.ShipperAccountId=="","Account header ID and full name");
+}
+var twoLines=new OrderDocumentDraft{FreightLines=[new(){Pieces=1,CubeFt3=3},new(){Pieces=2,Length=12,Width=12,Height=12,DimensionUnit="in"}]};
+twoLines.ApplyFreightTotals();
+Check(twoLines.FreightLines[1].Volume==2 && twoLines.Order.Cube==5,"Per-line printed and calculated cube");
 var eastern=TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 var pegasus=OrderDocumentImport.Parse("""
 [{"tagNumber":"23683991","terminalCode":"DFW","localScheduledAt":"2026-11-02T07:00:00","localAppointmentFrom":"2026-11-02T07:00:00","localAppointmentTo":"2026-11-02T18:00:00","order":{"id":"23683991","workType":"Delivery","pieces":1,"weight":453.2}}]
@@ -28,22 +35,10 @@ dimensions.PrintedTotalCubeFt3=60;dimensions.ApplyFreightTotals();
 Check(dimensions.Order.Cube==60,"Printed cube takes precedence over calculated dimensions");
 var lineTotals=new OrderDocumentDraft{FreightLines=[new(){Pieces=2,WeightLb=10},new(){Pieces=3,WeightLb=20}]};lineTotals.ApplyFreightTotals();
 Check(lineTotals.Order.Pieces==5 && lineTotals.Order.Weight==30,"Freight totals are summed from actual line data without multiplying total line weights");
-var filenameDraft=new OrderDocumentDraft{TagNumber="23683991",Order=new(){Id="23683991",TerminalCode="DFW"}};
-OrderDocumentImport.ApplyFilenameIdentity([filenameDraft],"LYKES0003714580B_2.TIF");
-Check(filenameDraft.Order.Id=="3714580" && filenameDraft.Order.TerminalCode=="DFW" && filenameDraft.Order.Notes.Contains("23683991"),"Lykes filename supplies own PRO without losing carrier ID or separate terminal");
-filenameDraft=new();OrderDocumentImport.ApplyFilenameIdentity([filenameDraft],"noproLYKES0003733336B_1.TIF");
-Check(filenameDraft.Order.Id=="3733336","User-added nopro marker does not hide original Lykes filename PRO");
-filenameDraft=new(){PrintedLykesTag="MCO42",TagNumber="MCO42",Order=new(){Id="42"}};OrderDocumentImport.ApplyFilenameIdentity([filenameDraft],"LYKES0003733336B_1.TIF");
-Check(filenameDraft.Order.Id=="42","An explicitly printed Lykes Tag takes precedence over filename");
-var storage = OrderDocumentImport.Parse("""[{"documentType":"Lykes","tagNumber":"TPA3735950","houseAirWaybill":"TPA3735950","order":{}}]""").Single();
-OrderDocumentImport.ApplyFilenameIdentity([storage], "LYKES0003739303B_1.TIF");
-Check(storage.Order.Id == "3735950" && storage.Order.TerminalCode == "TPA", "Lykes form header Tag outranks a conflicting filename");
-var ait = OrderDocumentImport.Parse("""[{"documentType":"AIT","terminalCode":"TPA/X","order":{}}]""").Single();
-OrderDocumentImport.ApplyFilenameIdentity([ait], "LYKES0003733051B_2.TIF");
-Check(ait.Order.Id == "3733051" && ait.Order.TerminalCode == "TPA", "AIT delivery terminal maps to Tampa");
-var forward = OrderDocumentImport.Parse("""[{"documentType":"ForwardAir","destinationTerminalCode":"AUS","order":{"workType":"Delivery","notes":"Waybill 97430543"}}]""").Single();
-OrderDocumentImport.ApplyFilenameIdentity([forward], "LYKES0003736646C_1.TIF");
-Check(forward.Order.Id == "3736646" && forward.Order.TerminalCode == "AUS" && forward.Order.Notes.Contains("97430543"), "Forward Air delivery retains carrier waybill and uses Lykes C-series PRO and destination");
+var tagged=OrderDocumentImport.Parse("""[{"documentType":"Lykes","printedLykesTag":"TPA3735950","tagNumber":"3739303","order":{}}]""",eastern,true).Single();
+Check(tagged.Order.Id=="3735950" && tagged.Order.TerminalCode=="TPA","Only the printed Crown Tag supplies the PRO");
+var untagged=OrderDocumentImport.Parse("""[{"tagNumber":"USXI-353471","order":{"id":"23683991"}},{"documentType":"AIT","terminalCode":"TPA/X","order":{}}]""",eastern,true);
+Check(untagged.All(d=>d.TagNumber=="" && d.Order.Id=="") && untagged[0].Order.Notes.Contains("USXI-353471") && untagged[1].Order.TerminalCode=="TPA","Missing printed Tags go to review without normalizing carrier identifiers");
 var input=JsonSerializer.Serialize(new[]{new OrderDocumentDraft {ImportId=id,NativeStatusId=999,TagNumber="MCO3706592",ShipmentReference="SHIP-42",HouseAirWaybill="HAWB-42",MasterAirWaybill="MAWB-42",Order=new(){Id="wrong",Reference="invented-bol",Customer="Consignee",Address="123 Main",Pieces=4,Weight=500,SourceId=id,TerminalId=id,ManifestId=id,CustomerId=id,NativeOrderId=42,Status="Dispatched",Revision=12}}});
 foreach(var json in new[]{input,JsonSerializer.Serialize(input),JsonSerializer.Serialize("```json\n"+input+"\n```")})
 {
@@ -89,10 +84,10 @@ if(Environment.GetEnvironmentVariable("ORDER_IMPORT_TEST_CONNECTION") is {} raw)
 var nativeTenant=new Context(Guid.NewGuid());
 Check(NovaDocumentImport.PostalCode("32801-1234")=="328011234" && NovaDocumentImport.PostalCode("78754 4716")=="787544716" && NovaDocumentImport.PostalCode("K1A 0B1")=="K1A 0B1","ZIP+4 retains all digits within Nova nine-character field; other postal formats are preserved");
 var nativeSource=new Aurora.Integrations.Nova.FirebirdRoutingSource(null!,nativeTenant,Microsoft.Extensions.Options.Options.Create(new Aurora.Integrations.Nova.FirebirdRoutingOptions{Enabled=true,TenantId=nativeTenant.TenantIdOrNull!.Value,SourceKey="test",ConnectionString="test"}));
-var nativeDraft=new OrderDocumentDraft{TagNumber="MCO003706592",ShipmentReference="SHIP",HouseAirWaybill="HAWB",Order=new(){TerminalCode="MCO",Customer="Receiver",Shipper="Sender",Pieces=12,Weight=125,Cube=2,Notes="Freight: shelving",ScheduledAt=DateTimeOffset.Parse("2026-10-15T11:00:00-04:00")}};
+var nativeDraft=new OrderDocumentDraft{TagNumber="MCO003706592",ShipmentReference="SHIP",HouseAirWaybill="HAWB",MasterAirWaybill="MAWB",Order=new(){TerminalCode="MCO",Customer="Receiver",Shipper="Sender",Pieces=12,Weight=125,Cube=2,Notes="Freight: shelving",ScheduledAt=DateTimeOffset.Parse("2026-10-15T11:00:00-04:00")}};
 var native=NovaDocumentImport.Build(nativeDraft,nativeSource.NewRecord("orders"),110,TimeZoneInfo.FindSystemTimeZoneById("America/New_York"));
 Check(native.Values["header"]["PBNUM"]=="3706592","Native import strips terminal prefix and leading zeroes");
-Check(native.Values["header"]["PBBOL"]==""&&native.Values["delivery"]["OPS_BOL"]=="","Blank BOL is never borrowed from shipment or air waybill");
+Check(native.Values["header"]["PBBOL"]=="HAWB" && native.Values["header"]["PB_CUST_ORD"]=="MAWB" && native.Values["delivery"]["OPS_BOL"]=="","Native air waybill header fields remain distinct from the stop BOL");
 Check(native.Values["header"]["PBTPIECE"]=="12"&&native.Values["header"]["PBTWEIGH"]=="125","Native freight totals preserved");
 Check(native.Values["pickup"]["OPS_NAME"]=="Sender"&&native.Values["delivery"]["OPS_NAME"]=="Receiver","Native pickup and delivery remain separate");
 Check(native.Values["delivery"]["OPS_APPT_LOW"]=="2026-10-15T11:00:00"&&native.Values["pickup"]["OPS_APPT_LOW"] is null,"Service date uses native local time on active delivery stop");
@@ -158,14 +153,13 @@ Check(sparseAddress.Order.OriginAddress==novaAddress.Address && sparseAddress.Or
 Console.WriteLine($"{count} total import and Nova address checks passed.");
 if(Environment.GetEnvironmentVariable("DANIELLE_EXTRACTION_CHECK_DIR") is {} extractionDir)
 {
- var p=OrderDocumentImport.Parse(File.ReadAllText(Path.Combine(extractionDir,"LYKES0003714580B_2.TIF.updated.json")),eastern);
- OrderDocumentImport.ApplyFilenameIdentity(p,"LYKES0003714580B_2.TIF");
- Check(p.Single().Order.Id=="3714580" && p[0].Order.TerminalCode=="DFW" && p[0].Order.Cube==55.56m,"Actual Pegasus TIF extraction yields approved PRO, terminal and cube");
+ var p=OrderDocumentImport.Parse(File.ReadAllText(Path.Combine(extractionDir,"LYKES0003714580B_2.TIF.updated.json")),eastern,true);
+ Check(p.Single().Order.Id=="" && p[0].Order.TerminalCode=="DFW" && p[0].Order.Cube==55.56m,"Actual Pegasus TIF extraction yields approved PRO, terminal and cube");
  Check(p[0].Order.Pieces==1 && p[0].Order.Weight==453.2m && TimeZoneInfo.ConvertTime(p[0].Order.ScheduledAt,eastern).DateTime==new DateTime(2026,11,2,7,0,0),"Actual Pegasus freight and delivery start match bill");
- var n=OrderDocumentImport.Parse(File.ReadAllText(Path.Combine(extractionDir,"noproLYKES0003733336B_1.TIF.updated.json")),eastern);
- OrderDocumentImport.ApplyFilenameIdentity(n,"noproLYKES0003733336B_1.TIF");
- Check(n[0].Order.Id=="3733336" && n[0].Order.Notes.Contains("USXI-353471"),"Actual Expeditors scan uses Lykes filename PRO and retains carrier identifier");
+ var n=OrderDocumentImport.Parse(File.ReadAllText(Path.Combine(extractionDir,"noproLYKES0003733336B_1.TIF.updated.json")),eastern,true);
+ Check(n[0].Order.Id=="" && n[0].Order.Notes.Contains("USXI-353471"),"Actual Expeditors scan leaves PRO blank and retains carrier identifier");
  Check(n[0].Order.Pieces==28 && n[0].Order.Notes.Contains("page 2 not supplied"),"Actual partial scan sums supplied line quantities and flags missing page");
+ p[0].TagNumber="DFW42"; // Reviewer supplies the missing Tag.
  var mapped=NovaDocumentImport.Build(p[0],nativeSource.NewRecord("orders"),110,eastern);
  Check(mapped.Values["header"]["PB_LOCATION"]=="DFW" && mapped.Values["header"]["PB_TTL_CUBE"]=="55.56" && mapped.Values["delivery"]["OPS_APPT_LOW"]=="2026-11-02T07:00:00" && mapped.Values["delivery"]["OPS_APPT_HIGH"]=="2026-11-02T18:00:00","Corrected extraction survives native save mapping");
  Console.WriteLine($"{count} checks including actual Danielle TIFF extractions passed.");
@@ -175,8 +169,7 @@ if(Environment.GetEnvironmentVariable("CROWN_REPORT_CHECK") is {} crownPath)
  using var crownFile=File.OpenRead(crownPath);
  var crown=CrownOrderReport.Read(crownFile,TimeZoneInfo.FindSystemTimeZoneById("America/New_York"))!;
  Check(crown.Count==1797 && crown.Select(d=>d.TagNumber).Distinct().Count()==1797,"Crown report groups all 2128 rows into 1797 unique full Tags");
- Check(crown.Select(d=>d.Order.Id).Distinct().Count()==1797 && crown.Count(d=>d.Order.Notes.StartsWith("Crown Tag:"))==12,"Twelve shipments sharing numeric Tag suffixes use distinct Ship IDs and preserve original Tags");
- Check(crown.Single(d=>d.Order.Id=="3890166").Order.Notes.Contains("Crown Tag: SAT3727703"),"SAT conflicting Tag maps to its exact Crown Ship ID");
+ Check(crown.GroupBy(d=>d.Order.Id).Where(g=>g.Count()>1).Sum(g=>g.Count())==12 && crown.All(d=>OrderDocumentDraft.SplitTag(d.TagNumber).Pro==d.Order.Id),"All Crown PROs follow the printed Tags, including the 12 collisions");
  Check(crown.Sum(d=>d.Order.Pieces)==7843 && crown.Sum(d=>d.Order.Weight)==1223789,"Crown repeated charge rows do not multiply pieces or actual weight");
  var first=crown.Single(d=>d.TagNumber=="IAH3726920");
  Check(first.Order.Id=="3726920" && first.Order.TerminalCode=="IAH" && first.Order.Pieces==2 && first.Order.Weight==743,"Crown screenshot shipment reconciles");

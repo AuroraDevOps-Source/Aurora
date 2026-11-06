@@ -379,3 +379,4 @@ body:has(.map-popout) .tms-workspace { display:block; }
 .settings-connections-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .settings-dialog .field { margin-bottom:10px; }
 @media(max-width:600px) { .settings-connections-grid { grid-template-columns:minmax(0,1fr); } }
+.dispatch-dialog.login-tenant-dialog { width:min(440px,calc(100vw - 24px)); }
