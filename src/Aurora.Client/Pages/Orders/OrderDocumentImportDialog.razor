@@ -1,5 +1,6 @@
 @inject IHttpClientFactory Clients
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 <section class="import-entry" aria-label="Convert documents to orders">
  @if(!_review && _error is not null){<p class="alert" role="alert">@_error</p>}
  <fieldset disabled="@(_busy || _review)" class="import-inputs">
@@ -9,7 +10,7 @@
     <div class="import-dropzone @(!string.IsNullOrWhiteSpace(_text) ? "is-disabled" : null)">
      <span class="mdi mdi-cloud-upload-outline import-drop-icon" aria-hidden="true"></span>
      <strong>Drop a file here</strong><span class="import-or">or</span><span class="import-browse">Browse files</span>
-     <InputFile @key="_fileVersion" OnChange="SelectFile" disabled="@(!string.IsNullOrWhiteSpace(_text))" aria-label="Upload document: browse or drop a file" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpeg,.jpg,.png,.webp,.gif,.bmp" />
+     <InputFile id="import-source-file" @key="_fileVersion" OnChange="SelectFile" disabled="@(!string.IsNullOrWhiteSpace(_text))" aria-label="Upload document: browse or drop a file" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpeg,.jpg,.png,.webp,.gif,.bmp" />
     </div>
     @if(_file is not null){<div class="import-file"><span class="mdi mdi-file-document-outline" aria-hidden="true"></span><div><strong>@_file.Name</strong><small>@FileSize(_file.Size)</small></div><button type="button" class="text-button" @onclick="ClearFile">Remove</button></div>}
     else {<p class="import-formats">PDF, Word, Excel, CSV, text, or images &middot; Up to 10 MB</p>}
@@ -38,13 +39,40 @@
  else if(_historyLoading){<p class="import-history-empty" role="status">Loading recent imports...</p>}
  else if(_history.Count==0){<div class="import-history-empty"><span class="mdi mdi-history" aria-hidden="true"></span><strong>No imports yet</strong><p>Your converted documents and created order counts will appear here.</p></div>}
  else {
-  <div class="import-history-scroll"><table><thead><tr><th>Source</th><th>Date</th><th>Order number</th><th>Orders created</th><th>Status</th></tr></thead><tbody>
-   @foreach(var item in _history){<tr @key="item.Id"><td><span class="mdi mdi-file-document-outline" aria-hidden="true"></span>@(item.FileName=="pasted-orders.txt" ? "Pasted text" : item.FileName)</td><td>@item.CreatedAt.ToLocalTime().ToString("MMM d, yyyy \u00b7 h:mm tt")</td><td class="import-order-numbers">@if(item.CreatedPros.Length==0){<span>&mdash;</span>}else{@foreach(var pro in item.CreatedPros){<a href="@($"/data-entry?import={item.Id}&order={Uri.EscapeDataString(pro)}")" @onclick="()=>OpenImportedOrder(item.Id,pro)" @onclick:preventDefault="true" data-enhance-nav="false" aria-label="@($"Open order {pro}")">@pro</a>}}</td><td>@item.CreatedCount <span class="import-count-detail">/ @item.ExtractedCount extracted</span></td><td><span class="import-history-status @HistoryClass(item.Status)">@item.Status</span></td></tr>}
+  <div class="import-history-scroll"><table>
+   <thead><tr><th>File name</th><th>Date</th><th>Records</th><th>Successful</th><th>Skipped</th><th>Failed</th><th>Status</th></tr></thead>
+   <tbody>
+   @foreach(var item in _history)
+   {
+    <tr @key="item.Id">
+     <td>@(item.FileName=="pasted-orders.txt" ? "Pasted text" : item.FileName)</td>
+     <td>@item.CreatedAt.ToLocalTime().ToString("MMM d, yyyy \u00b7 h:mm tt")</td>
+     <td>@item.ExtractedCount.ToString("N0")</td>
+     <td>@item.CreatedCount.ToString("N0")</td>
+     <td>@(item.SkippedCount?.ToString("N0") ?? "\u2014")</td>
+     <td>@(item.FailedCount?.ToString("N0") ?? "\u2014")</td>
+     <td><span class="import-history-status @HistoryClass(item.Status)">@item.Status</span>
+      @if(item.FailureReason is not null || item.HasOrderFailures || item.FailedCount>0 || item.Status is "Failed" or "Interrupted")
+      {
+       <ImportFailureDetails @key="item" Item="item" />
+      }
+     </td>
+    </tr>
+   }
   </tbody></table></div>
  }
 </section>
-@if(_review){
-<EditPopup Title="@(_editing is null ? "Review orders" : "Edit order \u00b7 " + _editPro)" Busy="_busy" OnClose="Close" Class="order-dialog">
+@if(_review && _reviewHidden){<button type="button" class="outline-button" @onclick="ShowReview">Resume review (@_totalExtracted)</button>}
+@if(_review && !_reviewHidden){
+<EditPopup Title="@(_editing is null ? $"Review Orders - {_reviewSource}" : "Edit order \u00b7 " + _editPro)" Busy="@(_busy && !_receivingPdf)" OnClose="Close" Class="order-dialog">
+ @if (_editing is null)
+ {
+  <div class="review-tabs" role="tablist" aria-label="Order review" @onkeydown="SwitchReviewTab">
+   <button type="button" id="review-orders-tab" role="tab" aria-controls="review-orders-panel" aria-selected="@(!_documentTab ? "true":"false")" tabindex="@(_documentTab?-1:0)" @ref="_ordersTabButton" @onclick="()=>_documentTab=false">Review Orders</button>
+   <button type="button" id="review-document-tab" role="tab" aria-controls="review-document-panel" aria-selected="@(_documentTab ? "true":"false")" tabindex="@(_documentTab?0:-1)" @ref="_documentTabButton" @onclick="()=>_documentTab=true">Document</button>
+  </div>
+ }
+ <div id="review-orders-panel" role="@(_editing is null ? "tabpanel":null)" aria-labelledby="@(_editing is null ? "review-orders-tab":null)" hidden="@_documentTab">
  @if(_error is not null){<p class="alert" role="alert">@_error</p>}
  @if(_saved>0){
   <div class="import-success" role="status">
@@ -58,64 +86,67 @@
    }
   </div>
  }
+ @if(_receivingPdf){<p role="status">@_progress · @_totalExtracted available to review</p>}
  @if(_checking){<p role="status">Checking Nova addresses and existing PROs... You can review and edit now.</p>}
  @if(_checkFailed){<button class="outline-button" @onclick="ReviewChecks">Retry address and duplicate checks</button>}
 
- <fieldset disabled="@_busy" class="import-review-fields">
+ <fieldset disabled="@(_busy && !_receivingPdf)" class="import-review-fields">
    @{
-    var conflicts = ConflictingPros.ToHashSet();
-    var flagged = _rows.Where(r => ReviewIssue(r, conflicts) is not null).ToList();
-    var visible = _needsReviewOnly && _editing is null ? flagged : _rows;
+    var flagged = _rows.Where(r => ReviewIssue(r) is not null).ToList();
     var skipped = _rows.Count(r=>r.Skipped);
     var included = _rows.Count-skipped;
+    skipped += _duplicateCount;
     var ready = included-flagged.Count;
-    var index = Math.Clamp(_reviewIndex, 0, Math.Max(0, visible.Count - 1));
+    var paged = _rows.Count > 1;
+    var index = Math.Clamp(_reviewIndex, 0, Math.Max(0, _rows.Count - 1));
    }
-   @if (_editing is null)
+   <div class="review-toolbar">
+   @if (_editing is null && skipped > 0)
    {
-    <div class="import-review-filter">
-     <label><input type="checkbox" @bind="_needsReviewOnly" @bind:after="ResetReviewIndex" /> Only show orders needing review</label>
-     <span role="status">@($"{flagged.Count:N0} out of {_totalExtracted:N0} needing review")@if(skipped>0){<span> &middot; @skipped skipped</span>}</span>
-    </div>
+    <span role="status">@skipped skipped</span>
    }
-   @if (visible.Count > 10)
+   @if (paged)
    {
-    <div class="import-action-bar">
-     <button class="outline-button" disabled="@(index==0)" @onclick="()=>SelectPage(visible, index-1)">Previous order</button>
-     <label>Order <select value="@index" @onchange="e=>SelectPage(visible, int.Parse(e.Value!.ToString()!))">
-      @for(var i=0;i<visible.Count;i++){<option value="@i">@(i+1) &middot; @visible[i].Order.Id &middot; @visible[i].Order.Customer</option>}
-     </select> of @visible.Count</label>
-     <button class="outline-button" disabled="@(index==visible.Count-1)" @onclick="()=>SelectPage(visible, index+1)">Next order</button>
-    </div>
+    <nav class="review-pager" aria-label="Order navigation">
+     <button class="outline-button" disabled="@(index==0)" @onclick="()=>SelectPage(index-1)">Previous order</button>
+     <label>Order <select value="@index" @onchange="e=>SelectPage(int.Parse(e.Value!.ToString()!))">
+      @for(var i=0;i<_rows.Count;i++){<option value="@i">@(i+1) &middot; @_rows[i].Order.Id &middot; @_rows[i].Order.Customer</option>}
+     </select> of @_rows.Count.ToString("N0")</label>
+     <button class="outline-button" disabled="@(index==_rows.Count-1)" @onclick="()=>SelectPage(index+1)">Next order</button>
+    </nav>
    }
-   @if (_needsReviewOnly && visible.Count==0 && _rows.Count>0){<p role="status">@(_checking ? "Checking orders..." : _checkFailed ? "Retry the checks to finish reviewing these orders." : "No orders need review.")</p>}
-   @foreach(var row in (visible.Count>10?visible.Skip(index).Take(1):visible)){
-    <details class="import-order" @key="row" open="@(_editing is not null || _openRow==row)">
-     <summary id="@row.SummaryId" @onclick="()=>ToggleRow(row)" @onclick:preventDefault="@(_editing is null)">@(string.IsNullOrWhiteSpace(row.Order.Id)?"Order number required":row.Order.Id) &middot; @row.Order.Customer
+   </div>
+   @foreach(var row in (paged?_rows.Skip(index).Take(1):_rows)){
+    @if(row.Draft.ExtractionError is {} extractionError)
+    {
+     <div class="import-order" @key="row" id="@row.SummaryId">
+      <strong>PDF pages @string.Join(", ",row.Draft.SourcePages) · @row.Draft.MappingSender</strong>
+      <p class="alert">@extractionError</p>
+      @if (row.Skipped){<button type="button" class="outline-button" @onclick="()=>Include(row)">Include in review</button>}
+      else {<button type="button" class="outline-button" @onclick="()=>SkipOrder(row)">Skip order</button>}
+     </div>
+     continue;
+    }
+    <section class="import-order" @key="row" aria-labelledby="@row.SummaryId">
+     <h3 id="@row.SummaryId">@if(!string.IsNullOrWhiteSpace(row.Order.Id)){<text>@row.Order.Id · </text>}else if(!NativeWorkspace){<text>Order number required · </text>}@(string.IsNullOrWhiteSpace(row.Order.Customer) ? $"Order {row.Draft.ImportRowNumber}" : row.Order.Customer)
       @if(row.Skipped){<span> &mdash; Skipped</span>}
-      else if(_editing is null && ReviewIssue(row,conflicts) is {} issue){<span> &mdash; @issue</span>}
-     </summary>
-     @foreach(var decision in row.Draft.MappingDecisions){<p class="import-source-hint">@decision</p>}
-     @if(!string.IsNullOrWhiteSpace(row.Draft.BillingEvidence)){<p>Freight terms: @row.Draft.FreightTerms &middot; @row.Draft.BillingEvidence</p>}
+      else if(_editing is null && ReviewIssue(row) is {} issue){<span class="review-issue">@issue</span>}
+     </h3>
      @if(row.Skipped){<button class="outline-button" @onclick="()=>Include(row)">Include in import</button>}
-     @if(_editing is null && !row.Skipped && row.Draft.MappingQuestions.Length==0 && ReviewIssue(row,conflicts) is not null)
+     @if(_editing is null && !row.Skipped && row.Draft.MappingQuestions.Length==0 && ReviewIssue(row) is not null)
      {
       @if(row.CreateError is not null){<p class="alert">@row.CreateError</p><button class="outline-button" @onclick="()=>row.CreateError=null">Retry after correction</button>}
       <button class="outline-button" @onclick="()=>SkipOrder(row)">Skip order</button>
      }
      @foreach(var question in row.Draft.MappingQuestions.Where(_=>!row.Skipped)){
-      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="IncludedRows.Select(r=>r.Draft).ToList()" OnAnswered="()=>AnswerApplied(row)" OnSkipped="()=>SkipOrder(row)" />
+      <DocumentMappingReview @key="question" Draft="row.Draft" Question="question" Drafts="IncludedRows.Select(r=>r.Draft).ToList()" MoreExpected="_receivingPdf" OnBatchRule="rule=>_pdfBatchRules.Add(rule)" OnAnswered="()=>AnswerApplied(row)" OnSkipped="()=>SkipOrder(row)" />
      }
-     @foreach(var message in row.Draft.AddressLookupMessages){<p class="import-source-hint">@message</p>}
-     @if(_existing.Contains(MappedPro(row))){<p class="alert import-duplicate" role="alert">PRO @MappedPro(row) already exists</p>}
-     @if(_editing is null && MappedPro(row)==""){<p class="import-source-hint">Enter the order's Tag or PRO to create it.</p>}
-     else if(conflicts.Contains(MappedPro(row))){<p class="alert">PRO @MappedPro(row) occurs more than once in this import. Review the original Tags.</p>}
+     @if(!NativeWorkspace && _editing is null && MappedPro(row)==""){<p class="import-source-hint">Enter the order's Tag or PRO to create it.</p>}
      <section class="import-group"><h3>Order &amp; references</h3><div class="manifest-edit-grid">
-      <label class="field">Tag # / numeric PRO<input @bind="row.Draft.TagNumber" maxlength="200" readonly="@(_editing is not null)" /></label>
-      <label class="field">Nova PRO (from Tag)<input value="@MappedPro(row)" readonly /></label>
+      <label class="field">Tag # / Nova PRO<input @bind="row.Draft.TagNumber" @bind:after="()=>TagChanged(row)" maxlength="200" readonly="@(_editing is not null)" /></label>
       <label class="field">Terminal<select @bind="row.Order.TerminalId"><option value="">Choose terminal</option>@foreach(var terminal in Terminals){<option value="@terminal.Id">@terminal.Code - @terminal.Name</option>}</select></label>
       @if(NativeWorkspace){<label class="field">Nova status<InputSelect @bind-Value="row.Draft.NativeStatusId"><option value="">Choose status</option>@if(row.Draft.NativeStatusId is {} existingStatus && !Statuses.Any(s=>s.Id==existingStatus)){<option value="@existingStatus">@existingStatus</option>}@foreach(var status in Statuses){<option value="@status.Id">@status.Name</option>}</InputSelect></label>}
-      <label class="field">BOL #<input @bind="row.Draft.BillOfLading" maxlength="200" /></label>
+      <label class="field">BOL #<input @bind="row.Draft.BillOfLading" @bind:after='()=>ResolveQuestion(row,"BOL",row.Draft.BillOfLading)' maxlength="200" required /></label>
       <label class="field">P.O. #<input @bind="row.Draft.PurchaseOrder" maxlength="80" /></label>
       <label class="field">Shipment reference<input @bind="row.Draft.ShipmentReference" maxlength="200" /></label>
       <label class="field">HAWB #<input @bind="row.Draft.HouseAirWaybill" maxlength="200" /></label>
@@ -124,9 +155,14 @@
      <div class="import-parties">
      @foreach(var group in AddressGroups){
       <section class="import-group import-address"><h3>@group.Title</h3><div class="manifest-edit-grid">
-       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @onchange="e=>row.Draft.SetAccountId(group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
+       <label class="field">Account ID<input value="@row.Draft.AccountId(group.Part)" @onchange="e=>EditAccount(row,group.Part,e.Value?.ToString()?.Trim()??string.Empty)" maxlength="80" /></label>
        @foreach(var field in TextFields.Skip(group.Start).Take(7)){
         <label class="field">@field.Label<input value="@GetText(row.Order,field.Name)" @onchange="e=>EditAddress(row,group.Part,field.Name,e.Value?.ToString()??string.Empty)" maxlength="200" /></label>
+       }
+       @if(group.Part=="header"){
+        <label class="field">Bill-to contact<input @bind="row.Draft.BillToContact" maxlength="40" /></label>
+        <label class="field">Bill-to phone<input type="tel" @bind="row.Draft.BillToPhone" maxlength="32" /></label>
+        <label class="field">Bill-to email<input @bind="row.Draft.BillToEmail" maxlength="150" /></label>
        }
       </div></section>
      }
@@ -134,40 +170,61 @@
      <section class="import-group"><h3>Shipment details</h3><div class="manifest-edit-grid">
       <label class="field">Scheduled date/time<input type="datetime-local" @bind="row.Scheduled" /></label>
       <label class="field">Work type<select @bind="row.Order.WorkType"><option>Delivery</option><option>Pickup</option></select></label>
-      <label class="field">Pieces<InputNumber @bind-Value="row.Order.Pieces" /></label>
-      <label class="field">Total weight (lb)<InputNumber @bind-Value="row.Order.Weight" /></label>
-      <label class="field">Total cube (ft&sup3;)<InputNumber @bind-Value="row.Order.Cube" /></label>
+      <label class="field">Pieces<InputNumber @bind-Value="row.Order.Pieces" @bind-Value:after="()=>{if (_editing is null && row.Draft.FreightLines is [var line]) line.Pieces=row.Order.Pieces;}" /></label>
+      <label class="field">Total weight (lb)<InputNumber @bind-Value="row.Order.Weight" @bind-Value:after="()=>{if (_editing is null && row.Draft.FreightLines is [var line]) line.WeightLb=row.Order.Weight;}" /></label>
+      <label class="field">Total cube (ft&sup3;)<InputNumber @bind-Value="row.Order.Cube" @bind-Value:after="()=>{if (_editing is null && row.Draft.FreightLines is [var line]) line.CubeFt3=row.Order.Cube;}" /></label>
       <label class="field import-notes">Notes<textarea @bind="row.Order.Notes" maxlength="4000"></textarea></label>
      </div></section>
      <section class="import-group"><h3>Freight line items</h3>
-      @{var lines=row.Draft.FreightLines??[];var pending=_editing is null;
-        if(pending && lines.Length==0 && (row.Order.Pieces!=0 || row.Order.Weight!=0 || row.Order.Cube!=0))lines=[new DocumentFreightLine()];}
+      @{var lines=row.Draft.FreightLines??[]; var showDimWeight=lines.Any(l=>l.DimWeightLb.HasValue);}
       @if(lines.Length>0){
-       <div class="import-line-scroll"><table class="import-lines"><thead><tr><th>Qty</th><th>Description</th><th>Weight (lb)</th><th>Cube (ft&sup3;)</th></tr></thead><tbody>
+       <div class="import-line-scroll"><table class="import-lines"><thead><tr><th>Qty</th><th>Description</th><th>Weight (lb)</th>@if(showDimWeight){<th>Dim weight (lb)</th>}<th>Cube (ft&sup3;)</th></tr></thead><tbody>
         @foreach(var line in lines){
-         var single=pending && lines.Length==1;
-         <tr><td>@Measure(single?row.Order.Pieces:line.Pieces)</td><td>@(string.IsNullOrWhiteSpace(line.Description)?"\u2014":line.Description)</td><td>@Measure(single?row.Order.Weight:line.WeightLb)</td><td>@Measure(line.Volume??(single && row.Order.Cube>0?row.Order.Cube:null))</td></tr>
+         @if(_editing is null){
+          <tr @key="line">
+           <td><input aria-label="Line quantity" type="number" step="any" min="0" @bind="line.Pieces" @bind:after="()=>SyncLineQuantity(row,line)" /></td>
+           <td><input aria-label="Line description" @bind="line.Description" /></td>
+           <td><input aria-label="Line weight (lb)" type="number" step="any" min="0" @bind="line.WeightLb" @bind:after="()=>SyncLineWeight(row,line)" /></td>
+           @if(showDimWeight){<td><input aria-label="Line dimensional weight (lb)" type="number" step="any" min="0" @bind="line.DimWeightLb" /></td>}
+           <td><input aria-label="Line cube (ft³)" type="number" step="any" min="0" @bind="line.CubeFt3" @bind:after="()=>SyncLineCube(row,line)" /></td>
+          </tr>
+         }else{
+          <tr><td>@Measure(line.Pieces)</td><td>@line.Description</td><td>@Measure(line.WeightLb)</td>@if(showDimWeight){<td>@Measure(line.DimWeightLb)</td>}<td>@Measure(line.Volume)</td></tr>
+         }
         }
        </tbody></table></div>
-      }else{<p class="import-source-hint">No freight line items.</p>}
+      }else if(_editing is null){<button type="button" class="text-button" @onclick="()=>InitializeLine(row)">Add freight line</button>}
+      else{<p class="import-source-hint">No freight line items.</p>}
      </section>
-     @if(_editing is null){<button class="text-button" @onclick="()=>_rows.Remove(row)">Remove from import</button>}
-    </details>
+     @if(_editing is null){<button class="text-button" @onclick="()=>RemoveOrder(row)">Remove from import</button>}
+    </section>
    }
-   @if(_editing is not null){<button class="primary-button" disabled="@_busy" @onclick="SaveImportedOrder">Save changes</button>}
-   else if(included>0){<button class="primary-button" disabled="@(_busy || _checking || _checkFailed || ready==0)" @onclick="Create">Create @ready.ToString("N0") @(flagged.Count>0?"ready ":"")@(ready==1?"order":"orders")</button>}
+   <div class="review-footer">
+   @if(_receivingPdf){<span role="status">Order creation opens when processing and checks finish.</span>}
+   else if(_busy){<div class="review-progress" role="status"><strong>@_progress</strong>@if(_batchTotal>0){<progress aria-label="Order creation progress" value="@_batchPosition" max="@_batchTotal"></progress>}</div>}
+   else if(_editing is not null){<button class="primary-button" disabled="@_busy" @onclick="SaveImportedOrder">Save changes</button>}
+   else if(included>0){<button class="primary-button" disabled="@(_busy || _checking || _pdfFailed || _checkFailed || ready==0)" @onclick="Create">Create @ready.ToString("N0") @(flagged.Count>0?"ready ":"")@(ready==1?"order":"orders")</button>}
    else if(skipped>0 && _saved==0){<button class="primary-button" @onclick="Close">Finish without creating orders</button>}
+   <button class="outline-button review-close" disabled="@(_busy && !_receivingPdf)" @onclick="Close">@(_receivingPdf?"Hide":"Close")</button>
+   </div>
  </fieldset>
- @if(_busy){<p role="status">@_progress</p>}
- <div class="popup-actions"><button class="outline-button" disabled="@_busy" @onclick="Close">Close</button></div>
+ </div>
+ @if (_editing is null)
+ {
+  <div id="review-document-panel" role="tabpanel" aria-labelledby="review-document-tab" hidden="@(!_documentTab)">
+   @if (_sourceError is not null){<p role="alert" class="alert">@_sourceError</p>}
+   <div class="review-source" @ref="_sourceHost"></div>
+   <div class="review-footer"><button type="button" class="outline-button" disabled="@(_busy && !_receivingPdf)" @onclick="Close">@(_receivingPdf?"Hide":"Close")</button></div>
+  </div>
+ }
 </EditPopup>
 }
 @code {
  List<OrderImportHistory> _history=[];
+ int _batchTotal, _batchPosition;
  int _reviewIndex;
  int _totalExtracted;
- bool _needsReviewOnly = true;
- Row? _openRow;
+ Row? _selectedRow;
  bool _manuallySelected;
  string? _scrollTo;
  void ResetReviewIndex()
@@ -175,66 +232,138 @@
   _manuallySelected=false;
   SelectReviewRow();
  }
- void SelectPage(List<Row> visible, int index)
+ void SelectPage(int index)
  {
   _manuallySelected=true;
   _reviewIndex=index;
-  _openRow=visible[index];
- }
- void ToggleRow(Row row)
- {
-  if (_editing is not null) return;
-  _manuallySelected=true;
-  _openRow=_openRow==row ? null : row;
+  _selectedRow=_rows[index];
  }
  void SelectReviewRow(Row? answered=null, bool skip=false)
  {
-  var conflicts=ConflictingPros.ToHashSet();
-  var flagged=_rows.Where(row=>ReviewIssue(row,conflicts) is not null).ToList();
-  if (answered is null) _openRow=flagged.FirstOrDefault();
-  else if (!skip && answered.Draft.MappingQuestions.Length>0) _openRow=answered;
+  var flagged=_rows.Where(row=>ReviewIssue(row) is not null).ToList();
+  if (answered is null) _selectedRow=flagged.FirstOrDefault();
+  else if (!skip && answered.Draft.MappingQuestions.Length>0) _selectedRow=answered;
   else
   {
    var after=_rows.Skip(_rows.IndexOf(answered)+1);
-   _openRow=after.FirstOrDefault(flagged.Contains);
+   _selectedRow=after.FirstOrDefault(flagged.Contains);
   }
-  var visible=_needsReviewOnly ? flagged : _rows;
-  _reviewIndex=_openRow is null ? Math.Clamp(_reviewIndex,0,Math.Max(0,visible.Count-1)) : visible.IndexOf(_openRow);
+  _reviewIndex=_selectedRow is null ? Math.Clamp(_reviewIndex,0,Math.Max(0,_rows.Count-1)) : _rows.IndexOf(_selectedRow);
  }
- void SkipOrder(Row row)
+ async Task SkipOrder(Row row)
  {
   _manuallySelected=true;
   row.Skipped=true;
   SelectReviewRow(row, skip:true);
-  _scrollTo=_openRow?.SummaryId;
+  _scrollTo=_selectedRow?.SummaryId;
+  await SaveReviewCounts();
  }
- void Include(Row row)
+ async Task Include(Row row)
  {
   row.Skipped=false;
   _manuallySelected=true;
-  _openRow=row;
+  _selectedRow=row;
+  await SaveReviewCounts();
+ }
+ Guid? _reviewBatch;
+ string _reviewSource="";
+ int _removedCount, _duplicateCount;
+ async Task TagChanged(Row row)
+ {
+  row.Order.Id=MappedPro(row);
+  await ReviewChecks();
+ }
+ void SkipDuplicatePros()
+ {
+  var seen=new HashSet<string>(_existing);
+  _duplicateCount+=_rows.RemoveAll(row=>
+  {
+   if(row.Skipped || row.CreationFailed)return false;
+   var pro=MappedPro(row);
+   return pro.Length>0 && !seen.Add(pro);
+  });
+  if(_selectedRow is not null && _rows.Contains(_selectedRow))_reviewIndex=_rows.IndexOf(_selectedRow);
+  else SelectReviewRow();
+ }
+ readonly SemaphoreSlim _countLock=new(1,1);
+ async Task RemoveOrder(Row row)
+ {
+  var index = _rows.IndexOf(row);
+  if (index < 0) return;
+  _rows.RemoveAt(index);
+  _removedCount++;
+  _manuallySelected = true;
+  _reviewIndex = Math.Clamp(index, 0, Math.Max(0, _rows.Count - 1));
+  _selectedRow = _rows.ElementAtOrDefault(_reviewIndex);
+  await SaveReviewCounts();
+ }
+ async Task<bool> SaveReviewCounts()
+ {
+  if (_receivingPdf || _pdfFailed || _reviewBatch is not {} batch) return true;
+  var localFailures=_rows.Where(r=>r.ClientFailure is not null).Select(r=>r.ClientFailure!).ToArray();
+  var counts=new ImportReviewCounts(_removedCount+_duplicateCount+_rows.Count(r=>r.Skipped),
+      IncludedRows.Count(r=>r.CreationFailed),localFailures);
+  await _countLock.WaitAsync();
+  try
+  {
+   using var http=Clients.CreateClient(ApiClients.Authorized);
+   using var response=await http.PutAsJsonAsync($"api/v1/tms/orders/import/history/{batch}/counts",counts);
+   await ApiResponse.Check(response);
+   return true;
+  }
+  catch(Exception)
+  {
+   if (_reviewBatch==batch) _error="Could not save the import summary.";
+   return false;
+  }
+  finally { _countLock.Release(); }
  }
  async Task AnswerApplied(Row row)
  {
   _manuallySelected=true;
   SelectReviewRow(row);
-  _scrollTo=_openRow?.SummaryId;
+  _scrollTo=_selectedRow?.SummaryId;
   await ReviewChecks();
  }
  protected override async Task OnAfterRenderAsync(bool firstRender)
  {
-  if (_scrollTo is not {} id) return;
+  if (_review && !_reviewHidden && _documentTab && !_sourceRendered)
+  {
+   _sourceRendered=true;
+   try
+   {
+    if (_source is null && _sourceJob is {} job)
+    {
+     using var http=Clients.CreateClient(ApiClients.Authorized);
+     var bytes=await http.GetByteArrayAsync($"{PdfJobsUrl}/{job}/source",_lifetime.Token);
+     var module=await SourceModule();
+     _source=await module.InvokeAsync<IJSObjectReference>("fromPdf",bytes);
+    }
+    if (_source is null)throw new InvalidOperationException();
+    await _source.InvokeVoidAsync("show",_sourceHost,_reviewSource);
+   }
+   catch(Exception) when(!_lifetime.IsCancellationRequested)
+   {
+    _sourceError="The original document could not be displayed.";
+    StateHasChanged();
+   }
+  }
+  if (_documentTab || _scrollTo is not {} id) return;
   _scrollTo=null;
   await JS.InvokeVoidAsync("auroraWorkspace.scrollOption",id);
  }
- string? ReviewIssue(Row row, HashSet<string> conflicts)
+ string? ReviewIssue(Row row)
  {
   if (row.Skipped) return null;
+  if (row.Draft.ExtractionError is not null) return "Could not extract shipment";
   if (row.CreateError is not null) return "Could not create order";
   if (row.Draft.MappingQuestions.Length > 0) return "Unanswered question";
+  if (string.IsNullOrWhiteSpace(row.Draft.BillToAccountId) && row.Draft.AddressLookupMessages.Contains(NovaImportAddress.AmbiguousBillTo))
+      return NovaImportAddress.AmbiguousBillTo;
   var pro=MappedPro(row);
-  if (pro.Length==0) return "Missing or invalid PRO";
-  if (_existing.Contains(pro) || conflicts.Contains(pro)) return "Duplicate PRO";
+  if (pro.Length==0 && (!NativeWorkspace || !string.IsNullOrWhiteSpace(row.Draft.TagNumber))) return "Missing or invalid PRO";
+  if (string.IsNullOrWhiteSpace(row.Draft.BillOfLading)) return "Missing BOL";
+  if (NativeWorkspace && row.Order.TerminalId is null) return "Choose a terminal";
   if (string.IsNullOrWhiteSpace(row.Order.Shipper) && string.IsNullOrWhiteSpace(row.Draft.ShipperAccountId)) return "Missing shipper";
   if (string.IsNullOrWhiteSpace(row.Order.Customer) && string.IsNullOrWhiteSpace(row.Draft.ConsigneeAccountId)) return "Missing consignee";
   return null;
@@ -247,7 +376,11 @@
  ImportedOrderEdit? _editing;
  Guid _editBatch;
  string? _editPro;
- protected override Task OnInitializedAsync()=>LoadHistory();
+ protected override async Task OnInitializedAsync()
+ {
+  await LoadHistory();
+  if(ImportBatch is null)await ResumePdf();
+ }
  protected override async Task OnParametersSetAsync()
  {
   if(ImportBatch is {} batch && !string.IsNullOrWhiteSpace(OrderPro) && _openedLink!=$"{batch}:{OrderPro}")
@@ -320,12 +453,45 @@
  string? _error,_progress;
  readonly HashSet<string> _existing=[];
  IEnumerable<Row> IncludedRows => _rows.Where(row=>!row.Skipped);
- IEnumerable<string> ConflictingPros => IncludedRows.Select(MappedPro).Where(pro=>pro.Length>0).GroupBy(pro=>pro).Where(g=>g.Count()>1).Select(g=>g.Key);
  bool _checking,_checkFailed;
  int _reviewVersion;
  readonly List<(string Pro,string Text)> _warnings=[];
  List<Row> _rows=[];
- sealed class Row(OrderDocumentDraft draft){public string? CreateError;public bool Skipped;public string SummaryId {get;}="review-"+Guid.NewGuid().ToString("N");public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
+ sealed class Row(OrderDocumentDraft draft){public ImportFailure? ClientFailure;
+  public void RecordClientFailure(string reason)
+  {
+   CreationFailed=true;
+   CreateError=reason;
+   ClientFailure=new(Draft.ImportRowId,Draft.FailureLabel(),reason.Length>1000 ? reason[..1000] : reason);
+  }
+  public bool CreationFailed=draft.ExtractionError is not null;public string? CreateError;public bool Skipped;public string SummaryId {get;}="review-"+Guid.NewGuid().ToString("N");public OrderDocumentDraft Draft=draft;public TmsOrder Order=>Draft.Order;public DateTime? Scheduled=draft.LocalScheduledAt??draft.Order.ScheduledAt.LocalDateTime;}
+ static void InitializeLine(Row row)
+ {
+  row.Draft.FreightLines=[new(){Pieces=row.Order.Pieces,WeightLb=row.Order.Weight,CubeFt3=row.Order.Cube}];
+ }
+ static void SyncLineQuantity(Row row,DocumentFreightLine line)
+ {
+  if(row.Draft.FreightLines.Length==1)row.Order.Pieces=line.Pieces??0;
+ }
+ static void SyncLineWeight(Row row,DocumentFreightLine line)
+ {
+  if(row.Draft.FreightLines.Length==1)row.Order.Weight=line.WeightLb??0;
+ }
+ static void SyncLineCube(Row row,DocumentFreightLine line)
+ {
+  line.CalculatedCubeFt3=null;
+  if(row.Draft.FreightLines.Length==1)row.Order.Cube=line.CubeFt3??0;
+ }
+ static void ResolveQuestion(Row row,string field,string value)
+ {
+  if(!string.IsNullOrWhiteSpace(value))row.Draft.MappingQuestions=row.Draft.MappingQuestions.Where(q=>q.Field!=field).ToArray();
+ }
+ static void EditAccount(Row row,string part,string value)
+ {
+  row.Draft.SetAccountId(part,value);
+  row.Draft.EditedAddressParts.Add(part);
+  if(part=="header")ResolveQuestion(row,"BillTo",value);
+ }
  static string Measure(decimal? value)=>value?.ToString("0.####")??"\u2014";
  static string MappedPro(Row row){try{return OrderDocumentDraft.SplitTag(row.Draft.TagNumber).Pro;}catch(FormatException){return "";}}
  static readonly (string Name,string Label)[] TextFields=[
@@ -337,6 +503,7 @@
  {
   row.Draft.EditedAddressParts.Add(part);
   SetText(row.Order,field,value);
+  if(field=="BillTo")ResolveQuestion(row,"BillTo",value);
  }
  static void SetText(TmsOrder o,string name,string value)=>typeof(TmsOrder).GetProperty(name)!.SetValue(o,value);
  void ClearFile(){_file=null;_fileVersion++;_error=null;}
@@ -346,49 +513,241 @@
   if(e.File.Size is <=0 or >MaxImportBytes){_error="Choose a nonempty file up to 10 MB.";return;}
   _file=e.File;
  }
- async Task Close(){if(_busy)return;_reviewVersion++;_checking=false;_checkFailed=false;_review=false;_editing=null;_rows.Clear();_error=null;await LoadHistory();await OnClose.InvokeAsync();}
+ async Task Close()
+ {
+  if (_receivingPdf) { _reviewHidden=true; _sourceRendered=false; return; }
+  if (_busy || !_review) return;
+  var saveCounts=_editing is null ? SaveReviewCounts() : Task.FromResult(true);
+  _reviewBatch=null;
+  var version=++_reviewVersion;
+  _checking=false;
+  _checkFailed=false;
+  _review=false;
+  _editing=null;
+  _rows.Clear();
+  ResetPdfReview();
+  _error=null;
+  await ReleaseSource();
+  await OnClose.InvokeAsync();
+  if (!await saveCounts && version==_reviewVersion && !_busy && !_review)
+   _error="Review closed. The import summary could not be saved.";
+  await LoadHistory();
+ }
  async Task Convert()
  {
   if(_busy || !CanConvert)return;
   if(_pasteText && System.Text.Encoding.UTF8.GetByteCount(_text)>MaxImportBytes){_error="Pasted text must be 10 MB or less. Split the orders into smaller batches.";return;}
+  ResetPdfReview();
   _busy=true;_editing=null;_error=null;_createdPros.Clear();_addressNotes.Clear();_warnings.Clear();_existing.Clear();_progress="Extracting orders... This may take a few minutes.";
   try{
    using var http=Clients.CreateClient(ApiClients.Authorized);http.Timeout=TimeSpan.FromMinutes(6);
    using var form=new MultipartFormDataContent();
    if(_pasteText)form.Add(new StringContent(_text,System.Text.Encoding.UTF8,"text/plain"),"file","pasted-orders.txt");
    else form.Add(new StreamContent(_file!.OpenReadStream(MaxImportBytes)),"file",_file.Name);
-   var uploadTimer=System.Diagnostics.Stopwatch.StartNew();
-   using var response=await http.PostAsync("api/v1/tms/orders/convert-document?earlyReview=true",form);
-   await ApiResponse.Check(response);
-   _needsReviewOnly=true;_reviewIndex=0;_rows=(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[]).Select(o=>new Row(o)).ToList();
+   var source=_file?.Name ?? "Pasted text";
+   await ReleaseSource();
+   var module=await SourceModule();
+   _source=await module.InvokeAsync<IJSObjectReference>("fromUpload","import-source-file",_text);
+   if (string.Equals(Path.GetExtension(source),".pdf",StringComparison.OrdinalIgnoreCase) && _file is not null)
+   {
+    using var accepted=await http.PostAsync(PdfJobsUrl,form,_lifetime.Token);
+    await ApiResponse.Check(accepted);
+    var job=await accepted.Content.ReadFromJsonAsync<PdfConversionStatus>() ?? throw new FormatException("PDF conversion could not start.");
+    var pending=new PendingPdf(job.Id,source);
+    await JS.InvokeVoidAsync("sessionStorage.setItem",PendingPdfKey,System.Text.Json.JsonSerializer.Serialize(pending));
+    await WaitForPdf(http,pending);
+   }
+   else
+   {
+    using var response=await http.PostAsync("api/v1/tms/orders/convert-document?earlyReview=true",form);
+    await ApiResponse.Check(response);
+    OpenReview(await response.Content.ReadFromJsonAsync<List<OrderDocumentDraft>>()??[],source);
+   }
+  }catch(Exception ex){_error=ex.Message;_pdfFailed=_openedEarly;}finally{_busy=false;_receivingPdf=false;_review=_rows.Count>0 || (_openedEarly && _duplicateCount>0);}
+  await FinishReviewChecks();
+  await LoadHistory();
+ }
+ const string PdfJobsUrl="api/v1/tms/orders/convert-document/jobs";
+ const string PendingPdfKey="aurora.pendingPdfReview";
+ sealed record PendingPdf(Guid Id,string Source);
+ readonly CancellationTokenSource _lifetime=new();
+ bool _documentTab,_sourceRendered;
+ Guid? _sourceJob;
+ string? _sourceError;
+ ElementReference _sourceHost,_ordersTabButton,_documentTabButton;
+ IJSObjectReference? _sourceModule,_source;
+ async Task<IJSObjectReference> SourceModule()=>_sourceModule??=await JS.InvokeAsync<IJSObjectReference>("import","./js/review-document.js");
+ async Task SwitchReviewTab(KeyboardEventArgs key)
+ {
+  if(key.Key is not ("ArrowLeft" or "ArrowRight" or "Home" or "End"))return;
+  _documentTab=key.Key switch {"Home"=>false,"End"=>true,_=>!_documentTab};
+  await (_documentTab?_documentTabButton:_ordersTabButton).FocusAsync();
+ }
+ async Task ReleaseSource()
+ {
+  _sourceJob=null;_sourceError=null;_documentTab=false;_sourceRendered=false;
+  var source=_source;
+  _source=null;
+  if(source is null)return;
+  try{await source.InvokeVoidAsync("release");}finally{await source.DisposeAsync();}
+ }
+ public async ValueTask DisposeAsync()
+ {
+  _lifetime.Cancel();
+  await ReleaseSource();
+  if(_sourceModule is not null)await _sourceModule.DisposeAsync();
+ }
+
+ bool _openedEarly,_receivingPdf,_reviewHidden,_pdfFailed;
+ readonly HashSet<Guid> _seenPdfRows=[];
+ readonly List<DocumentMappingRule> _pdfBatchRules=[];
+ void ResetPdfReview()
+ {
+  _openedEarly=_receivingPdf=_reviewHidden=_pdfFailed=false;
+  _duplicateCount=0;
+  _seenPdfRows.Clear();
+  _pdfBatchRules.Clear();
+ }
+ void ShowReview(){ _reviewHidden=false; _sourceRendered=false; }
+
+ async Task FinishReviewChecks()
+ {
+  if(_pdfFailed)return;
+  if(_review)
+  {
+   if(!_openedEarly)ResetReviewIndex();
+   await ReviewChecks();
+  }
+  if(_openedEarly && (_removedCount+_duplicateCount>0 || _rows.Any(r=>r.Skipped)))await SaveReviewCounts();
+ }
+
+ async Task WaitForPdf(HttpClient http, PendingPdf pending)
+ {
+  var ct=_lifetime.Token;
+  var after=0;
+  _sourceJob=pending.Id;
+  while(true)
+  {
+   ct.ThrowIfCancellationRequested();
+   PdfConversionStatus status;
+   try
+   {
+    using var response=await http.GetAsync($"{PdfJobsUrl}/{pending.Id}?after={after}",ct);
+    if(response.StatusCode==System.Net.HttpStatusCode.NotFound)
+      await JS.InvokeVoidAsync("sessionStorage.removeItem",PendingPdfKey);
+    if((int)response.StatusCode>=500)throw new HttpRequestException();
+    await ApiResponse.Check(response);
+    status=await response.Content.ReadFromJsonAsync<PdfConversionStatus>(ct) ?? throw new FormatException("Missing PDF job status.");
+   }
+   catch(HttpRequestException) when(!ct.IsCancellationRequested)
+   {
+    _progress="Reconnecting to PDF conversion...";
+    StateHasChanged();
+    await Task.Delay(3000,ct);
+    continue;
+   }
+   _progress=status.Progress;
+   if(status.Error is not null || status.Orders is not null)
+   {
+    await JS.InvokeVoidAsync("sessionStorage.removeItem",PendingPdfKey);
+    if(status.Error is not null)throw new FormatException(status.Error);
+    if (_openedEarly) AppendPdfRows(status.Orders!);
+    else OpenReview(status.Orders!,pending.Source);
+    return;
+   }
+   if(status.ReadyOrders is {Count:>0} arriving)
+   {
+    after+=arriving.Count;
+    if(!_openedEarly)
+    {
+     _openedEarly=_receivingPdf=_review=true;
+     OpenReview([],pending.Source);
+     _error=null;
+    }
+    var added=AppendPdfRows(arriving);
+    if(added.Count>0 && _selectedRow is null && !_manuallySelected)_selectedRow=added[0];
+    StateHasChanged();
+    if(added.Count>0) await CheckReviewRows(added.ToArray());
+   }
+   StateHasChanged();
+   await Task.Delay(2000,ct);
+  }
+ }
+ async Task ResumePdf()
+ {
+  var json=await JS.InvokeAsync<string?>("sessionStorage.getItem",PendingPdfKey);
+  if(json is null || System.Text.Json.JsonSerializer.Deserialize<PendingPdf>(json) is not {} pending)return;
+  _busy=true;
+  try
+  {
+   using var http=Clients.CreateClient(ApiClients.Authorized);
+   await WaitForPdf(http,pending);
+  }
+  catch(Exception ex){_error=ex.Message;_pdfFailed=_openedEarly;}
+  finally{_busy=false;_receivingPdf=false;_review=_rows.Count>0 || (_openedEarly && _duplicateCount>0);}
+  await FinishReviewChecks();
+  await LoadHistory();
+ }
+ void OpenReview(List<OrderDocumentDraft> drafts,string source)
+ {
+   _reviewIndex=0;_rows=drafts.Select(o=>new Row(o)).ToList();
    _totalExtracted=_rows.Count;
-   foreach(var row in _rows){
+   _reviewBatch=_rows.FirstOrDefault()?.Draft.ImportId;
+   _reviewSource=source;
+   _removedCount=_duplicateCount=0;
+   foreach(var row in _rows)InitializeReviewRow(row);
+   if(_rows.Count==0)_error="No orders were found. Check the file or pasted text and try again.";
+ }
+ List<Row> AppendPdfRows(List<OrderDocumentDraft> drafts)
+ {
+   var added=new List<Row>();
+   foreach(var draft in drafts)
+   {
+    if(!_seenPdfRows.Add(draft.ImportRowId))continue;
+    foreach(var rule in _pdfBatchRules)DocumentMappings.ApplyToMatchingOrder(draft,rule);
+    var row=new Row(draft);
+    InitializeReviewRow(row);
+    added.Add(row);
+    _reviewBatch??=draft.ImportId;
+   }
+   _rows.AddRange(added);
+   _totalExtracted+=added.Count;
+   return added;
+ }
+ void InitializeReviewRow(Row row)
+ {
+    var lines=row.Draft.FreightLines??[];
+    foreach(var line in lines)line.CubeFt3??=line.CalculatedCubeFt3;
+    if(lines is [var only]){
+     only.Pieces=row.Order.Pieces;
+     only.WeightLb=row.Order.Weight;
+     only.CubeFt3??=row.Order.Cube;
+    }else if(lines.Length==0 && (row.Order.Pieces!=0 || row.Order.Weight!=0 || row.Order.Cube!=0))InitializeLine(row);
     row.Draft.NativeStatusId=NativeWorkspace && Statuses.Any(s=>s.Id==NovaDocumentImport.DefaultStatus)?NovaDocumentImport.DefaultStatus:null;
     if(string.IsNullOrWhiteSpace(row.Draft.TagNumber))row.Draft.TagNumber=row.Order.Id;
     row.Order.TerminalId=Terminals.FirstOrDefault(t=>string.Equals(t.Code,row.Order.TerminalCode,StringComparison.OrdinalIgnoreCase))?.Id;
-   }
-
-   Console.WriteLine($"Document upload to draft: {uploadTimer.ElapsedMilliseconds} ms");
-   if(_rows.Count==0)_error="No orders were found. Check the file or pasted text and try again.";
-  }catch(Exception ex){_error=ex.Message;}finally{_busy=false;_review=_rows.Count>0;}
-  if(_review){ResetReviewIndex();await ReviewChecks();}
-  await LoadHistory();
  }
- async Task ReviewChecks()
+ Task ReviewChecks()=>CheckReviewRows(null);
+ async Task CheckReviewRows(Row[]? arriving)
  {
   var version=++_reviewVersion;
   _checking=true;_checkFailed=false;_error=null;
-  var rows=_rows.ToArray();
+  var rows=(arriving ?? _rows.ToArray()).Where(r=>r.Draft.ExtractionError is null).ToArray();
   StateHasChanged();
   try
   {
    using var http=Clients.CreateClient(ApiClients.Authorized);
    http.Timeout=TimeSpan.FromMinutes(5);
-   var duplicates=FindExisting(http,rows.Select(MappedPro).Where(id=>id.Length>0).Distinct().ToArray());
-   await Task.WhenAll(duplicates,CheckAddresses(http,rows,version));
-   if(version==_reviewVersion){_existing.Clear();_existing.UnionWith(await duplicates);
-    if (!_manuallySelected && (_openRow is null || ReviewIssue(_openRow,ConflictingPros.ToHashSet()) is null)) SelectReviewRow();
-   }
+   var existing=await FindExisting(http,rows.Select(MappedPro).Where(id=>id.Length>0).Distinct().ToArray());
+   if(version!=_reviewVersion)return;
+   if(arriving is null)_existing.Clear();
+   _existing.UnionWith(existing);
+   var previousCount=_duplicateCount;
+   SkipDuplicatePros();
+   if(_duplicateCount!=previousCount)await SaveReviewCounts();
+   var remaining=_rows.ToHashSet();
+   await CheckAddresses(http,rows.Where(remaining.Contains).ToArray(),version);
+   if(version==_reviewVersion && !_manuallySelected)SelectReviewRow();
   }
   catch(Exception ex){if(version==_reviewVersion){_checkFailed=true;_error=ex.Message;}}
   finally{if(version==_reviewVersion)_checking=false;}
@@ -448,51 +807,73 @@
  }
  async Task Create()
  {
-  if(_busy || _checking || _checkFailed)return;
-  var conflicts=ConflictingPros.ToHashSet();
-  var pending=IncludedRows.Where(r=>ReviewIssue(r,conflicts) is null).ToList();
+  if(_busy || _receivingPdf || _pdfFailed || _checking || _checkFailed)return;
+  var pending=IncludedRows.Where(r=>ReviewIssue(r) is null).ToList();
   if(pending.Count==0)return;
   _busy=true;_error=null;_progress="Checking import...";
+  Row? attempted=null;
   var creationStarted=false;
   try{
    using var http=Clients.CreateClient(ApiClients.Authorized);
-   _existing.UnionWith(await FindExisting(http,pending.Select(MappedPro).ToArray()));
+   _existing.UnionWith(await FindExisting(http,pending.Select(MappedPro).Where(pro=>pro.Length>0).ToArray()));
+   SkipDuplicatePros();
+   pending=IncludedRows.Where(r=>ReviewIssue(r) is null).ToList();
    _progress="Creating orders...";
    int consecutiveUnavailable=0;
-   int attempted=0;
+   _batchTotal=pending.Count;
+   _batchPosition=0;
    foreach(var row in pending){
-    if(_existing.Contains(MappedPro(row)))continue;
-    try{row.Draft.Normalize();}catch(FormatException ex){row.CreateError=ex.Message;continue;}
+    if(_existing.Contains(MappedPro(row))){_rows.Remove(row);_duplicateCount++;continue;}
+    attempted=row;
+    row.Order.Id=row.Draft.TagNumber;
+    try{row.Draft.Normalize(allowBlankPro:NativeWorkspace);}catch(FormatException ex){row.RecordClientFailure(ex.Message);continue;}
     var terminal=Terminals.SingleOrDefault(t=>t.Id==row.Order.TerminalId);
     row.Order.TerminalCode=terminal?.Code;
     if(row.Scheduled is {} scheduled){row.Draft.ChangeLocalSchedule(scheduled);row.Order.ScheduledAt=DateTimeOffset.Parse(await JS.InvokeAsync<string>("auroraWorkspace.utc",scheduled.ToString("yyyy-MM-ddTHH:mm:ss")));}
     creationStarted=true;
-    attempted++;
-    if(attempted==1 || attempted%10==0){_progress=$"Creating orders... {attempted:N0} of {pending.Count:N0}";StateHasChanged();}
+    _batchPosition++;
+    if(_batchPosition==1 || _batchPosition%10==0 || _batchPosition==_batchTotal){_progress=$"Creating order {_batchPosition:N0} of {_batchTotal:N0}";StateHasChanged();}
     using var response=await http.PostAsJsonAsync(NativeWorkspace?"api/v1/aurora/firebird/orders/import":"api/v1/tms/orders/import",row.Draft);
     if(response.StatusCode is System.Net.HttpStatusCode.ServiceUnavailable or System.Net.HttpStatusCode.GatewayTimeout or System.Net.HttpStatusCode.BadGateway)
     {
-     row.CreateError=$"Nova could not confirm creation of PRO {row.Order.Id}.";
+     try { await ApiResponse.Check(response); }
+     catch (FormatException ex) { row.RecordClientFailure(ex.Message); }
+     row.CreateError=$"{row.CreateError} Check Orders before retrying.";
      await Task.Delay(500);
-     var exists=await FindExisting(http,[row.Order.Id]);
+     var exists=await FindExisting(http,string.IsNullOrEmpty(row.Order.Id)?[]:[row.Order.Id]);
      if(exists.Count>0){_existing.UnionWith(exists);row.CreateError=$"PRO {row.Order.Id} now exists. Verify it in Orders."; }
      if(++consecutiveUnavailable>=3)throw new FormatException("Three consecutive order requests failed. Check the Nova connection, then resume the remaining orders.");
      continue;
     }
     consecutiveUnavailable=0;
+    if(response.StatusCode==System.Net.HttpStatusCode.Conflict &&
+       (await response.Content.ReadFromJsonAsync<DuplicateImportPro>())?.Code==DuplicateImportPro.ErrorCode)
+    {
+     _rows.Remove(row);
+     _duplicateCount++;
+     _existing.Add(MappedPro(row));
+     continue;
+    }
     try{await ApiResponse.Check(response);}
     catch(FormatException ex) when(response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity)
-    {row.CreateError=ex.Message;continue;}
+    {row.CreationFailed=true;row.CreateError=ex.Message;continue;}
     if(NativeWorkspace){
      var saved=await response.Content.ReadFromJsonAsync<NovaRecordDocument>();
-     AddLocationMessages(row.Order.Id,saved?.LocationWarnings??[]);
+     row.Order.Id=saved!.OrderKey();
+     AddLocationMessages(row.Order.Id,saved.LocationWarnings);
     }
     _createdPros.Add(row.Order.Id);_existing.Add(row.Order.Id);_rows.Remove(row);
    }
    _file=null;_fileVersion++;_text="";
-  }catch(Exception ex){_error=creationStarted
+  }catch(Exception ex){if(attempted is not null)
+   {
+    attempted.CreationFailed=true;
+    if(attempted.CreateError is null)
+     attempted.RecordClientFailure(ex is FormatException ? ex.Message : "Order request could not be confirmed. Check Orders before retrying.");
+   }
+   _error=creationStarted
     ?$"{ex.Message} {_saved} orders created; {_rows.Count} remain. If a request lost its connection, check the orders list before retrying."
     :$"{ex.Message} No orders were created in this attempt. {_rows.Count} {(_rows.Count==1?"order remains":"orders remain")} for review.";}
-  finally{_busy=false;await LoadHistory();if(_saved>0)await OnCreated.InvokeAsync();}
+  finally{await SaveReviewCounts();_batchTotal=0;_busy=false;await LoadHistory();if(_saved>0)await OnCreated.InvokeAsync();}
  }
 }

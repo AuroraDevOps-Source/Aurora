@@ -18,17 +18,17 @@
                 <nav class="aurora-product-nav" aria-label="Applications">
                     @foreach (var product in _products)
                     {
-                        @if (_navigation.IsVisible(product.Code))
+                        @if (_navigation?.IsVisible(product.Code) == true)
                         {
-                        <MudButton Class="@HeaderClass(product)" Disabled="@(!product.HasAccess)"
-                                   OnClick="@(() => Navigation.NavigateTo(ProductWorkspace.RouteFor(product.Code)))">
+                        <MudButton Class="@HeaderClass(product)" Href="@(product.HasAccess ? ProductWorkspace.RouteFor(product.Code) : null)"
+                                   OnClick="@(() => ExplainRestrictedAccess(product))">
                             @ProductWorkspace.NameFor(product.Code)
                         </MudButton>
                         }
-                        @if (product.Code == ProductWorkspace.Aurora && _navigation.DataEntry)
+                        @if (product.Code == ProductWorkspace.Aurora && _navigation?.DataEntry == true)
                         {
                             <MudButton Class="@(new Uri(Navigation.Uri).AbsolutePath == "/data-entry" ? "mud-inherit-text header-link active" : "mud-inherit-text header-link")"
-                                       Disabled="@(!product.HasAccess)" Href="/data-entry">Data Entry</MudButton>
+                                       Href="@(product.HasAccess ? "/data-entry" : null)" OnClick="@(() => ExplainRestrictedAccess(product))">Data Entry</MudButton>
                         }
                     }
                 </nav>
@@ -37,42 +37,89 @@
                          Color="Color.Inherit" Size="Size.Small"
                          Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                     <MudMenuItem Icon="@Icons.Material.Outlined.Logout" Disabled="@_loggingOut" OnClick="LogOutAsync">
-                        @(_loggingOut ? "Logging out…" : "Logout")
+                        @(_loggingOut ? "Logging outâ€¦" : "Logout")
                     </MudMenuItem>
                 </MudMenu>
                 @if(_isAdmin || _canViewLog)
                 {
                 <MudMenu Icon="@Icons.Material.Filled.Settings" aria-label="Admin" Color="Color.Inherit" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem Icon="@Icons.Material.Outlined.People" OnClick="@(() => Navigation.NavigateTo("/aurora/users"))">Users</MudMenuItem>
                     @if (_isAdmin)
                     {
                     <MudMenuItem Icon="@Icons.Material.Outlined.Settings" OnClick="@(() => _showSettings=true)">Settings</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Description" Href="/aurora/document-conversion">Shipper Prompts</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.Business" OnClick="@(() => _showTenant=true)">Edit Tenant</MudMenuItem>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.People" OnClick="@(() => Navigation.NavigateTo("/aurora/users"))">Users</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.LocalShipping" OnClick="@(() => Navigation.NavigateTo("/aurora/ship-status"))">Ship Status</MudMenuItem>
+                    @if (_canPublish) { <MudMenuItem Icon="@Icons.Material.Outlined.Notifications" OnClick="@(() => _showAlert=true)">Send alert</MudMenuItem> }
                     <MudMenuItem Icon="@Icons.Material.Outlined.RestartAlt" OnClick="@(() => Navigation.NavigateTo("/aurora/reset"))">Reset</MudMenuItem>
                     }
                     @if (_canViewLog) { <MudMenuItem Icon="@Icons.Material.Outlined.History" OnClick="@(() => Navigation.NavigateTo("/aurora/applog"))">Application Log</MudMenuItem> }
                 </MudMenu>
                 }
             </MudAppBar>
+            <UpdateNoticeBanner />
         </Authorized>
     </AuthorizeView>
 
     <MudMainContent>
-        @Body
+        <CascadingValue Value="_navigation">
+            @if (CurrentPath == "/" || ProductWorkspace.IsOptimizationPath(CurrentPath))
+            {
+                <AuthorizeView>
+                    <Authorized>
+                        @if (_menuError)
+                        {
+                            <p class="pa-4" role="alert">Company navigation could not be loaded. <button @onclick="LoadMenu">Retry</button></p>
+                        }
+                        else if (_navigation is null)
+                        {
+                            <p class="pa-4" role="status">Loading company navigation�</p>
+                        }
+                        else if (CurrentPath == "/" || !_navigation.Optimization)
+                        {
+                            <Home Destination="@ProductWorkspace.LandingRoute(_navigation, _products)" />
+                        }
+                        else { @Body }
+                    </Authorized>
+                    <NotAuthorized>@Body</NotAuthorized>
+                </AuthorizeView>
+            }
+            else { @Body }
+        </CascadingValue>
     </MudMainContent>
 </MudLayout>
 
-@if (_showSettings && _isAdmin) { <SettingsWindow OnClose="()=>_showSettings=false" /> }
+@if (_showAlert && _canPublish && _isAdmin) { <SendUpdateNotice OnClose="()=>_showAlert=false" /> }
+@if (_showSettings && _isAdmin) { <SettingsWindow OnClose="()=>_showSettings=false" OnSaved="TenantSaved" /> }
 @if (_showTenant && _isAdmin) { <SettingsWindow EditTenant="true" OnClose="()=>_showTenant=false" OnSaved="TenantSaved" /> }
 
 @code {
     private bool _isAdmin, _canViewLog, _showSettings;
-    private bool _showTenant;
+    private bool _showTenant, _canPublish, _showAlert;
     private bool _loggingOut;
-    private TenantNavigationSettings _navigation = new();
+    private TenantNavigationSettings? _navigation;
+    private bool _menuError;
+    private string CurrentPath => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant() is { Length: > 0 } path ? path : "/";
+    private async Task LoadMenu()
+    {
+        _menuError = false;
+        _navigation = null;
+        try
+        {
+            _products = await Api.GetFromJsonAsync<List<ProductDto>>("api/v1/me/products") ?? [];
+            _navigation = await Api.GetFromJsonAsync<TenantNavigationSettings>("api/v1/me/navigation");
+            _menuError = _navigation is null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _menuError = true; }
+    }
     private void TenantSaved() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     private List<ProductDto> _products = [];
+
+    private void ExplainRestrictedAccess(ProductDto product)
+    {
+        if (!product.HasAccess)
+            Snackbar.Add($"Ask your administrator to assign you a role in {product.Name} to open this application.", Severity.Info);
+    }
 
     private string HeaderClass(ProductDto product) =>
         ProductWorkspace.CodeFor(new Uri(Navigation.Uri).AbsolutePath) == product.Code
@@ -114,9 +161,9 @@
         var user = AuthState is null ? null : (await AuthState).User;
         if (user?.Identity?.IsAuthenticated != true)
         {
-            _isAdmin = _canViewLog = false;
+            _isAdmin = _canViewLog = _canPublish = false;
             _products = [];
-            _navigation = new();
+            _navigation = null;
             return;
         }
 
@@ -125,15 +172,17 @@
         // Every destination/API continues to enforce its own authorization.
         _isAdmin = user.IsInRole("aurora:Admin");
         _canViewLog = _isAdmin || user.IsInRole("aurora:PowerUser");
-        try { _products = await Api.GetFromJsonAsync<List<ProductDto>>("api/v1/me/products") ?? []; }
-        catch (HttpRequestException) { _products = []; }
-        catch (TaskCanceledException) { _products = []; }
-        try { _navigation = await Api.GetFromJsonAsync<TenantNavigationSettings>("api/v1/me/navigation") ?? new(); }
-        catch (HttpRequestException) { }
-        catch (TaskCanceledException) { }
+        await LoadMenu();
         try { _isAdmin = await Api.GetFromJsonAsync<bool>("api/v1/me/is-administrator"); }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { }
+        _canPublish = false;
+        if (_isAdmin)
+        {
+            try { _canPublish = await Api.GetFromJsonAsync<bool>("api/v1/admin/update-notice/can-publish"); }
+            catch (HttpRequestException) { }
+            catch (TaskCanceledException) { }
+        }
         try { _canViewLog = await Api.GetFromJsonAsync<bool>("api/v1/me/can-view-applog"); }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { }

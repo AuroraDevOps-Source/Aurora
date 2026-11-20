@@ -13,7 +13,7 @@ public static class ImportedOrderEndpoints
         group.MapGet("/{batch:guid}/orders/{pro}",(Guid batch,string pro,OrderImportHistoryStore history,
             FirebirdRoutingSource native,TmsStore local,IConfiguration configuration,CancellationToken ct)=>AdminUserEndpoints.Guard(async()=>
         {
-            pro=OrderDocumentDraft.SplitTag(pro).Pro;
+            if (!pro.StartsWith("FB-",StringComparison.Ordinal)) pro=OrderDocumentDraft.SplitTag(pro).Pro;
             await history.RequireCreatedOrder(batch,pro,ct);
             if(!configuration.GetValue<bool>("Synchronization:LocalWorkspace"))return Results.Ok(await native.ReadImportedOrder(pro,ct));
             var order=await ReadLocal(local,pro,ct);
@@ -22,7 +22,7 @@ public static class ImportedOrderEndpoints
         group.MapPut("/{batch:guid}/orders/{pro}",(Guid batch,string pro,ImportedOrderEdit input,OrderImportHistoryStore history,
             FirebirdRoutingSource native,TmsStore local,IConfiguration configuration,CancellationToken ct)=>AdminUserEndpoints.Guard(async()=>
         {
-            pro=OrderDocumentDraft.SplitTag(pro).Pro;
+            if (!pro.StartsWith("FB-",StringComparison.Ordinal)) pro=OrderDocumentDraft.SplitTag(pro).Pro;
             await history.RequireCreatedOrder(batch,pro,ct);
             if(!configuration.GetValue<bool>("Synchronization:LocalWorkspace"))await native.SaveImportedOrder(pro,input,ct);
             else

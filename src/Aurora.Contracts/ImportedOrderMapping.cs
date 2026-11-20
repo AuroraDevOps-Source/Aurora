@@ -23,6 +23,9 @@ public static class ImportedOrderMapping
             else if(line.StartsWith("Shipper account ID: "))draft.ShipperAccountId=line["Shipper account ID: ".Length..];
             else if(line.StartsWith("Consignee account ID: "))draft.ConsigneeAccountId=line["Consignee account ID: ".Length..];
             else if(line.StartsWith("Bill-to account ID: "))draft.BillToAccountId=line["Bill-to account ID: ".Length..];
+            else if(line.StartsWith("Bill-to contact: "))draft.BillToContact=line["Bill-to contact: ".Length..];
+            else if(line.StartsWith("Bill-to phone: "))draft.BillToPhone=line["Bill-to phone: ".Length..];
+            else if(line.StartsWith("Bill-to email: "))draft.BillToEmail=line["Bill-to email: ".Length..];
             else if(line.StartsWith("Imported freight rows: ")){
                 try{draft.FreightLines=System.Text.Json.JsonSerializer.Deserialize<DocumentFreightLine[]>(line["Imported freight rows: ".Length..])??[];}
                 catch(System.Text.Json.JsonException){notes.Add(line);}
@@ -64,6 +67,10 @@ public static class ImportedOrderMapping
         foreach(var (part,field,property) in TextFields)typeof(TmsOrder).GetProperty(property)!.SetValue(order,Value(part,field));
         order.WorkType=Date("pickup","OPS_APPT_LOW") is not null && Date("delivery","OPS_APPT_LOW") is null?"Pickup":"Delivery";
         var draft=FromOrder(order);
+        string? ContactField(string key)=>parts["header"].Fields.FirstOrDefault(f=>f.Key==key)?.Value;
+        draft.BillToContact=ContactField("PBBCONTACTNAME");
+        draft.BillToPhone=ContactField("PBBCONTACTPHONE");
+        draft.BillToEmail=ContactField("PBBCONTACTEMAIL");
         draft.PurchaseOrder=Value("header","PBPURORD");
         foreach(var (part,_,_) in NovaImportAddress.Parties){
             var code=Value(part,part=="header"?"PB_BILL_ID":"OPS_ACCTID");
@@ -85,7 +92,19 @@ public static class ImportedOrderMapping
         void Set(string part,string field,object? value)=>values[parts[part].Key][field]=Convert.ToString(value,CultureInfo.InvariantCulture);
         // Start from the current record so contact fields, account IDs, address line 3,
         // inactive-stop appointments and other fields not shown in this form survive.
-        foreach(var (part,field,property) in TextFields)Set(part,field,typeof(TmsOrder).GetProperty(property)!.GetValue(draft.Order));
+        foreach(var (part,field,property) in TextFields)
+        {
+            var value=(string?)typeof(TmsOrder).GetProperty(property)!.GetValue(draft.Order);
+            Set(part,field,field switch
+            {
+                "PBBSTATE" or "OPS_STATE" => DocumentPartyAddress.RegionCode(value),
+                "PBBCOUNTRY" or "OPS_COUNTRY" => NovaDocumentImport.CountryCode(value),
+                _ => value
+            });
+        }
+        if(draft.BillToContact is not null)Set("header","PBBCONTACTNAME",draft.BillToContact);
+        if(draft.BillToPhone is not null)Set("header","PBBCONTACTPHONE",draft.BillToPhone);
+        if(draft.BillToEmail is not null)Set("header","PBBCONTACTEMAIL",draft.BillToEmail);
         Set("header","PBPURORD",draft.PurchaseOrder);
         Set("header","PB_STATUS",draft.NativeStatusId);Set("header","PB_LOCATION",draft.Order.TerminalCode);
         Set("header","PBBOL",string.IsNullOrWhiteSpace(draft.HouseAirWaybill)?draft.BillOfLading:draft.HouseAirWaybill);

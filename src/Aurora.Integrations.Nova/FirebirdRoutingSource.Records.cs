@@ -30,6 +30,7 @@ public sealed partial class FirebirdRoutingSource
         new("PBTPIECE","Total pieces","number"),new("PBTWEIGH","Total weight","number"),new("PB_TTL_CUBE","Total cubes","number"),
         new("PBBNAME","Bill-to name",Length:40),new("PBBADDR1","Bill-to address",Length:50),new("PBBADDR2","Bill-to address 2",Length:50),
         new("PBBCITY","Bill-to city",Length:35),new("PBBSTATE","Bill-to state",Length:2),new("PBBZIP","Bill-to ZIP",Length:9),new("PBBCOUNTRY","Bill-to country",Length:4),
+        new("PBBCONTACTNAME","Bill-to contact",Length:40),new("PBBCONTACTPHONE","Bill-to phone",Length:32),new("PBBCONTACTEMAIL","Bill-to email",Length:150),
         new("PB_BILL_ID","Bill-to account","account-id",12)];
     private static readonly Field[] StopFields = [
         new("OPS_NAME","Name",Length:40),new("OPS_ADDR1","Address",Length:50),new("OPS_ADDR2","Address 2",Length:50),new("OPS_ADDR3","Address 3",Length:50),
@@ -50,6 +51,7 @@ public sealed partial class FirebirdRoutingSource
     {
         RecordKind(kind);
         if(page<0 || page>100000 || search?.Length>100)throw new FormatException("Invalid search or page.");
+        var pageSize = kind == "orders" ? 250 : 50;
         await using var db=await Open(ct);
         int[] pickupStatuses=[-1];
         if(kind=="orders")
@@ -63,6 +65,7 @@ public sealed partial class FirebirdRoutingSource
             : " AND (CAST(h.PB_ID AS VARCHAR(30)) CONTAINING @search OR h.PB_ID=@nativeOrderId OR CAST(h.PBNUM AS VARCHAR(30)) CONTAINING @search OR h.PBBOL CONTAINING @search OR EXISTS(SELECT 1 FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND (s.OPS_NAME CONTAINING @search OR s.OPS_CITY CONTAINING @search)))";
         var sql=kind=="fleet" ? """
             SELECT h.EH_ID AS Id, TRIM(h.EH_UNIT_ID) AS Number, TRIM(t.CTT_DESC) AS Description,
+                COALESCE(TRIM(h.EH_MAKE),'') AS Make, COALESCE(TRIM(h.EH_MODEL),'') AS Model,
                 COALESCE(TRIM(h.EH_DOMICILE),'') AS Terminal, 'Active' AS Status,
                 h.EH_MAX_WEIGHT AS Weight, h.EH_MAX_CUBE AS Cubes,
                 h.EH_TOT_FIXED_COST_HR AS PerHour, h.EH_TOT_VAR_COST_MI AS PerMile,
@@ -103,8 +106,8 @@ public sealed partial class FirebirdRoutingSource
             filter+=$" AND EXISTS(SELECT 1 FROM OPS_STOP_REC s WHERE s.OPS_ORDER_ID=h.PB_ID AND {NativeRoutingSql.Ready()})";
         }
         else if(kind=="orders" && status is not null)filter+=$" AND {NativeRoutingSql.Status("h","currentStop")}=@status";
-        var rows=(await db.QueryAsync<RecordRow>(new CommandDefinition(sql+filter+(kind=="fleet"?" ORDER BY h.EH_UNIT_ID":" ORDER BY h.PB_ID DESC")+" ROWS @first TO @last",new { search=search?.Trim(),nativeOrderId=NovaOrderSearch.NativeId(search),terminal,status,readyStatuses,pickupStatuses,first=page*50+1,last=page*50+51 },cancellationToken:ct))).ToArray();
-        var routing=kind=="orders"?await OrderRouting(rows.Take(50).Select(r=>r.Id).ToArray(),ct):new Dictionary<long,OrderRoutingRow>();
+        var rows=(await db.QueryAsync<RecordRow>(new CommandDefinition(sql+filter+(kind=="fleet"?" ORDER BY h.EH_UNIT_ID":" ORDER BY h.PB_ID DESC")+" ROWS @first TO @last",new { search=search?.Trim(),nativeOrderId=NovaOrderSearch.NativeId(search),terminal,status,readyStatuses,pickupStatuses,first=page*pageSize+1,last=page*pageSize+pageSize+1 },cancellationToken:ct))).ToArray();
+        var routing=kind=="orders"?await OrderRouting(rows.Take(pageSize).Select(r=>r.Id).ToArray(),ct):new Dictionary<long,OrderRoutingRow>();
         var manifests=new Dictionary<long,long[]>();
         if(kind=="orders" && rows.Length>0)
         {
@@ -118,11 +121,12 @@ public sealed partial class FirebirdRoutingSource
                 JOIN OPS_STOP_REC route ON route.OPS_STOP_ID=link.OSM_STOP_ID
                 JOIN OPS_HEADER m ON m.PB_ID=route.OPS_ORDER_ID
                 WHERE s.OPS_ORDER_ID IN @ids AND m.PB_TYPE='M' AND m.PB_DT_CANC IS NULL AND NOT EXISTS(SELECT 1 FROM CT_STAT ms WHERE ms.CTS_ID=m.PB_STATUS AND TRIM(ms.CTS_CODE)='CPLT')
-                """,new { ids=rows.Take(50).Select(r=>r.Id).ToArray() },cancellationToken:ct));
+                """,new { ids=rows.Take(pageSize).Select(r=>r.Id).ToArray() },cancellationToken:ct));
             manifests=links.GroupBy(l=>l.OrderId).ToDictionary(g=>g.Key,g=>g.Select(l=>l.ManifestNumber).Distinct().Order().ToArray());
         }
-        return new(rows.Take(50).Select(r=>new NovaRecordSummary(r.Id,r.Number,r.Description,r.Terminal,r.Status)
+        return new(rows.Take(pageSize).Select(r=>new NovaRecordSummary(r.Id,r.Number,r.Description,r.Terminal,r.Status)
         {
+            Make=r.Make, Model=r.Model,
             WorkType=r.WorkType,
             StatusCode=r.StatusCode,
             AppointmentFrom=r.AppointmentFrom, AppointmentTo=r.AppointmentTo, TimeZone=Options.TimeZoneId,
@@ -134,9 +138,11 @@ public sealed partial class FirebirdRoutingSource
                 ? DataRequirements.Fleet(r.Terminal,r.KnownTerminal is not null,r.Street,r.City,r.PostalCode,r.Weight,r.Cubes).Concat(DataRequirements.VehicleCosts(r.PerHour,r.PerMile)).ToArray()
                 : DataRequirements.Order(r.Deliveries,r.MissingCoordinates,r.Terminal,r.KnownTerminal is not null).Select(i=>r.WorkType=="Pickup"?i with {Message=i.Message.Replace("delivery","pickup",StringComparison.OrdinalIgnoreCase)}:i)
                     .Concat(r.CompletedDeliveries > 0 ? new[] { new DataRequirementIssue("order-delivered", "This stop is already completed in Nova.") } : []).ToArray()
-        }).ToArray(),rows.Length>50);
+        }).ToArray(),rows.Length>pageSize);
     }
     private sealed class RecordRow {
+        public string Make {get;set;}="";
+        public string Model {get;set;}="";
         public string StatusCode {get;set;}="";
         public DateTime? AppointmentFrom {get;set;} public DateTime? AppointmentTo {get;set;}
         public double? Latitude {get;set;} public double? Longitude {get;set;}
@@ -158,9 +164,10 @@ public sealed partial class FirebirdRoutingSource
     }
     public async Task<long> ResolveOrderPro(string pro,CancellationToken ct)
     {
-        if(!long.TryParse(pro,out var number) || number<=0)throw new FormatException("A positive numeric PRO is required.");
+        var byId=pro.StartsWith("FB-",StringComparison.Ordinal);
+        if(!long.TryParse(byId?pro[3..]:pro,out var number) || number<=0)throw new FormatException("A positive numeric PRO is required.");
         await using var db=await Open(ct);
-        var ids=(await db.QueryAsync<long>(new CommandDefinition("SELECT FIRST 2 PB_ID FROM OPS_HEADER WHERE PBNUM=@number AND PB_TYPE='O' AND PB_DT_CANC IS NULL",new{number},cancellationToken:ct))).ToArray();
+        var ids=(await db.QueryAsync<long>(new CommandDefinition($"SELECT FIRST 2 PB_ID FROM OPS_HEADER WHERE {(byId?"PB_ID":"PBNUM")}=@number AND PB_TYPE='O' AND PB_DT_CANC IS NULL",new{number},cancellationToken:ct))).ToArray();
         if(ids.Length==0)throw new KeyNotFoundException("Order no longer exists or is not editable here.");
         if(ids.Length>1)throw new FormatException("More than one order has this PRO. Open it from the orders list.");
         return ids[0];

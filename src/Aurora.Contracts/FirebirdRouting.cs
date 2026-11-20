@@ -33,6 +33,10 @@ public sealed class NovaManifest
 }
 public sealed class NovaManifestOrder
 {
+    public long NativeStopId { get; set; }
+    public DateTimeOffset? PlannedArrival { get; set; }
+    public DateTimeOffset? PlannedDeparture { get; set; }
+    public DateTimeOffset? PlannedRouteDeparture { get; set; }
     public bool Completed { get; set; }
     public string Status { get; set; } = "";
     public string Reference { get; set; } = "";

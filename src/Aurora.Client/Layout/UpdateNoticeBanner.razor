@@ -1,0 +1,40 @@
+@implements IDisposable
+@inject HttpClient Api
+
+@if (_notice?.UpdateAt is {} when && when.AddMinutes(1) > DateTimeOffset.UtcNow)
+{
+    <aside class="update-notice" role="alert">@UpdateNotice.FormatMessage(_notice.MessageTemplate, when)</aside>
+}
+
+@code {
+    private readonly CancellationTokenSource _stop = new();
+    private UpdateNotice? _notice;
+
+    protected override void OnInitialized() => _ = Monitor(_stop.Token);
+
+    private async Task Monitor(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            do
+            {
+                try
+                {
+                    _notice = await Api.GetFromJsonAsync<UpdateNotice>("api/v1/me/update-notice", ct);
+                }
+                catch (HttpRequestException) { }
+                catch (AccessTokenNotAvailableException) { return; }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
+                if (!ct.IsCancellationRequested) await InvokeAsync(StateHasChanged);
+            } while (await timer.WaitForNextTickAsync(ct));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+    }
+
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _stop.Dispose();
+    }
+}

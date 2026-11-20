@@ -65,7 +65,7 @@ public sealed class TmsStore(NpgsqlConnectionFactory factory, ITenantContext ten
         await using var db=await factory.OpenConnectionAsync(ct); await using var tx=await db.BeginTransactionAsync(ct);
         await OperationalOutbox.Lock(db,tx,tenant.TenantId,ct);
         if(create && (await db.QueryAsync<string>(new CommandDefinition(ExistingProSql,new{tenant.TenantId,ids=new[]{item.Id.Trim().TrimStart('0')}},tx,cancellationToken:ct))).Any())
-            throw new FormatException($"PRO {item.Id} already exists in Aurora (including deleted orders). No order was created.");
+            throw new DuplicateProException($"PRO {item.Id} already exists in Aurora (including deleted orders). No order was created.");
         if (item.TerminalId is {} terminalId && await db.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("SELECT id FROM aurora_terminal WHERE tenant_id=@TenantId AND id=@terminalId AND deleted_at IS NULL FOR SHARE", new {tenant.TenantId,terminalId},tx,cancellationToken:ct)) is null)
             throw new FormatException("Choose a saved terminal from your company.");
         foreach (var nodeId in new[] { item.PickupNodeId, item.DeliverToNodeId }.OfType<Guid>())

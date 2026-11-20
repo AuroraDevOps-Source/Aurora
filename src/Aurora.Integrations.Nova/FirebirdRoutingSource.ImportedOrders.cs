@@ -19,20 +19,21 @@ public sealed partial class FirebirdRoutingSource
         var record=await ReadRecord(db,tx,"orders",id,false,ct);
         var notes=await db.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PB_NOTES FROM OPS_HEADER WHERE PB_ID=@id",new{id},tx,cancellationToken:ct))??"";
         var draft=ImportedOrderMapping.Read(record,notes,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId));
-        var lines=await db.QueryAsync<(decimal? Pieces, string? Description,decimal? Weight,string? Cube)>(new CommandDefinition(
-            "SELECT OPL_PIECES,OPL_DESC,OPL_WEIGHT,OPL_CUBE FROM OPS_LINE_ITEMS WHERE OPL_ORDER_ID=@id ORDER BY OPL_SEQUENCE",new{id},tx,cancellationToken:ct));
-        draft.FreightLines=lines.Select(l=>new DocumentFreightLine{Pieces=l.Pieces,Description=l.Description,WeightLb=l.Weight,
+        var lines=await db.QueryAsync<(decimal? Pieces, string? Description,decimal? Weight,string? Cube,decimal? DimWeight)>(new CommandDefinition(
+            "SELECT OPL_PIECES,OPL_DESC,OPL_WEIGHT,OPL_CUBE,OPL_DIM_WGT FROM OPS_LINE_ITEMS WHERE OPL_ORDER_ID=@id ORDER BY OPL_SEQUENCE",new{id},tx,cancellationToken:ct));
+        draft.FreightLines=lines.Select(l=>new DocumentFreightLine{Pieces=l.Pieces,Description=l.Description,WeightLb=l.Weight,DimWeightLb=l.DimWeight,
             CubeFt3=decimal.TryParse(l.Cube,NumberStyles.Number,CultureInfo.InvariantCulture,out var cube)?cube:null}).ToArray();
         return new(ImportRevision(record,notes),draft,true);
     }
 
     public async Task SaveImportedOrder(string pro,ImportedOrderEdit input,CancellationToken ct,bool rollbackOnly=false)
     {
-        if(input.Draft.Order.Id!=pro || OrderDocumentDraft.SplitTag(input.Draft.TagNumber).Pro!=pro)throw new FormatException("The PRO number cannot be changed on an existing order.");
         var id=await ResolveOrderPro(pro,ct);
         await using var db=await Open(ct);await using var tx=BeginCreate(db);
         var current=await ReadRecord(db,tx,"orders",id,true,ct);
         var notes=await db.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PB_NOTES FROM OPS_HEADER WHERE PB_ID=@id",new{id},tx,cancellationToken:ct))??"";
+        var original=ImportedOrderMapping.Read(current,notes,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId));
+        if(input.Draft.Order.Id!=original.Order.Id || input.Draft.TagNumber!=original.TagNumber)throw new FormatException("The PRO number cannot be changed on an existing order.");
         if(input.Revision!=ImportRevision(current,notes))throw new FormatException("This order changed in Nova. Close and reopen it before saving.");
         var values=ImportedOrderMapping.Edit(current,input.Draft,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId),notes,input.ClearSchedule);
         var parties=ImportedOrderMapping.Parts(current);

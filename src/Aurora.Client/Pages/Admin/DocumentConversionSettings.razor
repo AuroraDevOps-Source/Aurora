@@ -1,95 +1,128 @@
-@inject IHttpClientFactory Clients
+@page "/aurora/document-conversion"
+@attribute [Authorize(Roles = "aurora:Admin")]
+@inject HttpClient Http
 @using System.Text.Json
 
-@if (Settings.GlobalDocumentSettings is {} global)
-{
- <label class="field">Global extraction instructions
-  <textarea rows="5" readonly="@(!global.CanEdit)" maxlength="@TenantSettingsDto.MaxGlobalInstructionsLength"
-            value="@(Settings.GlobalInstructionsEdit ?? global.Instructions)" @oninput="EditGlobal"></textarea>
- </label>
- <p class="preview-footnote">These rules apply to every tenant.</p>
-}
-<label class="field">Company extraction instructions
- <textarea rows="9" maxlength="@TenantSettingsDto.MaxDocumentInstructionsLength"
-           @bind="Settings.DocumentExtractionInstructions" @bind:event="oninput" @bind:after="ClearPreview"></textarea>
-</label>
-<p class="preview-footnote">Describe how to read your company’s forms. Leave blank to use Aurora’s standard fields and extraction rules.</p>
-
-<fieldset class="edit-group">
- <legend>Test with a sample</legend>
- <label class="field">Sample document (up to 10 MB)
-  <InputFile OnChange="ChooseSample" accept=".pdf,.csv,.tsv,.txt,.xlsx,.docx,.tif,.tiff,.jpg,.jpeg,.png,.webp,.gif,.bmp" />
- </label>
- <button type="button" class="outline-button" disabled="@(_sample is null || _previewing)" @onclick="Preview">Preview extraction</button>
- <p class="preview-footnote">Test the instructions above before saving. The sample stays out of Recent imports.</p>
- @if (_previewing) { <p role="status">Extracting orders from the sample…</p> }
- @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
- @if (_orders is not null)
- {
-  <p role="status">@_orders.Length @(_orders.Length == 1 ? "order extracted" : "orders extracted").</p>
-  @foreach (var draft in _orders)
+<PageTitle>Aurora · Shipper Prompts</PageTitle>
+<div class="tms-workspace">
+ <AuroraSidebar />
+ <main class="tms-main">
+  <header class="planner-header"><h1>Shipper Prompts</h1></header>
+  @if (_settings is null)
   {
-   <details class="sample-order" open="@(_orders.Length == 1)">
-    <summary>@(string.IsNullOrWhiteSpace(draft.Pro) ? "Unassigned PRO" : $"PRO {draft.Pro}") · @(string.IsNullOrWhiteSpace(draft.Consignee) ? "Consignee missing" : draft.Consignee)</summary>
-    <pre>@JsonSerializer.Serialize(draft.Fields, PreviewJson)</pre>
-   </details>
+   @if (_error is null) { <p role="status">Loading rules…</p> }
+   else { <p class="alert" role="alert">@_error</p><button class="outline-button" @onclick="Load">Retry</button> }
   }
- }
-</fieldset>
+  else
+  {
+   <section class="planning-card">
+    <div class="rule-toolbar">
+     <h2>Form rules</h2>
+     <button class="primary-button" @onclick="() => Open(ActionKind.Add)">Add</button>
+    </div>
+    <div class="manifest-table-wrap">
+     <table class="manifest-table" aria-label="Shipper prompts">
+      <thead><tr><th>Issuing company</th><th>Form title</th><th>Account code</th><th aria-label="Actions"></th></tr></thead>
+      <tbody>
+       @foreach (var rule in _settings.DocumentFormRules ?? [])
+       {
+        <tr @key="rule" class="prompt-row" @onclick="() => Open(ActionKind.Edit, rule)">
+         <td><button type="button" @onclick:stopPropagation="true" class="text-button" @onclick="() => Open(ActionKind.Edit, rule)">@rule.Issuer</button></td>
+         <td>@rule.Form</td><td>@rule.Account</td>
+         <td><button type="button" class="text-button" aria-label="@($"Delete {rule.Issuer} {rule.Form} {rule.Account}")" @onclick:stopPropagation="true" @onclick="() => Open(ActionKind.Delete, rule)">Delete</button></td>
+        </tr>
+       }
+       @if (_settings.DocumentFormRules is not { Count: > 0 }) { <tr><td colspan="4">No form rules.</td></tr> }
+      </tbody>
+     </table>
+    </div>
+    @if (_message is not null) { <p role="status">@_message</p> }
+   </section>
+  }
+ </main>
+</div>
+@if (_draft is not null)
+{
+ <EditPopup Title="@DialogTitle" Busy="@_saving" OnClose="Close" Class="settings-dialog">
+  @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+   <fieldset disabled="@_saving">
+    @if (_action == ActionKind.Delete)
+    {
+     <p>Delete the form rule for <strong>@_selected?.Issuer</strong>@(string.IsNullOrEmpty(_selected?.Form) ? "" : $" · {_selected.Form}")@(string.IsNullOrEmpty(_selected?.Account) ? "" : $" · {_selected.Account}")?</p>
+    }
+    else if (_rule is not null)
+    {
+     <label class="field">Issuing company<input maxlength="160" @bind="_rule.Issuer" /></label>
+     <label class="field">Form title (optional)<input maxlength="160" @bind="_rule.Form" /></label>
+     <label class="field">Account code (optional)<input maxlength="160" @bind="_rule.Account" /></label>
+     <label class="field">Instructions for this form<textarea rows="6" maxlength="4000" @bind="_rule.Instructions"></textarea></label>
+     <label><input type="checkbox" @bind="_rule.UsePrintedPro" /> Use a separately labeled PRO when present</label>
+    }
+   </fieldset>
+   <div class="popup-actions">
+    <button class="outline-button" disabled="@_saving" @onclick="Close">Cancel</button>
+    <button class="primary-button" disabled="@_saving" @onclick="Save">@(_action == ActionKind.Delete ? "Delete rule" : "Save")</button>
+   </div>
+ </EditPopup>
+}
 
 @code {
-    [Parameter, EditorRequired] public TenantSettingsDto Settings { get; set; } = null!;
-    [Parameter] public EventCallback<bool> PreviewingChanged { get; set; }
-    const long MaxBytes = 10 * 1024 * 1024;
-    static readonly JsonSerializerOptions PreviewJson = new() { WriteIndented = true };
-    IBrowserFile? _sample;
-    DocumentExtractionSample[]? _orders;
-    bool _previewing;
-    string? _error;
+    const string SettingsUrl = "api/v1/admin/settings";
+    enum ActionKind { Add, Edit, Delete }
+    TenantSettingsDto? _settings, _draft;
+    DocumentFormRule? _selected, _rule;
+    ActionKind _action;
+    bool _saving;
+    string? _error, _message;
 
-    void EditGlobal(ChangeEventArgs e)
+    string DialogTitle => _action switch
     {
-        var value = e.Value?.ToString() ?? "";
-        Settings.GlobalInstructionsEdit = value == Settings.GlobalDocumentSettings?.Instructions ? null : value;
-        ClearPreview();
+        ActionKind.Add => "Add form rule",
+        ActionKind.Edit => "Edit form rule",
+        _ => "Delete form rule"
+    };
+
+    protected override Task OnInitializedAsync() => Load();
+
+    async Task Load()
+    {
+        _error = null;
+        try { _settings = await Http.GetFromJsonAsync<TenantSettingsDto>(SettingsUrl) ?? throw new InvalidOperationException("Could not load rules."); }
+        catch (Exception ex) { _error = ex.Message; }
     }
 
-    void ClearPreview() { _orders = null; _error = null; }
-
-    void ChooseSample(InputFileChangeEventArgs e)
+    void Open(ActionKind action, DocumentFormRule? selected = null)
     {
-        ClearPreview();
-        _sample = e.File;
-        if (_sample.Size is <= 0 or > MaxBytes)
-        {
-            _sample = null;
-            _error = "Choose a nonempty sample up to 10 MB.";
-        }
+        if (_settings is null) return;
+        _selected = selected;
+        _action = action;
+        _error = _message = null;
+        _draft = JsonSerializer.Deserialize<TenantSettingsDto>(JsonSerializer.Serialize(_settings))!;
+        var rules = _draft.DocumentFormRules ??= [];
+        var index = _selected is null ? -1 : _settings.DocumentFormRules!.IndexOf(_selected);
+        _rule = index >= 0 ? rules[index] : null;
+        if (action == ActionKind.Add) { _rule = new(); rules.Add(_rule); }
+        if (action == ActionKind.Delete) { rules.RemoveAt(index); _rule = null; }
     }
 
-    async Task Preview()
+    void Close() { _draft = null; _rule = null; _selected = null; _error = null; }
+
+    async Task Save()
     {
-        if (_previewing || _sample is null) return;
-        ClearPreview();
-        _previewing = true;
-        await PreviewingChanged.InvokeAsync(true);
+        if (_draft is null || _saving) return;
+        _saving = true;
+        _error = null;
         try
         {
-            using var http = Clients.CreateClient(ApiClients.Authorized);
-            http.Timeout = TimeSpan.FromMinutes(6);
-            using var form = new MultipartFormDataContent();
-            form.Add(new StreamContent(_sample.OpenReadStream(MaxBytes)), "file", _sample.Name);
-            form.Add(new StringContent(Settings.DocumentExtractionInstructions ?? ""), "instructions");
-            if (Settings.GlobalInstructionsEdit is {} global) form.Add(new StringContent(global), "globalInstructions");
-            using var response = await http.PostAsync("api/v1/admin/settings/document-preview", form);
+            DocumentFormRule.Validate(_draft.DocumentFormRules!);
+            using var response = await Http.PutAsJsonAsync(SettingsUrl, _draft);
             await ApiResponse.Check(response);
-            _orders = await response.Content.ReadFromJsonAsync<DocumentExtractionSample[]>();
+            _draft.Revision++;
+            _settings = _draft;
+            _message = _action == ActionKind.Delete ? "Rule deleted." : "Rule saved.";
+            Close();
         }
         catch (Exception ex) { _error = ex.Message; }
-        finally
-        {
-            _previewing = false;
-            await PreviewingChanged.InvokeAsync(false);
-        }
+        finally { _saving = false; }
     }
 }

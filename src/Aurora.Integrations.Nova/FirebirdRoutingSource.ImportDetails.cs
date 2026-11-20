@@ -21,10 +21,15 @@ public sealed partial class FirebirdRoutingSource
             var args = new { id, stop, seq = index + 1, description = description[..Math.Min(description.Length,50)],
                 pieces = single ? draft.Order.Pieces : line.Pieces, weight = single ? draft.Order.Weight : line.WeightLb,
                 cube = (line.Volume ?? (single && draft.Order.Cube>0 ? draft.Order.Cube : (decimal?)null))?.ToString("0.####",CultureInfo.InvariantCulture) };
-            await db.ExecuteAsync(new CommandDefinition("""
-                INSERT INTO OPS_LINE_ITEMS (OPL_ORDER_ID,OPL_STOP_ID,OPL_SEQUENCE,OPL_DESC,OPL_PIECES,OPL_WEIGHT,OPL_CUBE)
-                VALUES (@id,@stop,@seq,@description,@pieces,@weight,@cube)
-                """,args,tx,cancellationToken:ct));
+            if (line.DimWeightLb is < 0) throw new FormatException("Dimensional weight cannot be negative.");
+            var dimColumn = line.DimWeightLb.HasValue ? ",OPL_DIM_WGT" : "";
+            var dimParameter = line.DimWeightLb.HasValue ? ",@dimWeight" : "";
+            var parameters = new DynamicParameters(args);
+            if (line.DimWeightLb.HasValue) parameters.Add("dimWeight", line.DimWeightLb.Value);
+            await db.ExecuteAsync(new CommandDefinition($"""
+                INSERT INTO OPS_LINE_ITEMS (OPL_ORDER_ID,OPL_STOP_ID,OPL_SEQUENCE,OPL_DESC,OPL_PIECES,OPL_WEIGHT,OPL_CUBE{dimColumn})
+                VALUES (@id,@stop,@seq,@description,@pieces,@weight,@cube{dimParameter})
+                """,parameters,tx,cancellationToken:ct));
         }
     }
 

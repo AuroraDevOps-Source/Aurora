@@ -33,6 +33,21 @@ public sealed class AppLog(NpgsqlDataSource dataSource, ITenantContext tenant, I
         value = System.Text.RegularExpressions.Regex.Replace(value, @"(?i)(password|pwd|token|secret|authorization|connectionstring)\s*[:=]\s*[^;\s,]+", "$1=[redacted]");
         return value.Length > 1000 ? value[..1000] : value;
     }
+    private static string? ImportActivity(string path)
+    {
+        if(path.StartsWith("/api/v1/tms/orders/import/history/",StringComparison.Ordinal) && path.EndsWith("/counts",StringComparison.Ordinal))
+            return "Saved import review counts";
+        return path switch
+        {
+            "/api/v1/tms/orders/convert-document/jobs" => "Queued document conversion",
+            "/api/v1/tms/orders/convert-document" => "Converted document for review",
+            "/api/v1/tms/orders/import/addresses" => "Checked import addresses",
+            "/api/v1/tms/orders/import/check" => "Checked for existing orders",
+            "/api/v1/tms/orders/import/mapping-rule" => "Saved document mapping",
+            "/api/v1/aurora/firebird/orders/import/preflight" => "Checked Nova import readiness",
+            _ => null
+        };
+    }
     public static string Describe(string path, string method, int status)
     {
         string action;
@@ -42,6 +57,7 @@ public sealed class AppLog(NpgsqlDataSource dataSource, ITenantContext tenant, I
         if (path.Contains("/auth/logout")) return "Logged out";
         if (path.Contains("/sessions") || path.Contains("/optimizations"))
             action = path.Contains("/accept/") ? "Accepted optimization plan" : path.EndsWith("/stop") ? "Stopped optimization" : "Ran optimization";
+        else if (ImportActivity(path) is {} importActivity) action=importActivity;
         else if (path.EndsWith("/finish")) action = "Created manifests";
         else if (path.EndsWith("/dispatch") && method == "POST") action = "Dispatched manifest";
         else if (path.EndsWith("/assignment") && method == "PUT") action = "Assigned manifest";
@@ -63,6 +79,7 @@ public sealed class AppLog(NpgsqlDataSource dataSource, ITenantContext tenant, I
         && !context.Request.Path.Value!.EndsWith("/road-route");
     private static string DisplayAction(AppLogEntry entry) => entry.Action switch
     {
+        _ when ImportActivity(entry.Resource) is {} action=>entry.StatusCode>=400 ? action+" — failed" : action,
         _ when entry.Resource is "/api/auth/nova-launch" or "/api/auth/nova/redeem" or "/api/auth/nova/token"=>Describe(entry.Resource,"POST",entry.StatusCode),
         "Sign in"=>"Logged in", "Sign out"=>"Logged out", "Sign-in failed"=>"Login failed",
         _ when entry.Action.StartsWith("Create / run")=>Describe(entry.Resource,"POST",entry.StatusCode),

@@ -49,32 +49,9 @@ public static class AtlasDeliveryTickets
             var ids = new HashSet<string>();
             foreach (var ticket in tickets)
             {
-                var text = ticket.ToString().TrimEnd();
-                var h = Header.Match(text);
-                if (!h.Success || !ids.Add(h.Groups["id"].Value)) return null;
-                var lines = new List<DocumentFreightLine>();
-                var offset = h.Length;
-                while (Box.Match(text, offset) is { Success: true } box)
-                {
-                    decimal Number(string key) => decimal.Parse(box.Groups[key].Value, CultureInfo.InvariantCulture);
-                    lines.Add(new() { Pieces=1, Description=box.Groups["box"].Value+" "+box.Groups["desc"].Value,
-                        Length=Number("l"), Width=Number("w"), Height=Number("h"), WeightLb=Number("lb") });
-                    offset += box.Length;
-                }
-                var service = Service.Match(text[offset..]);
-                if (lines.Count == 0 || !service.Success) return null;
-                var handling = service.Groups["handling"].Value;
-                // Appointment/date interpretation beyond the verified ticket vocabulary goes through AI.
-                var knownHandling = handling is "None" or "Dolly to door" or "Room of choice with assembly"
-                    or "Room of choice with assembly There is an elevator but the building is locked, so we will need to be in touch day of delivery."
-                    || NoEarlierThan.IsMatch(handling);
-                if (!knownHandling || service.Groups["service"].Value is not ("Ground-level Door" or "Inside + Assembly")) return null;
-                var draft = new OrderDocumentDraft { TagNumber=h.Groups["id"].Value, DocumentType="Other", FreightLines=lines.ToArray() };
-                var order = draft.Order;
-                order.WorkType="Delivery"; order.Customer=h.Groups["name"].Value; order.Address=h.Groups["street"].Value;
-                order.PostalCode=h.Groups["zip"].Value; order.City=h.Groups["city"].Value;
-                order.Notes=$"Phone: {h.Groups["phone"].Value}\nEmail: {h.Groups["email"].Value}\nDelivery Service: {service.Groups["service"].Value}\nDelivery Instruction: {handling}";
-                draft.Normalize(); draft.ApplyFreightTotals(); result.Add(draft);
+                var draft = ReadTicket(ticket.ToString().TrimEnd());
+                if (draft is null || !ids.Add(draft.BillOfLading)) return null;
+                result.Add(draft);
             }
             return result.Count > 0 ? result : null;
         }
@@ -84,4 +61,36 @@ public static class AtlasDeliveryTickets
             return null;
         }
     }
+
+    // Shared by the PDF reader and focused layout checks. Unknown layouts fall back to extraction.
+    private static OrderDocumentDraft? ReadTicket(string text)
+    {
+        var h = Header.Match(text);
+        if (!h.Success) return null;
+        var lines = new List<DocumentFreightLine>();
+        var offset = h.Length;
+        while (Box.Match(text, offset) is { Success: true } box)
+        {
+            decimal Number(string key) => decimal.Parse(box.Groups[key].Value, CultureInfo.InvariantCulture);
+            lines.Add(new() { Pieces=1, Description=box.Groups["box"].Value+" "+box.Groups["desc"].Value,
+                Length=Number("l"), Width=Number("w"), Height=Number("h"), WeightLb=Number("lb") });
+            offset += box.Length;
+        }
+        var service = Service.Match(text[offset..]);
+        if (lines.Count == 0 || !service.Success) return null;
+        var handling = service.Groups["handling"].Value;
+        // Appointment/date interpretation beyond the verified ticket vocabulary goes through AI.
+        var knownHandling = handling is "None" or "Dolly to door" or "Room of choice with assembly"
+            or "Room of choice with assembly There is an elevator but the building is locked, so we will need to be in touch day of delivery."
+            || NoEarlierThan.IsMatch(handling);
+        if (!knownHandling || service.Groups["service"].Value is not ("Ground-level Door" or "Inside + Assembly")) return null;
+        var draft = new OrderDocumentDraft { BillOfLading=h.Groups["id"].Value, MappingSender="Article", MappingForm="Delivery Ticket",
+            PrintedIdentifiers=[new("Order #",h.Groups["id"].Value)], DocumentType="Other", FreightLines=lines.ToArray() };
+        var order = draft.Order;
+        order.WorkType="Delivery"; order.Customer=h.Groups["name"].Value; order.Address=h.Groups["street"].Value;
+        order.PostalCode=h.Groups["zip"].Value; order.City=h.Groups["city"].Value;
+        order.Notes=$"Phone: {h.Groups["phone"].Value}\nEmail: {h.Groups["email"].Value}\nDelivery Service: {service.Groups["service"].Value}\nDelivery Instruction: {handling}";
+        draft.Normalize(allowBlankPro:true); draft.ApplyFreightTotals(); return draft;
+    }
+
 }

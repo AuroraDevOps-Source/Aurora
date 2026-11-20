@@ -27,6 +27,8 @@ foreach(var role in new[]{"aurora:Admin","aurora:PowerUser","aurora:User","other
  Check((await app.Services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(user,null,policy)).Succeeded==(role is "aurora:Admin" or "aurora:PowerUser"),"viewer access: "+role);
 }
 Check(!AppLog.SafeDetail("Password=abc; pwd=def token=ghi secret=jkl").Contains("abc"),"credential redaction");
+Check(AppLog.Describe("/api/v1/tms/orders/convert-document/jobs","POST",202)=="Queued document conversion","Queuing a PDF does not log an order creation");
+Check(AppLog.Describe("/api/v1/aurora/firebird/orders/import","POST",200)=="Added order","Completed Nova writes retain their order creation label");
 Check(AppLog.Describe("/api/auth/login","POST",200)=="Logged in","plain login action");
 Check(AppLog.Describe("/api/v1/aurora/firebird/records/orders/10","PUT",200)=="Edited order","plain order edit");
 Check(AppLog.Describe("/api/v1/routing/sessions","POST",200)=="Ran optimization","plain optimization action");

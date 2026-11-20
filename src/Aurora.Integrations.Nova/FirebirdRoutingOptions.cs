@@ -5,6 +5,7 @@ namespace Aurora.Integrations.Nova;
 public sealed class FirebirdRoutingOptions
 {
     public bool Enabled { get; set; }
+    public bool ThirdPartyPayTypeOnImport { get; set; }
     public Guid TenantId { get; set; }
     public string ConnectionString { get; set; } = "";
     // Stable identity of this database, independent of credentials or hostname changes.

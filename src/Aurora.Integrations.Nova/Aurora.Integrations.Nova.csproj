@@ -3,4 +3,5 @@
   <ItemGroup><ProjectReference Include="../Aurora.Modules.Routing/Aurora.Modules.Routing.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../Aurora.Modules.Sync/Aurora.Modules.Sync.csproj" /></ItemGroup>
   <ItemGroup><PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="OrderDocumentImportChecks" /></ItemGroup>
 </Project>

@@ -26,7 +26,7 @@
             Navigation.NavigateToLogin("authentication/login", new InteractiveRequestOptions
             {
                 Interaction = InteractionType.SignIn,
-                ReturnUrl = Navigation.ToAbsoluteUri(ProductWorkspace.RouteFor(ProductWorkspace.Aurora)).AbsoluteUri
+                ReturnUrl = Navigation.ToAbsoluteUri("/").AbsoluteUri
             });
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JSException)

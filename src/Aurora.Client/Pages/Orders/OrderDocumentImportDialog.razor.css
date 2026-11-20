@@ -58,9 +58,8 @@
 .import-history-status.is-converting { background:#fff6df; color:#896522; }
 @media(max-width:800px) { .import-panels { grid-template-columns:1fr; gap:16px; } .import-entry { padding:16px 16px 0; } .import-action-bar { align-items:stretch; flex-direction:column; } .import-convert { justify-content:center; } }
 .import-order { border:1px solid #dce4ee; border-radius:10px; margin-bottom:16px; overflow:hidden; padding:0 14px 14px; background:#fff; }
-.import-order > summary { margin:0 -14px 14px; padding:12px 14px; background:#eaf0f8; color:#253b5a; font-weight:600; cursor:pointer; }
+.import-order > h3 { margin:0 -14px 14px; padding:12px 14px; background:#eaf0f8; color:#253b5a; font-weight:600; }
 .import-group { padding:14px; border:1px solid #dce4ee; border-radius:8px; background:#f5f7fb; margin-bottom:14px; }
-.import-duplicate { margin-bottom:14px; }
 .import-group h3 { margin:0 0 12px; color:#344c6d; font-size:13px; font-weight:700; }
 .import-parties { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .import-address { background:#f0f5fa; }
@@ -82,12 +81,28 @@
 .import-lines th,.import-lines td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid #d5e0eb}
 .import-lines th{color:#425775;background:#edf2f8}
 
-.import-review-filter {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: .25rem 1rem;
-    margin-bottom: .75rem;
+
+.review-toolbar:not(:empty) { display:grid; gap:10px; margin:0 0 12px; }
+.review-toolbar:empty { display:none; }
+.review-pager { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; background:#f4f7fb; padding:10px 12px; border-radius:7px; }
+.review-pager label { display:flex; align-items:center; gap:8px; min-width:0; white-space:nowrap; }
+.review-pager select { flex:1; min-width:0; width:100%; }
+.review-issue { display:inline-block; margin-left:.6rem; padding:1px 8px; border-radius:4px; background:#fff3da; color:#754800; font-size:.8rem; }
+.review-footer { display:flex; align-items:center; justify-content:flex-end; gap:10px; padding-top:12px; border-top:1px solid #dde5ee; margin-top:12px; }
+.review-close { order:-1; }
+.review-progress { flex:1; order:-2; max-width:36rem; margin-right:auto; display:grid; gap:6px; color:#334b68; font-variant-numeric:tabular-nums; }
+.review-progress progress { width:100%; height:8px; accent-color:#3264db; }
+@media(max-width:640px) {
+ .review-pager { grid-template-columns:1fr 1fr; }
+ .review-pager label { grid-column:1/-1; grid-row:1; }
+ .review-footer { flex-wrap:wrap; }
 }
-.import-review-filter label { cursor: pointer; }
-.import-review-filter [role="status"] { color: #52647a; font-size: .875rem; }
+
+.review-tabs {display:flex;gap:1.25rem;border-bottom:1px solid #ccd6e2;margin-bottom:1rem}
+.review-tabs button {font:inherit;font-weight:600;color:#53657a;padding:.6rem .15rem;background:none;border:0;border-bottom:3px solid transparent;cursor:pointer}
+.review-tabs button[aria-selected=true] {color:#174da0;border-bottom-color:#3264db}
+.review-source {max-height:68vh;overflow:auto}
+.review-source ::deep iframe {width:100%;height:65vh;border:0}
+.review-source ::deep img,.review-source ::deep canvas {display:block;max-width:100%;height:auto;margin:0 auto .5rem}
+.review-source ::deep pre {white-space:pre-wrap;overflow-wrap:anywhere}
+.review-source ::deep td {border:1px solid #ccd6e2;padding:.25rem .45rem;white-space:pre-wrap}

@@ -11,6 +11,7 @@ public sealed class TenantSettingsDto
     public string? GlobalInstructionsEdit { get; set; }
     public const int MaxDocumentInstructionsLength = 16000;
     // Older settings clients omit this field. An explicit empty string clears it.
+    public List<DocumentFormRule>? DocumentFormRules {get;set;}
     public string? DocumentExtractionInstructions {get;set;}
     public int Revision {get;set;}
     public decimal DriverCostPerHour {get;set;}

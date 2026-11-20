@@ -21,7 +21,7 @@ public static class OrderImportChecks
         string? saved;
         await using (var db = await factory.OpenConnectionAsync(ct))
             saved = await db.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
-                "SELECT nova::text FROM tenant_settings WHERE tenant_id=@TenantId", new { tenant.TenantId }, cancellationToken: ct));
+                "SELECT public.aurora_tenant_nova_connection()", cancellationToken: ct));
         var settings = connections.Read(saved);
         if (settings is not null)
         {

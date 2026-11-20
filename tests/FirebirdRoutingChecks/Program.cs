@@ -13,6 +13,8 @@ var checks = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception(name); checks++; Console.WriteLine("PASS " + name); }
 var tenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 var draftId = Guid.NewGuid();
+ManifestScheduleChecks.Run();
+if (args.Contains("--schedule-only")) return;
 Check(FirebirdRoutingSource.ExportKey(tenantId,draftId,"TRUCK") == FirebirdRoutingSource.ExportKey(tenantId,draftId,"TRUCK"), "stable retry identity");
 Check(FirebirdRoutingSource.ExportKey(tenantId,draftId,"A") != FirebirdRoutingSource.ExportKey(tenantId,draftId,"B"), "distinct routes have distinct export identities");
 Check(FirebirdRoutingSource.ExportKey(Guid.NewGuid(),draftId,"A") != FirebirdRoutingSource.ExportKey(tenantId,draftId,"A"), "export identities are tenant scoped");

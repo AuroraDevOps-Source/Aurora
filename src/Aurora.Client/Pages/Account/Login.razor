@@ -59,18 +59,24 @@
         <div class="login-tenant-options">
             @foreach (var tenant in _tenants)
             {
-                <button type="button" class="outline-button" aria-pressed="@(_selected == tenant.Id ? "true" : "false")"
-                        disabled="@_signingIn" @onclick="() => _selected = tenant.Id">@tenant.Name</button>
+                <button type="button" class="outline-button"
+                        disabled="@_signingIn" @onclick="() => SelectTenant(tenant.Id)">@tenant.Name</button>
             }
         </div>
         <div class="popup-actions">
             <button type="button" class="outline-button" disabled="@_signingIn" @onclick="CancelSelection">Cancel</button>
-            <button type="button" class="primary-button" disabled="@(_selected is null || _signingIn)" @onclick="SignInAsync">@(_signingIn ? "Signing in…" : "Continue")</button>
         </div>
     </EditPopup>
 }
 
 @code {
+    private async Task SelectTenant(Guid id)
+    {
+        if (_signingIn) return;
+        _selected = id;
+        await SignInAsync();
+    }
+
     private void CancelSelection()
     {
         _selected = null;
@@ -161,7 +167,7 @@
             Navigation.NavigateToLogin("authentication/login", new InteractiveRequestOptions
             {
                 Interaction = InteractionType.SignIn,
-                ReturnUrl = Navigation.ToAbsoluteUri(ChangePassword ? "/account/change-password" : ProductWorkspace.RouteFor(ProductWorkspace.Aurora)).AbsoluteUri
+                ReturnUrl = Navigation.ToAbsoluteUri(ChangePassword ? "/account/change-password" : "/").AbsoluteUri
             });
         }
         catch (HttpRequestException)

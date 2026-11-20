@@ -1,4 +1,4 @@
+.rule-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .85rem; }
+.rule-toolbar h2 { margin: 0 .75rem 0 0; }
+.prompt-row { cursor: pointer; }
 textarea { width: 100%; resize: vertical; }
-.sample-order { margin-block: .5rem; }
-.sample-order summary { cursor: pointer; }
-.sample-order pre { max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

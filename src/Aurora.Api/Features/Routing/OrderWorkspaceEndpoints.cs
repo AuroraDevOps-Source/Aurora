@@ -43,24 +43,31 @@ public static class OrderWorkspaceEndpoints
         group.MapPost("/firebird/orders/import/preflight", (string[] workTypes)=>Results.NoContent());
         group.MapPost("/firebird/orders/import", (OrderDocumentDraft draft,FirebirdRoutingSource source,TmsStore store,
             Aurora.Infrastructure.Data.NpgsqlConnectionFactory factory,Aurora.Infrastructure.Tenancy.ITenantContext tenant,
-            NovaUserConnections connections,OrderImportHistoryStore history,ILogger<FirebirdRoutingSource> logger,CancellationToken ct)=>Guard(async()=>{
+            NovaUserConnections connections,OrderImportHistoryStore history,ILogger<FirebirdRoutingSource> logger,CancellationToken ct)=>history.TrackCreation(draft, () => Guard(async()=>{
+            if(draft.ExtractionError is not null)throw new FormatException("Extract the failed shipment again before creating its order.");
+            if (string.IsNullOrWhiteSpace(draft.BillOfLading)) throw new FormatException("Enter a BOL number before creating this order.");
             if (draft.MappingQuestions is {Length:>0}) throw new FormatException("Answer the document mapping questions before creating this order.");
             await history.Validate(draft.ImportId,ct);
-            var pro=OrderDocumentDraft.SplitTag(string.IsNullOrWhiteSpace(draft.TagNumber)?draft.Order.Id:draft.TagNumber).Pro;
-            if((await OrderImportChecks.Existing([pro],store,factory,tenant,connections,ct)).Length>0)
-                return Results.Conflict(new ApiErrorDto($"PRO {pro} already exists in Aurora or Nova. No order was created."));
+            var tag=string.IsNullOrWhiteSpace(draft.TagNumber)?draft.Order.Id:draft.TagNumber;
+            var pro=string.IsNullOrWhiteSpace(tag)?"":OrderDocumentDraft.SplitTag(tag).Pro;
+            if(pro.Length>0 && (await OrderImportChecks.Existing([pro],store,factory,tenant,connections,ct)).Length>0)
+                return Results.Conflict(DuplicateImportPro.For(pro));
             NovaRecordDocument saved;
             try { saved=await source.ImportDocument(draft,ct); }
+            catch(DuplicateProException) when(pro.Length>0){return Results.Conflict(DuplicateImportPro.For(pro));}
             catch(FirebirdSql.Data.FirebirdClient.FbException ex)
             {
+                if(pro.Length>0 && ex.Errors.Cast<FirebirdSql.Data.FirebirdClient.FbError>().Any(e=>e.Number is 335544665 or 335544349)
+                   && (await OrderImportChecks.Existing([pro],store,factory,tenant,connections,ct)).Length>0)
+                    return Results.Conflict(DuplicateImportPro.For(pro));
                 logger.LogWarning("Nova order import {ImportId} PRO {Pro} failed with Firebird code {Code}, SQL state {State}",draft.ImportId,pro,ex.ErrorCode,ex.SQLSTATE);
                 if(ex.SQLSTATE?.StartsWith("22",StringComparison.Ordinal)==true || ex.SQLSTATE?.StartsWith("23",StringComparison.Ordinal)==true)
                     return Results.UnprocessableEntity(new ApiErrorDto($"Nova rejected a field or database constraint on PRO {pro} (code {ex.ErrorCode}). Review this order."));
                 throw;
             }
-            await history.RecordCreated(draft.ImportId,pro);
+            await history.RecordCreated(draft.ImportId,saved.OrderKey());
             return Results.Ok(saved);
-        }));
+        })));
         group.MapGet("/firebird/records/{kind}/new", (string kind,FirebirdRoutingSource source)=>Guard(()=>Task.FromResult<IResult>(Results.Ok(source.NewRecord(kind)))));
         group.MapPost("/firebird/records/{kind}", (string kind,NovaRecordEdit input,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.CreateRecord(kind,input,ct))));
         group.MapGet("/firebird/masters/{kind}", (string kind,string? search,int? page,FirebirdRoutingSource source,CancellationToken ct)=>Guard(async()=>Results.Ok(await source.ReadMasters(kind,search,page??0,ct))));

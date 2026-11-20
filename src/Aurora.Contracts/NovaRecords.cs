@@ -2,6 +2,8 @@ namespace Aurora.Contracts;
 
 public sealed record NovaRecordSummary(long Id, string Number, string Description, string Terminal, string Status)
 {
+    public string Make { get; init; } = "";
+    public string Model { get; init; } = "";
     // Nova wall-clock times in the identified source zone.
     public DateTime? AppointmentFrom { get; init; }
     public DateTime? AppointmentTo { get; init; }
@@ -26,6 +28,11 @@ public sealed record NovaField(string Key, string Label, string Kind, int MaxLen
 public sealed record NovaRecordPart(string Key, string Title, NovaField[] Fields);
 public sealed record NovaRecordDocument(long Id, string Title, string Revision, NovaRecordPart[] Parts)
 {
+    public string OrderKey()
+    {
+        var pro=Parts.Single(p=>p.Key=="header").Fields.Single(f=>f.Key=="PBNUM").Value;
+        return string.IsNullOrWhiteSpace(pro) || pro=="0" ? $"FB-{Id}" : pro;
+    }
     public string[] LocationWarnings { get; init; } = [];
 }
 public sealed record NovaRecordEdit(string Revision, Dictionary<string, Dictionary<string,string?>> Values)

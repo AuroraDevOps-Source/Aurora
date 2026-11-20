@@ -7,6 +7,7 @@ let routeLineCount = 0;
 const layerObject = () => ({ addTo(target) { target.layers.add(this); return this; }, bindPopup(text) { this.popup = text; return this; } });
 const context = {
     window: {}, setTimeout: action => action(),
+    ResizeObserver: class { observe() {} disconnect() {} },
     document: { getElementById: () => ({}), createElement: () => ({ set textContent(value) { this.innerHTML = String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); } }) },
     L: {
         map: () => { const map = { layers: new Set(), removeLayer(layer) { this.layers.delete(layer); }, fitBounds(bounds) { this.bounds = bounds; }, setView() {}, invalidateSize() {}, remove() {} }; maps.push(map); return map; },
@@ -21,11 +22,11 @@ context.window.L = context.L;
 vm.runInNewContext(readFileSync(new URL('../src/Aurora.Client/wwwroot/js/map.js', import.meta.url), 'utf8'), context);
 context.window.routeMap.render('map', {
     routes: ['A', 'B'].map((vehicle, index) => ({ vehicle, color: '#2563eb', stops: [{ lat: 39 + index, lon: -94, locationId: '<script>bad</script>', orderIds: ['PRO'], arrival: '9:00 AM', departure: '9:15 AM' }] })),
-    dropped: [{ orderId: 'LEFT_1', latitude: 39, longitude: -95, reason: '<b>reason</b>' }, { orderId: 'LEFT_2', latitude: 39, longitude: -95, reason: 'Window' }]
+    dropped: [{ number: 1, orderId: 'LEFT_1', latitude: 39, longitude: -95, reason: '<b>reason</b>' }, { number: 2, orderId: 'LEFT_2', latitude: 39, longitude: -95, reason: 'Window' }]
 });
 assert.equal(maps.length, 1);
 assert.equal(markers.length, 3, 'overlapping red orders share one counted marker');
-assert.match(markers[2].options.icon.html, />2</);
+assert.match(markers[2].options.icon.html, />1, 2</);
 assert.match(markers[2].popup, /LEFT_1.*LEFT_2/);
 assert.match(markers[0].popup, /&lt;script&gt;/, 'popup metadata is escaped');
 context.window.routeMap.filter('A');
@@ -101,3 +102,14 @@ context.window.routeMap.dispose();
 context.window.routeMap.setRoadRoute('A', []);
 context.window.routeMap.setMode(true);
 console.log('12 road-view checks passed: geometry, bounds, toggles, caching, filtering, and disposal.');
+
+context.window.routeMap.render('map', {
+    routes: [{ vehicle: 'Manifest 11980', color: '#2563eb', stops: [
+        { lat: 32, lon: -96, locationId: 'Customer', orderIds: ['710455'], planned: true, arrival: '11/20 5:45 PM', departure: '11/20 6:15 PM' },
+        { lat: 33, lon: -96, locationId: 'Missing schedule', orderIds: ['710456'], planned: true, arrival: 'Not available', departure: 'Not available' }
+    ] }], dropped: []
+});
+assert.match(markers.at(-2).popup, /Planned arrival: 11\/20 5:45 PM/);
+assert.match(markers.at(-2).popup, /Planned departure: 11\/20 6:15 PM/);
+assert.match(markers.at(-1).popup, /Planned arrival: Not available/);
+console.log('3 planned schedule popup checks passed.');

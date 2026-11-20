@@ -11,6 +11,7 @@ foreach(var path in new[]{"/api/v1/tms/orders","/api/v1/tms/manifests","/api/v1/
     foreach(var verb in new[]{"POST","PUT","DELETE"})Check(NativeWorkspaceFilter.Blocks(verb,path),$"{verb} {path} cannot write local records in native mode");
 foreach(var path in new[]{"/api/v1/tms/orders","/api/v1/routing/equipment","/api/v1/tms/terminals"})Check(!NativeWorkspaceFilter.Blocks("GET",path),"Planning read remains available: "+path);
 foreach(var path in new[]{"/api/v1/routing/sessions","/api/v1/aurora/firebird/records/orders","/api/v1/tms/orders/lookup-address","/api/v1/tms/orders/convert-document","/api/v1/tms/orders/import/check"})Check(!NativeWorkspaceFilter.Blocks("POST",path),"Native/planning/non-save operation remains available: "+path);
+Check(!NativeWorkspaceFilter.Blocks("PUT",$"/api/v1/tms/orders/import/history/{Guid.NewGuid()}/counts"),"Nova workspace can save its import review summary");
 foreach(var local in new[]{true,false})
 {
     var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{{"Synchronization:LocalWorkspace",local.ToString()}}).Build();

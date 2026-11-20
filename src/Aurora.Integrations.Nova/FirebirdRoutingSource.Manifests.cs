@@ -89,9 +89,9 @@ public sealed partial class FirebirdRoutingSource
     public async Task<NovaManifestOrder[]> ReadManifestOrders(long id, CancellationToken ct)
     {
         await using var db = await Open(ct);
-        return (await db.QueryAsync<NovaManifestOrder>(new CommandDefinition("""
+        var orders = (await db.QueryAsync<NovaManifestOrder>(new CommandDefinition("""
             SELECT h.PB_ID AS Id, COALESCE(CAST(NULLIF(h.PBNUM,0) AS VARCHAR(30)), 'FB-' || CAST(h.PB_ID AS VARCHAR(30))) AS Pro,
-                link.OSM_SEQUENCE AS Sequence, TRIM(s.OPS_NAME) AS Customer,
+                link.OSM_SEQUENCE AS Sequence, TRIM(s.OPS_NAME) AS Customer, s.OPS_STOP_ID AS NativeStopId,
                 TRIM(s.OPS_ADDR1) AS Address, TRIM(s.OPS_CITY) AS City,
                 TRIM(s.OPS_STATE) AS State, TRIM(s.OPS_ZIP) AS PostalCode,
                 s.OPS_LATITUDE AS Latitude, s.OPS_LONGITUDE AS Longitude,
@@ -107,5 +107,50 @@ public sealed partial class FirebirdRoutingSource
             WHERE manifest.PB_TYPE='M' AND manifest.PB_ID=@id AND manifest.PB_DT_CANC IS NULL
             ORDER BY route.OPS_STOP_NUMBER,link.OSM_SEQUENCE
             """, new { id }, cancellationToken:ct))).ToArray();
+        if (orders.Length == 0) return orders;
+        var reference = await db.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT TRIM(PB_EXTERNAL_REF) FROM OPS_HEADER WHERE PB_ID=@id AND PB_TYPE='M' AND PB_DT_CANC IS NULL", new { id }, cancellationToken: ct));
+        if (reference?.StartsWith("aurora:", StringComparison.Ordinal) != true) return orders;
+        await using var local = await factory.OpenConnectionAsync(ct);
+        var saved = await local.QuerySingleOrDefaultAsync<SavedManifestSchedule>(new CommandDefinition("""
+            SELECT m.draft_id AS DraftId,m.vehicle AS Vehicle,m.data::text AS RouteJson,d.request::text AS RequestJson
+            FROM aurora_manifest m JOIN aurora_planning_draft d ON d.tenant_id=m.tenant_id AND d.id=m.draft_id
+            WHERE m.tenant_id=@TenantId AND m.number=@number AND m.deleted_at IS NULL
+                AND d.request->'reporting'->>'firebirdSource'=@SourceKey
+            """, new { tenant.TenantId, number=id.ToString(System.Globalization.CultureInfo.InvariantCulture), Options.SourceKey }, cancellationToken: ct));
+        if (saved is not null && reference == ExportKey(tenant.TenantId, saved.DraftId, saved.Vehicle))
+        {
+            var route = System.Text.Json.JsonSerializer.Deserialize<RouteSummaryDto>(saved.RouteJson);
+            if (route is not null) ApplyManifestSchedule(orders, route, saved.RequestJson, TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId));
+        }
+        return orders;
+    }
+
+    private sealed class SavedManifestSchedule
+    {
+        public Guid DraftId { get; set; }
+        public string Vehicle { get; set; } = "";
+        public string RouteJson { get; set; } = "{}";
+        public string RequestJson { get; set; } = "{}";
+    }
+
+    public static void ApplyManifestSchedule(NovaManifestOrder[] orders, RouteSummaryDto route, string requestJson, TimeZoneInfo zone)
+    {
+        var root = RoutingInput.Parse(requestJson);
+        var planned = Ordered(route).ToArray();
+        // A changed membership or sequence invalidates the saved schedule for the whole route.
+        if (orders.Length != planned.Length) return;
+        for (var i = 0; i < orders.Length; i++)
+        {
+            var native = Native(root, planned[i].ProNumber);
+            if (orders[i].Id != native.Order || orders[i].NativeStopId != native.Stop || orders[i].Sequence != i + 1) return;
+        }
+        DateTimeOffset? Local(DateTimeOffset? value) => value is {} time ? TimeZoneInfo.ConvertTime(time, zone) : null;
+        for (var i = 0; i < orders.Length; i++)
+        {
+            orders[i].PlannedArrival = Local(planned[i].Arrival);
+            orders[i].PlannedDeparture = Local(planned[i].Departure);
+            orders[i].PlannedRouteDeparture = Local(route.Departure);
+        }
     }
 }

@@ -12,7 +12,10 @@ using Microsoft.Extensions.Options;
 
 namespace Aurora.Api.Features.Auth;
 
-public sealed record StoredNovaConnection(string Host,int Port,string Database,string UserName,string ProtectedPassword,string SourceKey);
+public sealed record StoredNovaConnection(string Host,int Port,string Database,string UserName,string ProtectedPassword,string SourceKey)
+{
+    public string? TimeZoneId { get; init; }
+}
 
 public sealed class NovaUserConnections(IDataProtectionProvider protection,IOptionsMonitor<FirebirdRoutingOptions> defaults)
 {
@@ -22,7 +25,7 @@ public sealed class NovaUserConnections(IDataProtectionProvider protection,IOpti
     public StoredNovaConnection? Read(string? json)=>json is null?null:JsonSerializer.Deserialize<StoredNovaConnection>(json);
     public StoredNovaConnection Build(NovaConnectionSettings input,StoredNovaConnection? existing)
     {
-        var host=input.Host.Trim();var database=input.Database.Trim();var user=input.UserName.Trim();
+        var host=input.Host?.Trim() ?? "";var database=input.Database?.Trim() ?? "";var user=input.UserName?.Trim() ?? "";
         if(host.Length is 0 or >255 || database.Length is 0 or >1000 || user.Length is 0 or >128 || input.Port is <1 or >65535)
             throw new FormatException("Enter a Nova server, port, database path, and username.");
         if(host.Any(char.IsWhiteSpace) || host.Contains('/') || host.Contains('\\'))throw new FormatException("Enter a server IP address or hostname without a URL or path.");
@@ -34,13 +37,13 @@ public sealed class NovaUserConnections(IDataProtectionProvider protection,IOpti
         var baseline=string.IsNullOrWhiteSpace(Default.ConnectionString)?null:new FbConnectionStringBuilder(Default.ConnectionString);
         var matchesDefault=baseline is not null && baseline.DataSource.Equals(host,StringComparison.OrdinalIgnoreCase) && baseline.Port==input.Port && baseline.Database.Equals(database,StringComparison.OrdinalIgnoreCase);
         var key=same?existing!.SourceKey:matchesDefault?Default.SourceKey:"nova-"+FirebirdRoutingSource.StableId($"{host.ToLowerInvariant()}:{input.Port}:{database.ToLowerInvariant()}").ToString("N");
-        return new(host,input.Port,database,user,password,key);
+        return new(host,input.Port,database,user,password,key) { TimeZoneId = same ? existing!.TimeZoneId : null };
     }
     public FirebirdRoutingOptions Resolve(StoredNovaConnection? saved,Guid tenantId)
     {
         if(saved is null)return new(){Enabled=false};
         var cs=new FbConnectionStringBuilder{DataSource=saved.Host,Port=saved.Port,Database=saved.Database,UserID=saved.UserName,Password=Protector.Unprotect(saved.ProtectedPassword),Charset="UTF8",ConnectionTimeout=10};
-        return new(){Enabled=true,TenantId=tenantId,ConnectionString=cs.ConnectionString,SourceKey=saved.SourceKey,ReadyStatus=Default.ReadyStatus,TimeZoneId=Default.TimeZoneId,ServiceSeconds=Default.ServiceSeconds,Lykes=Default.LykesForSource(tenantId,saved.SourceKey)};
+        return new(){Enabled=true,TenantId=tenantId,ConnectionString=cs.ConnectionString,SourceKey=saved.SourceKey,ReadyStatus=Default.ReadyStatus,TimeZoneId=string.IsNullOrWhiteSpace(saved.TimeZoneId)?Default.TimeZoneId:TimeZoneInfo.FindSystemTimeZoneById(saved.TimeZoneId).Id,ServiceSeconds=Default.ServiceSeconds,Lykes=Default.LykesForSource(tenantId,saved.SourceKey)};
     }
 }
 

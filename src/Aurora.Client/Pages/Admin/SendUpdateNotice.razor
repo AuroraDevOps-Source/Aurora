@@ -1,0 +1,65 @@
+@page "/admin/update-notice"
+@attribute [Authorize]
+@inject HttpClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<EditPopup Title="Send alert" OnClose="Close" Busy="_sending">
+    <p>Send a banner to signed-in users across all tenants. This replaces the current alert.</p>
+    <label class="field">Update time (your local time)
+        <input type="datetime-local" @bind="_when" disabled="@_sending" />
+    </label>
+    <label class="field">Message
+        <textarea rows="4" @bind="_message" @bind:event="oninput" maxlength="@UpdateNotice.MaxMessageLength" disabled="@_sending"></textarea>
+    </label>
+    <small>Use <code>{time}</code> to show the update time in each user's local time zone.</small>
+    @if (_when is {} when && !string.IsNullOrWhiteSpace(_message))
+    {
+        <p><strong>Preview</strong></p>
+        <p style="white-space:pre-wrap;overflow-wrap:anywhere">@UpdateNotice.FormatMessage(_message.Trim(), when)</p>
+    }
+    @if (_error is not null) { <p class="alert" role="alert">@_error</p> }
+    <div class="compact-form-actions">
+        <button class="outline-button" disabled="@_sending" @onclick="Close">Cancel</button>
+        <button class="primary-button" disabled="@(_sending || _when is null || string.IsNullOrWhiteSpace(_message))" @onclick="Send">Send to all users</button>
+    </div>
+</EditPopup>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    private DateTime? _when;
+    private string _message = UpdateNotice.DefaultMessage;
+    private bool _sending;
+    private string? _error;
+
+    private async Task Close()
+    {
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        else Navigation.NavigateTo("/");
+    }
+
+    private async Task Send()
+    {
+        if (_sending || _when is not {} when || string.IsNullOrWhiteSpace(_message)) return;
+        if (when <= DateTime.Now) { _error = "Choose a future update time."; return; }
+        _sending = true;
+        _error = null;
+        try
+        {
+            using var result = await Api.PostAsJsonAsync("api/v1/admin/update-notice/", new UpdateNotice(when, _message.Trim()));
+            if (result.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Alert sent.", Severity.Success);
+                await Close();
+            }
+            else if (result.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                _error = (await result.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error;
+            else if (result.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                _error = "An Aurora staff administrator account is required to send to all tenants.";
+            else _error = "Could not send the alert. Try again.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or AccessTokenNotAvailableException)
+        { _error = "Could not send the alert. Check your connection and sign-in."; }
+        finally { _sending = false; }
+    }
+}

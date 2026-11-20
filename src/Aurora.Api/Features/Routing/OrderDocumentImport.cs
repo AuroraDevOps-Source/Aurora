@@ -15,6 +15,10 @@ public static class OrderDocumentImport
     public static void MapOrderDocumentImport(this RouteGroupBuilder group)
     {
         group.MapGet("/orders/import/history", async (OrderImportHistoryStore history,CancellationToken ct)=>Results.Ok(await history.List(ct)));
+        group.MapGet("/orders/import/history/{id:guid}/failures", async (Guid id, OrderImportHistoryStore history,CancellationToken ct)=>Results.Ok(await history.Failures(id,ct)));
+        group.MapPut("/orders/import/history/{id:guid}/counts", async (Guid id, ImportReviewCounts counts,
+            OrderImportHistoryStore history, CancellationToken ct) =>
+            await history.SaveReviewCounts(id, counts, ct) ? Results.NoContent() : Results.BadRequest());
         group.MapPost("/orders/import/check", (string[] ids, TmsStore store, NpgsqlConnectionFactory factory,
             ITenantContext tenant, NovaUserConnections connections, ILogger<OrderDocumentConversion> log, CancellationToken ct) => ImportGuard(async () =>
         {
@@ -24,8 +28,10 @@ public static class OrderDocumentImport
             return Results.Ok(existing);
         }));
         group.MapPost("/orders/import", (OrderDocumentDraft draft, TmsStore store, TerminalStore terminals,
-            NpgsqlConnectionFactory factory, ITenantContext tenant, NovaUserConnections connections, OrderImportHistoryStore history, CancellationToken ct) => ImportGuard(async () =>
+            NpgsqlConnectionFactory factory, ITenantContext tenant, NovaUserConnections connections, OrderImportHistoryStore history, CancellationToken ct) => history.TrackCreation(draft, () => ImportGuard(async () =>
         {
+            if(draft.ExtractionError is not null)throw new FormatException("Extract the failed shipment again before creating its order.");
+            if (string.IsNullOrWhiteSpace(draft.BillOfLading)) throw new FormatException("Enter a BOL number before creating this order.");
             if (draft.MappingQuestions is {Length:>0}) throw new FormatException("Answer the document mapping questions before creating this order.");
             await history.Validate(draft.ImportId,ct);
             draft.Normalize();
@@ -35,11 +41,17 @@ public static class OrderDocumentImport
             order.TerminalCode = selected?.Code;
             order.Notes = draft.NotesWithReferences(includeLines:true);
             if ((await OrderImportChecks.Existing([order.Id], store, factory, tenant, connections, ct)).Length > 0)
-                return Results.Conflict(new ApiErrorDto($"PRO {order.Id} already exists in Aurora or Nova. No order was created."));
-            await store.SaveOrder(order, true, ct, documentImport:true);
+                return Results.Conflict(DuplicateImportPro.For(order.Id));
+            try { await store.SaveOrder(order, true, ct, documentImport:true); }
+            catch(DuplicateProException){return Results.Conflict(DuplicateImportPro.For(order.Id));}
+            catch(Npgsql.PostgresException ex) when(ex.SqlState=="23505")
+            {
+                if((await store.ExistingOrderNumbers([order.Id],ct)).Length>0)return Results.Conflict(DuplicateImportPro.For(order.Id));
+                throw;
+            }
             await history.RecordCreated(draft.ImportId,order.Id);
             return Results.Ok(order);
-        }));
+        })));
         group.MapPost("/orders/import/mapping-rule", (DocumentMappingRule rule, DocumentMappingStore store, CancellationToken ct)=>store.Save(rule,ct));
         group.MapPost("/orders/import/addresses", async (OrderDocumentDraft[] drafts, Aurora.Integrations.Nova.FirebirdRoutingSource native, ILogger<OrderDocumentConversion> log, CancellationToken ct)=>
         {
@@ -49,6 +61,11 @@ public static class OrderDocumentImport
             log.LogInformation("Import address lookup for {Orders} orders in {ElapsedMs} ms",drafts.Length,timer.ElapsedMilliseconds);
             return Results.Ok(drafts);
         });
+        group.MapPost("/orders/convert-document/jobs", (IFormFile file, PdfConversionJobs jobs, ITenantContext tenant, CancellationToken ct) =>
+            jobs.Enqueue(file, tenant, ct)).WithDocumentUploadLimits();
+        group.MapGet("/orders/convert-document/jobs/{id:guid}/source", (Guid id, PdfConversionJobs jobs, ITenantContext tenant) => jobs.Source(id,tenant));
+        group.MapGet("/orders/convert-document/jobs/{id:guid}", (Guid id, int? after, PdfConversionJobs jobs, ITenantContext tenant) =>
+            jobs.Status(id, tenant, after));
         group.MapPost("/orders/convert-document", (IFormFile file, bool? earlyReview, OrderDocumentConversion conversion, CancellationToken ct) =>
             conversion.Convert(file, previewInstructions: null, ct, deferAddressLookup:earlyReview==true)).WithDocumentUploadLimits();
     }
@@ -76,11 +93,11 @@ public static class OrderDocumentImport
         return JsonSerializer.Deserialize<JsonElement>(json);
     }
 
-    internal static List<OrderDocumentDraft> Parse(JsonElement extraction, TimeZoneInfo? zone, bool requirePrintedLykesTag)
+    internal static List<OrderDocumentDraft> Parse(JsonElement extraction, TimeZoneInfo? zone, bool requirePrintedLykesTag, int maxOrders=100, IReadOnlyList<DocumentFormRule>? pdfRules=null)
     {
         var orders = extraction.Deserialize<List<OrderDocumentDraft>>(new JsonSerializerOptions(JsonSerializerDefaults.Web))
             ?? throw new FormatException("No orders returned.");
-        if (orders.Count is < 1 or > 100 || orders.Any(o => o is null)) throw new FormatException("Import 1–100 orders at a time.");
+        if (orders.Count < 1 || orders.Count > maxOrders || orders.Any(o => o is null)) throw new FormatException("Import 1–100 orders at a time.");
         foreach (var draft in orders)
         {
             if (draft.Order is null) throw new FormatException("Order details are required.");
@@ -93,7 +110,18 @@ public static class OrderDocumentImport
             order.TerminalId = null;
             order.TerminalCode = null;
             order.Reference = draft.BillOfLading?.Trim() ?? "";
-            if ((requirePrintedLykesTag || string.Equals(draft.DocumentType,"Lykes",StringComparison.OrdinalIgnoreCase))
+            if (pdfRules?.Any(r=>r.UsePrintedPro && r.Matches(draft.MappingSender,draft.MappingForm,draft.MappingAccount))==true)
+            {
+                // Only honor the labeled identifier on this issuer's form. A bill number is never a PRO fallback.
+                var pros=(draft.PrintedIdentifiers ?? []).Where(c=>c is not null && !string.IsNullOrWhiteSpace(c.Value) &&
+                    System.Text.RegularExpressions.Regex.IsMatch(c.Label??"", @"^\s*PRO(?:\s*(?:#|NO\.?|NUMBER|NUM\.?))?\s*:?\s*$",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+                    .Select(c=>c.Value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                draft.TagNumber="";
+                draft.PrintedLykesTag="";
+                order.Id=pros.Length==1 ? pros[0] : "";
+            }
+            else if ((requirePrintedLykesTag || string.Equals(draft.DocumentType,"Lykes",StringComparison.OrdinalIgnoreCase))
                 && string.IsNullOrWhiteSpace(draft.PrintedLykesTag))
             {
                 foreach (var identifier in new[]{draft.TagNumber,order.Id}.Where(v=>!string.IsNullOrWhiteSpace(v)).Distinct())
@@ -126,14 +154,14 @@ public static class OrderDocumentImport
             draft.ApplyLocalSchedule(zone??TimeZoneInfo.Utc);
             draft.MappingDecisions=[];
             draft.EditedAddressParts=[];
-            draft.MappingQuestions = (draft.MappingQuestions ?? []).Where(q => q is not null && q.Field is ("PRO" or "BillTo"))
+            draft.MappingQuestions = (draft.MappingQuestions ?? []).Where(q => q is not null && q.Field is ("BOL" or "BillTo"))
                 .DistinctBy(q=>q.Field).ToArray();
             foreach (var question in draft.MappingQuestions)
                 question.Candidates = (question.Candidates ?? []).Where(c=>c is not null && !string.IsNullOrWhiteSpace(c.Label) && !string.IsNullOrWhiteSpace(c.Value))
                     .Take(12).ToArray();
-            if (string.IsNullOrWhiteSpace(draft.Order.Id) && string.IsNullOrWhiteSpace(draft.TagNumber) && !draft.MappingQuestions.Any(q=>q.Field=="PRO"))
-                draft.MappingQuestions=[..draft.MappingQuestions,new(){Field="PRO",Reason="A usable printed PRO could not be identified. Enter the order number for this ticket."}];
+            DocumentMappings.RequireBol(draft, extracted:true);
             draft.ApplyPrintedAccount();
+            draft.SeparatePartyAddresses();
             draft.ApplyFreightTotals();
         }
         return orders;

@@ -144,7 +144,7 @@
                 }).addTo(layer);
                 (stop.orderIds || []).forEach(id => orderMarkers.push({ id: String(id), vehicle: route.vehicle, marker }));
                 const orders = (stop.orderIds || []).length ? stop.orderIds.map(escapeHtml).join(', ') : 'No delivery';
-                marker.bindPopup(`<strong>${escapeHtml(route.vehicle)}</strong><br>${escapeHtml(stop.locationId)}<br><small>${orders}<br>Arrival: ${escapeHtml(stop.arrival)}<br>Departure: ${escapeHtml(stop.departure)}</small>`);
+                marker.bindPopup(`<strong>${escapeHtml(route.vehicle)}</strong><br>${escapeHtml(stop.locationId)}<br><small>${orders}<br>${stop.planned ? 'Planned arrival' : 'Arrival'}: ${escapeHtml(stop.arrival)}<br>${stop.planned ? 'Planned departure' : 'Departure'}: ${escapeHtml(stop.departure)}</small>`);
             });
         });
 

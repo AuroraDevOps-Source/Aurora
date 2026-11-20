@@ -108,3 +108,24 @@ The authenticated editor requires the PRO to belong to the current tenant's impo
 Global extraction instructions apply across companies alongside each company's own instructions. When the PRO or Bill To is unclear, the review dialog shows the available printed labels, values, and page numbers. Operators can select a value or enter a correction. Applying a printed label to the batch uses each ticket's own value. Remembering a label scopes that choice to the current company, sender, form, and field.
 
 Review opens as soon as extraction completes. Address and duplicate checks run concurrently, and Create waits for both checks and any mapping answers. For the reviewed Waylanders Atlas profile, Aurora reads recognized PDF tickets directly, including freight rows carried over to another page. Unrecognized layouts, handling instructions, or edited extraction settings use the normal AI path.
+
+
+### Waylanders: Article Delivery Ticket
+
+Migration `0072_waylanders_article_delivery_ticket.sql` adds the first issuer/form rule
+for tenants named Waylanders or Waylanders Delivery. It preserves existing rules and
+skips an existing Article rule covering this form. Additional suppliers can be added
+as separate form rules in Document Conversion Settings.
+
+The reviewed Article mapping uses Order # as BOL, leaves PRO for Nova, and takes the
+recipient block as the uncoded consignee. Box ID and description form each freight
+line; quantities, dimensions and decimal pound weights are preserved. Phone/email,
+Delivery Service and Delivery Instruction remain labeled in notes. No service-level
+or job-type code is assigned until the contract mapping is supplied. Missing dimension
+units and incomplete appointment dates are not inferred.
+
+The saved rule applies to PDF extraction. The legacy direct Atlas PDF reader also
+uses this BOL mapping and preserves the printed service text. A saved form rule sends
+PDFs through the configurable extraction path. The annotated mockup is a mapping
+reference; validate extraction against an original, unannotated Article PDF before
+production rollout. Confirm the contract mapping for each printed service with Mike.

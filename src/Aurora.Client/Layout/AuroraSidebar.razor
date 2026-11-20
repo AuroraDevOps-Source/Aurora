@@ -1,6 +1,8 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject SidebarState Sidebar
+@if (Menu?.Optimization == true)
+{
 <aside class="tms-sidebar @(Sidebar.Collapsed ? "is-collapsed" : null)" aria-label="Main navigation">
     <button type="button" class="sidebar-toggle" @onclick="() => Sidebar.Collapsed = !Sidebar.Collapsed" aria-expanded="@(!Sidebar.Collapsed ? "true" : "false")" aria-label="@(Sidebar.Collapsed ? "Expand menu" : "Collapse menu")" title="@(Sidebar.Collapsed ? "Expand menu" : "Collapse menu")"><i class="mdi @(Sidebar.Collapsed ? "mdi-chevron-double-right" : "mdi-chevron-double-left")" aria-hidden="true"></i></button>
     <h2>Aurora</h2><p>@(_company?.Name ?? "Your company")</p>
@@ -12,7 +14,9 @@
     <NavLink href="aurora/terminals" title="Terminals" aria-label="Terminals"><i class="mdi mdi-warehouse" aria-hidden="true"></i><span>Terminals</span></NavLink>
     <NavLink href="aurora/customers" title="Customers" aria-label="Customers"><i class="mdi mdi-account-group-outline" aria-hidden="true"></i><span>Customers</span></NavLink>
 </aside>
+}
 @code {
+    [CascadingParameter] public TenantNavigationSettings? Menu { get; set; }
     private WorkspaceTenantDto? _company;
     private bool OnPlanner => new Uri(Navigation.Uri).AbsolutePath.StartsWith("/aurora/planning", StringComparison.OrdinalIgnoreCase);
     protected override async Task OnInitializedAsync()

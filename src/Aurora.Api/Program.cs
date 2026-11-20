@@ -60,7 +60,11 @@ builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Buil
 
 // --- Tenancy plumbing ---
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+builder.Services.AddScoped<ConversionWorkerIdentity>();
+builder.Services.AddScoped<ITenantContext>(sp =>
+    sp.GetRequiredService<ConversionWorkerIdentity>().Identity ?? new HttpTenantContext(sp.GetRequiredService<IHttpContextAccessor>()));
+builder.Services.AddSingleton<PdfConversionJobs>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PdfConversionJobs>());
 builder.Services.AddScoped<TenantConnectionInterceptor>();
 builder.Services.AddScoped<NpgsqlConnectionFactory>();
 
@@ -236,6 +240,9 @@ builder.Services.AddScoped<Microsoft.Extensions.Options.IOptions<Aurora.Integrat
 {
     var context=sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
     var options=context?.Items[NovaUserConnections.ItemsKey] as Aurora.Integrations.Nova.FirebirdRoutingOptions;
+    if (options is { Enabled: true })
+        options.ThirdPartyPayTypeOnImport = sp.GetRequiredService<IConfiguration>()
+            .GetValue<bool>($"DocumentConversion:Tenants:{options.TenantId:D}:ThirdPartyPayTypeOnImport");
     return Microsoft.Extensions.Options.Options.Create(options ?? new Aurora.Integrations.Nova.FirebirdRoutingOptions());
 });
 builder.Services.AddScoped<Aurora.Modules.Routing.TmsStore>();
@@ -332,6 +339,7 @@ loggedApi.MapNovaLaunch();
 loggedApi.MapNovaApiLaunch();
 loggedApi.MapAccountPasswordEndpoints();
 loggedApi.MapAdminUserEndpoints();
+loggedApi.MapUpdateNoticeEndpoints();
 loggedApi.MapTenantSettingsEndpoints();
 loggedApi.MapAppLogEndpoints();
 loggedApi.MapLauncherEndpoints();

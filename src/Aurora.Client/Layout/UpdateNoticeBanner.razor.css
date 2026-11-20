@@ -1,0 +1,17 @@
+.update-notice {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    position: fixed;
+    inset-inline: 1rem;
+    bottom: 1rem;
+    width: fit-content;
+    max-width: min(42rem, calc(100% - 2rem));
+    margin-inline: auto;
+    z-index: 1500;
+    padding: .8rem 1.2rem;
+    background: #fff2c6;
+    border: 1px solid #aa791e;
+    border-radius: .5rem;
+    color: #402c05;
+    box-shadow: 0 3px 14px #0002;
+}

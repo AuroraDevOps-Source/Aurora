@@ -8,6 +8,8 @@ public sealed partial class FirebirdRoutingSource
     {
         draft.ApplyLocalSchedule(TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId));
         var matches=await ResolveDocumentAddresses([draft],ct);
+        if (draft.AddressLookupMessages.Contains(NovaImportAddress.AmbiguousBillTo))
+            throw new FormatException(NovaImportAddress.AmbiguousBillTo);
         var edit=NovaDocumentImport.Build(draft,NewRecord("orders"),draft.NativeStatusId??NovaDocumentImport.DefaultStatus,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId));
         if(matches.TryGetValue(draft,out var parties))foreach(var (part,address) in parties)
         {

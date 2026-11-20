@@ -38,7 +38,7 @@ services.AddScoped<NovaUserConnections>();services.AddScoped<AdminUsers>();
 await using var provider=services.BuildServiceProvider();
 int checks=0;
 void Check(bool result,string name){if(!result)throw new Exception(name);Console.WriteLine("PASS "+name);checks++;}
-async Task Reject(Func<Task> action,string name){try{await action();}catch(Exception ex) when(ex is FormatException or KeyNotFoundException){Check(true,name);return;}throw new Exception(name);}
+async Task Reject(Func<Task> action,string name){try{await action();}catch(Exception ex) when(ex is FormatException or KeyNotFoundException or UnauthorizedAccessException){Check(true,name);return;}throw new Exception(name);}
 async Task<T> Use<T>(Func<AdminUsers,Task<T>> action){await using var scope=provider.CreateAsyncScope();return await action(scope.ServiceProvider.GetRequiredService<AdminUsers>());}
 async Task Execute(Func<AdminUsers,Task> action){await using var scope=provider.CreateAsyncScope();await action(scope.ServiceProvider.GetRequiredService<AdminUsers>());}
 var suffix=Guid.NewGuid().ToString("N");var password="1";
@@ -95,9 +95,58 @@ try
         Check(await connection.ExecuteAsync("UPDATE tenant_settings SET revision=revision+1")==0,"non-admin cannot modify settings");
         Check(await connection.ExecuteScalarAsync<int>("SELECT count(*) FROM user_tenant WHERE tenant_id=@tenantId",new{tenantId})==1,"non-administrator cannot read other users' membership settings");
     }
+    var delegated=input with {UserName="delegated-"+suffix,Email="delegated-"+suffix+"@example.invalid",Level="User",Revision=""};
+    var invitation=new TestInvitation();
+    await Reject(()=>Use(s=>s.Save(null,delegated with {Level="Administrator"},default)),"Power User cannot create Administrator");
+    await Reject(()=>Use(s=>s.Save(adminId,delegated with {Revision=admin.Revision},default)),"Power User cannot edit an Administrator");
+    await Reject(()=>Use(s=>s.SendInvitation(created.Value,invitation,default)),"Power User cannot invite a Power User");
+    await Reject(()=>Execute(s=>s.Delete(adminId,admin.Revision,default)),"Power User cannot delete Administrator");
+    var regular=await Use(s=>s.Save(null,delegated,default));
+    try
+    {
+        var visible=await Use(s=>s.List(default));
+        Check(visible.All(u=>u.Level=="User") && visible.Single(u=>u.Id==regular).CanEdit,"Power User sees manageable Users");
+        delegated=delegated with {Revision=visible.Single(u=>u.Id==regular).Revision};
+        Check(visible.All(u=>u.AuroraUser is null),"Non-staff manager cannot see the Aurora User setting");
+        await Reject(()=>Use(s=>s.Save(regular,delegated with {AuroraUser=true},default)),"Non-staff manager cannot submit an Aurora User toggle");
+        await Reject(()=>Use(s=>s.Save(regular,delegated with {Level="Power User"},default)),"Power User cannot promote a User");
+        await Use(s=>s.Save(regular,delegated with {UserName="updated-"+suffix},default));
+        Check((await Use(s=>s.SendInvitation(regular,invitation,default))).Sent,"Power User can invite User");
+        identity.User=regular;
+        Check((await Use(s=>s.List(default))).Length==0,"ordinary User has no management access");
+        await Reject(()=>Use(s=>s.Save(null,delegated,default)),"ordinary User cannot create users");
+    }
+    finally
+    {
+        identity.User=created.Value;
+        var current=(await Use(s=>s.List(default))).Single(u=>u.Id==regular);
+        await Execute(s=>s.Delete(regular,current.Revision,default));
+    }
     identity.User=adminId;
     input=input with{Revision=row.Revision,Level="Administrator"};await Use(s=>s.Save(created,input,default));
     row=(await Use(s=>s.List(default))).Single(r=>r.Id==created);Check(row.Level=="Administrator","Administrator level saved");
+    // Use the temporary administrator as the staff actor and a second temporary account as the target.
+    await raw.ExecuteAsync("""UPDATE "AspNetUsers" SET "Aurora_User"=true WHERE "Id"=@created""",new{created});
+    identity.User=created.Value;
+    var target=await Use(s=>s.Save(null,delegated,default));
+    try
+    {
+        var managed=(await Use(s=>s.List(default))).Single(u=>u.Id==target);
+        Check(managed.AuroraUser==false,"Staff editor sees an unchecked Aurora User checkbox");
+        foreach(var value in new[]{true,false})
+        {
+            await Use(s=>s.Save(target,delegated with {Revision=managed.Revision,AuroraUser=value,LoginPassword=""},default));
+            managed=(await Use(s=>s.List(default))).Single(u=>u.Id==target);
+            Check(managed.AuroraUser==value,"Staff edit persists Aurora User = "+value);
+        }
+    }
+    finally
+    {
+        var managed=(await Use(s=>s.List(default))).Single(u=>u.Id==target);
+        await Execute(s=>s.Delete(target,managed.Revision,default));
+        await raw.ExecuteAsync("""UPDATE "AspNetUsers" SET "Aurora_User"=false WHERE "Id"=@created""",new{created});
+        identity.User=adminId;
+    }
     identity.Company=Guid.NewGuid();
     await Reject(()=>Use(s=>s.Save(created,input with{Revision=row.Revision},default)),"other company cannot edit user");identity.Company=tenantId;
     await Execute(s=>s.Delete(created.Value,row.Revision,default));
@@ -118,3 +167,9 @@ finally
 }
 Console.WriteLine($"{checks} user administration checks passed. Temporary user removed; Nova data unchanged.");
 sealed class TestTenant(Guid company,Guid user):ITenantContext {public Guid Company=company;public Guid User=user;public Guid? TenantIdOrNull=>Company;public Guid? UserIdOrNull=>User;}
+
+sealed class TestInvitation : IInvitationEmail
+{
+    public Task<InvitationEmailResult> Send(Guid userId,string userName,string email,CancellationToken ct,string? password=null,string? invitationToken=null)
+        => Task.FromResult(new InvitationEmailResult(true,null));
+}

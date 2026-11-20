@@ -131,12 +131,28 @@ public sealed partial class FirebirdRoutingSource
                 foreach(var key in new[]{"PB_BILL_ID","OPS_ACCTID"})
                     if(values.GetValueOrDefault(key) is string accountId && !string.IsNullOrWhiteSpace(accountId)
                         && !await db.ExecuteScalarAsync<bool>(new CommandDefinition("SELECT EXISTS(SELECT 1 FROM ACCOUNT WHERE AC_CUST=@accountId) FROM RDB$DATABASE",new{accountId},tx,cancellationToken:ct)))
-                        throw new FormatException("Choose an account in this Nova database or enter the name manually.");
-            if(document is null)Required(header,"PB_LOCATION");
+                        throw new FormatException(document is not null && key=="PB_BILL_ID"
+                            ? $"Bill-to account {accountId} was not found in this Nova database. Verify the code or correct the bill-to account in review."
+                            : "Choose an account in this Nova database or enter the name manually.");
+            if (document is not null && header["PB_LOCATION"] is null) throw new FormatException("Choose a Nova terminal before creating the order.");
+            Required(header,"PB_LOCATION");
             Required(header,"PB_STATUS");await ValidTerminal(db,tx,header["PB_LOCATION"],ct);
             if(await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM CT_STAT WHERE CTS_ID=@status AND (CTS_ORDER_VISIBLE='Y' OR CTS_ID=110)",new{status=header["PB_STATUS"]},tx,cancellationToken:ct))!=1)throw new FormatException("Choose a valid order status.");
-            if(header["PBNUM"] is not decimal pro || pro<=0)throw new FormatException("Enter a positive PRO number.");
-            if(await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM OPS_HEADER WHERE PB_TYPE='O' AND PBNUM=@pro",new{pro},tx,cancellationToken:ct))>0)throw new FormatException("That PRO number already exists.");
+            var autoPro=document is not null && header["PBNUM"] is null;
+            string? importReference=null;
+            if(autoPro)
+            {
+                if(document!.ImportRowId==Guid.Empty)throw new FormatException("Reopen the document preview before creating this order.");
+                importReference=$"aurora-document:{tenant.TenantId:N}:{document.ImportRowId:N}";
+                var previous=await db.QuerySingleOrDefaultAsync<long?>(new CommandDefinition("SELECT PB_ID FROM OPS_HEADER WHERE PB_TYPE='O' AND PB_EXTERNAL_REF=@importReference",new{importReference},tx,cancellationToken:ct));
+                if(previous.HasValue)return await ReadRecord(db,tx,"orders",previous.Value,false,ct);
+                header.Remove("PBNUM");
+            }
+            else
+            {
+                if(header["PBNUM"] is not decimal pro || pro<=0)throw new FormatException("Enter a positive PRO number.");
+                if(await db.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM OPS_HEADER WHERE PB_TYPE='O' AND PBNUM=@pro",new{pro},tx,cancellationToken:ct))>0)throw new DuplicateProException("That PRO number already exists.");
+            }
             foreach(var stop in parts.Where(p=>p.Key!="header").Select(p=>p.Value))
             {
                 if(document is null)Required(stop,"OPS_NAME");
@@ -146,14 +162,14 @@ public sealed partial class FirebirdRoutingSource
             }
             id=await NextId(db,tx,true,ct);header["PB_ID"]=id;header["PB_TYPE"]="O";header["PB_LOAD_TYPE"]="O";
             header["PB_DT_ENT"]=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById(Options.TimeZoneId)).DateTime;
-            if(document is not null){
-                header["PB_NOTES"]=document.NotesWithReferences();
-                header["PB_EXTERNAL_REF"]=$"aurora-document:{tenant.TenantId:N}:{document.Order.Id}";
-            }
+            if(document is not null)
+                ApplyImportHeader(header, document, importReference??$"aurora-document:{tenant.TenantId:N}:{document.Order.Id}", Options.ThirdPartyPayTypeOnImport);
             await Insert(db,tx,"OPS_HEADER",header,ct);
             foreach(var key in new[]{"pickup","delivery"})
             {
                 var stop=parts[key];stop["OPS_STOP_ID"]=await NextId(db,tx,false,ct);stop["OPS_ORDER_ID"]=id;stop["OPS_STOP_NUMBER"]=key=="pickup"?1:2;stop["OPS_TYPE"]=key=="pickup"?"P":"D";
+                if (key == "pickup" && document?.IsSpreadsheetImport == true)
+                    stop["OPS_RATE"] = "Y";
                 await Insert(db,tx,"OPS_STOP_REC",stop,ct);
                 if (key=="pickup" && document is not null)
                 {
@@ -166,5 +182,13 @@ public sealed partial class FirebirdRoutingSource
         var saved=await ReadRecord(db,tx,kind,id,false,ct);
         if(rollbackOnly)await tx.RollbackAsync(ct);else await tx.CommitAsync(ct);
         return saved with { LocationWarnings=locationWarnings };
+    }
+    internal static void ApplyImportHeader(Dictionary<string,object?> header, OrderDocumentDraft document, string reference, bool thirdPartyPayType)
+    {
+        if (thirdPartyPayType) header["PBPAYTYP"] = "B"; // Nova order entry code for 3rd Party.
+        if (string.Equals(document.DocumentType,"Lykes",StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(document.TerminalCode))
+            header["PBORIG"]=header["PB_LOCATION"];
+        header["PB_NOTES"]=document.NotesWithReferences();
+        header["PB_EXTERNAL_REF"]=reference;
     }
 }

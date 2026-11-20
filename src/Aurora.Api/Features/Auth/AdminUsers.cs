@@ -15,17 +15,20 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
 {
     static string Role(string level)=>level switch {"Administrator"=>"aurora:Admin","Power User"=>"aurora:PowerUser","User"=>"aurora:User",_=>throw new FormatException("Choose Administrator, Power User, or User.")};
     const string UserSql="""
-        SELECT u."Id",u."UserName",u."Email",u."ConcurrencyStamp" AS Revision,CASE WHEN NOT u."Aurora_User" THEN u."ManagementTenantId" END AS Owner,
+        SELECT u."Id",u."UserName",u."Email",u."ConcurrencyStamp" AS Revision,
+            CASE WHEN NOT u."Aurora_User" OR actor."Aurora_User" THEN u."ManagementTenantId" END AS Owner,
+            CASE WHEN actor."Aurora_User" THEN u."Aurora_User" END AS AuroraUser,
 
-            CASE WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:Admin') THEN 'Administrator'
-            WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=m.tenant_id AND r."Name"='aurora:PowerUser') THEN 'Power User' ELSE 'User' END AS Level
-        FROM "AspNetUsers" u JOIN user_tenant m ON m.user_id=u."Id" WHERE m.tenant_id=@TenantId
+            CASE WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=@TenantId AND r."Name"='aurora:Admin') THEN 'Administrator'
+            WHEN EXISTS(SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId" WHERE ur."UserId"=u."Id" AND ur."TenantId"=@TenantId AND r."Name"='aurora:PowerUser') THEN 'Power User' ELSE 'User' END AS Level
+        FROM public.aurora_managed_user_ids() managed(id) JOIN "AspNetUsers" u ON u."Id"=managed.id
+        JOIN "AspNetUsers" actor ON actor."Id"=@ActorId WHERE TRUE
         """;
     public async Task<AdminUserDto[]> List(CancellationToken ct)
     {
         await using var connection=await factory.OpenConnectionAsync(ct);
-        var rows=await connection.QueryAsync<Row>(new CommandDefinition(UserSql+" ORDER BY u.\"UserName\"",new{tenant.TenantId},cancellationToken:ct));
-        return rows.Select(row=>new AdminUserDto(row.Id,row.UserName,row.Email,row.Level,row.Revision,row.Owner==tenant.TenantId)).ToArray();
+        var rows=await connection.QueryAsync<Row>(new CommandDefinition(UserSql+" ORDER BY u.\"UserName\"",new{tenant.TenantId,ActorId=tenant.UserId},cancellationToken:ct));
+        return rows.Select(row=>new AdminUserDto(row.Id,row.UserName,row.Email,row.Level,row.Revision,row.Owner==tenant.TenantId,row.AuroraUser)).ToArray();
     }
     static void Check(IdentityResult result){if(!result.Succeeded)throw new FormatException(string.Join(" ",result.Errors.Select(e=>e.Description)));}
     public async Task<Guid> Save(Guid? id,AdminUserEdit input,CancellationToken ct)
@@ -37,10 +40,23 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         await using var tx=await db.Database.BeginTransactionAsync(ct);
         var connection=db.Database.GetDbConnection();var transaction=tx.GetDbTransaction();
         await connection.ExecuteAsync(new CommandDefinition("SELECT pg_advisory_xact_lock(hashtextextended(@key,0))",new{key=$"admin-users:{tenant.TenantId}"},transaction,cancellationToken:ct));
+        var allowed=await connection.ExecuteScalarAsync<bool>(new CommandDefinition("""
+            SELECT EXISTS (SELECT FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id"=ur."RoleId"
+                WHERE ur."TenantId"=@TenantId AND ur."UserId"=@ActorId
+                AND (r."Name"='aurora:Admin' OR (r."Name"='aurora:PowerUser' AND @role='aurora:User')))
+            """,new{tenant.TenantId,ActorId=tenant.UserId,role},transaction,cancellationToken:ct));
+        if(!allowed)throw new UnauthorizedAccessException();
+        if(input.AuroraUser.HasValue)
+        {
+            if(id is null || !await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                """SELECT "Aurora_User" FROM "AspNetUsers" WHERE "Id"=@ActorId FOR SHARE""",
+                new { ActorId=tenant.UserId },transaction,cancellationToken:ct)))
+                throw new UnauthorizedAccessException();
+        }
         Row? row=null;
         if(id is not null)
         {
-            row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id FOR UPDATE OF u,m",new{tenant.TenantId,id},transaction,cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
+            row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id FOR UPDATE OF u",new{tenant.TenantId,id,ActorId=tenant.UserId},transaction,cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
             if(row.Owner!=tenant.TenantId)throw new FormatException("This shared login is managed by another company.");
             if(row.Revision!=input.Revision)throw new FormatException("This user changed. Reload before saving.");
             if(id==tenant.UserId && input.Level!=row.Level)throw new FormatException("Another administrator must change your access level.");
@@ -58,6 +74,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         }
         else
         {
+            if(input.AuroraUser is {} staff)user.AuroraUser=staff;
             if(user.InvitationPending && !string.IsNullOrEmpty(input.LoginPassword))throw new FormatException("Resend the invitation so this user can set their first password.");
             Check(await users.UpdateAsync(user));
             if(!string.IsNullOrEmpty(input.LoginPassword))Check(await users.ResetPasswordAsync(user,await users.GeneratePasswordResetTokenAsync(user),input.LoginPassword));
@@ -71,7 +88,7 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
     public async Task<InvitationEmailResult> SendInvitation(Guid id,IInvitationEmail email,CancellationToken ct)
     {
         await using var connection=await factory.OpenConnectionAsync(ct);
-        var row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id",new{tenant.TenantId,id},cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
+        var row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id",new{tenant.TenantId,id,ActorId=tenant.UserId},cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
         if(row.Owner!=tenant.TenantId)throw new FormatException("This shared login is managed by another company.");
         var user=await users.FindByIdAsync(id.ToString())??throw new KeyNotFoundException("User not found.");
         if(!user.InvitationPending) return await email.Send(row.Id,row.UserName,row.Email,ct);
@@ -91,21 +108,21 @@ public sealed class AdminUsers(AuroraDbContext db,UserManager<ApplicationUser> u
         await using var tx=await db.Database.BeginTransactionAsync(ct);
         var connection=db.Database.GetDbConnection();var transaction=tx.GetDbTransaction();
         await connection.ExecuteAsync(new CommandDefinition("SELECT pg_advisory_xact_lock(hashtextextended(@key,0))",new{key=$"admin-users:{tenant.TenantId}"},transaction,cancellationToken:ct));
-        var row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id FOR UPDATE OF u,m",new{tenant.TenantId,id},transaction,cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
+        var row=await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(UserSql+" AND u.\"Id\"=@id FOR UPDATE OF u",new{tenant.TenantId,id,ActorId=tenant.UserId},transaction,cancellationToken:ct))??throw new KeyNotFoundException("User not found.");
         if(row.Owner!=tenant.TenantId)throw new FormatException("This shared login is managed by another company.");
         if(row.Revision!=revision)throw new FormatException("This user changed. Reload before deleting.");
         if(row.Level=="Administrator")await KeepAdministrator(connection,transaction,ct);
         Check(await users.DeleteAsync(await users.FindByIdAsync(id.ToString())??throw new KeyNotFoundException("User not found.")));
         await tx.CommitAsync(ct);
     }
-    private sealed record Row(Guid Id,string UserName,string Email,string Revision,Guid? Owner,string Level);
+    private sealed record Row(Guid Id,string UserName,string Email,string Revision,Guid? Owner,bool? AuroraUser,string Level);
 }
 
 public static class AdminUserEndpoints
 {
     public static void MapAdminUserEndpoints(this IEndpointRouteBuilder app)
     {
-        var group=app.MapGroup("/api/v1/admin/users").RequireAuthorization(p=>p.RequireRole("aurora:Admin"));
+        var group=app.MapGroup("/api/v1/admin/users").RequireAuthorization(p=>p.RequireRole("aurora:Admin","aurora:PowerUser"));
         group.MapGet("",(AdminUsers service,CancellationToken ct)=>Guard(async()=>Results.Ok(await service.List(ct))));
         group.MapPost("",(AdminUserEdit input,AdminUsers service,IInvitationEmail email,CancellationToken ct)=>Guard(async()=>
         {
@@ -121,6 +138,7 @@ public static class AdminUserEndpoints
     internal static async Task<IResult> Guard(Func<Task<IResult>> action)
     {
         try{return await action();}
+        catch(UnauthorizedAccessException){return Results.Forbid();}
         catch(FormatException ex){return Results.BadRequest(new ApiErrorDto(ex.Message));}
         catch(KeyNotFoundException ex){return Results.NotFound(new ApiErrorDto(ex.Message));}
         catch(FbException ex) when(ex.Errors.Cast<FbError>().Any(e=>e.Number==335544472)){return Results.BadRequest(new ApiErrorDto("Firebird rejected the Nova username or password. Enter the credentials for this Firebird installation; leaving the password blank reuses the saved password."));}

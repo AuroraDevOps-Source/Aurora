@@ -3,36 +3,68 @@ using System.Text.RegularExpressions;
 
 namespace Aurora.Contracts;
 
+public sealed record DocumentLogoCompany(string Name, int Page, string? Address=null, string? Address2=null,
+    string? City=null, string? State=null, string? PostalCode=null, string? Country=null,
+    string? Contact=null, string? Phone=null, string? Email=null);
+
 public sealed class OrderDocumentDraft
 {
+    public string MappingAccount {get;set;}="";
+    public string? ExtractionError {get;set;}
+    public int[] SourcePages {get;set;}=[];
     public string MappingSender {get;set;}="";
     public List<string> MappingDecisions {get;set;}=[];
+    public MappingCandidate[] PrintedIdentifiers {get;set;}=[];
     public string MappingForm {get;set;}="";
     public DocumentMappingQuestion[] MappingQuestions {get;set;}=[];
     public HashSet<string> EditedAddressParts {get;set;}=[];
     public string FreightTerms {get;set;}="";
+    public DocumentLogoCompany? LogoCompany {get;set;}
+    public string? BillToContact {get;set;}
+    public string? BillToPhone {get;set;}
+    public string? BillToEmail {get;set;}
     public string BillingEvidence {get;set;}="";
+    public int ImportRowNumber { get; set; }
+    public string FailureLabel()
+    {
+        var row = ImportRowNumber > 0 ? $"Order {ImportRowNumber}" : "Order";
+        var identifier = string.IsNullOrWhiteSpace(TagNumber) ? Order?.Id : TagNumber;
+        return !string.IsNullOrWhiteSpace(identifier) ? $"{row} (PRO/tag {identifier})" :
+            !string.IsNullOrWhiteSpace(BillOfLading) ? $"{row} (BOL {BillOfLading})" : row;
+    }
+
+    public Guid ImportRowId { get; set; }
     public Guid? ImportId { get; set; }
+    public bool IsSpreadsheetImport { get; set; }
     public string[] AddressLookupMessages {get;set;}=[];
     public int? NativeStatusId { get; set; }
     public TmsOrder Order { get; set; } = new();
     public string TagNumber { get; set; } = "";
+    public bool UseReviewedPacketBol {get;set;}
     public string BillOfLading { get; set; } = "";
     public string PurchaseOrder {get;set;}="";
     public string BillToAccountId {get;set;}="";
+    public string? DailyReportBillToName {get;set;}
+    public string BillToLookupName() =>
+        DailyReportBillToName is { Length: > 40 } full && Order.BillTo == full[..40] ? full : Order.BillTo;
     public string ShipperAccountId {get;set;}="";
     public string ConsigneeAccountId {get;set;}="";
+    public string? IndexedBillToPayer {get;set;}
+    public string? PrintedBillToPayer {get;set;}
+    public string? PrintedThirdPartyPayer {get;set;}
     public string? PrintedBillToAccountLine {get;set;}
     public string AccountId(string part)=>part switch {"pickup"=>ShipperAccountId,"delivery"=>ConsigneeAccountId,"header"=>BillToAccountId,_=>throw new ArgumentException(nameof(part))};
     public void SetAccountId(string part,string value)
     {
         switch(part){case "pickup":ShipperAccountId=value;break;case "delivery":ConsigneeAccountId=value;break;case "header":BillToAccountId=value;break;default:throw new ArgumentException(nameof(part));}
     }
-    public void ApplyPrintedAccount()
+    public void SeparatePartyAddresses()=>DocumentPartyAddress.Normalize(Order);
+    public bool ApplyPrintedAccount()
     {
-        if(string.IsNullOrWhiteSpace(PrintedBillToAccountLine))return;
-        var match=Regex.Match(PrintedBillToAccountLine.Trim(),@"^(?:Account\s*:\s*)?(?<id>[\w.-]+)\s+[-–—]\s+(?<name>.+)$",RegexOptions.IgnoreCase);
+        if(string.IsNullOrWhiteSpace(PrintedBillToAccountLine))return false;
+        var match=Regex.Match(PrintedBillToAccountLine.Trim(),@"^(?:Account\s*:\s*)?(?<id>[\w.-]+)\s+[-\u2013\u2014]\s+(?<name>.+)$",RegexOptions.IgnoreCase);
         if(match.Success){BillToAccountId=match.Groups["id"].Value;Order.BillTo=match.Groups["name"].Value.Trim();}
+        return match.Success;
     }
     public string ShipmentReference { get; set; } = "";
     public string HouseAirWaybill { get; set; } = "";
@@ -69,16 +101,17 @@ public sealed class OrderDocumentDraft
     {
         var match = Regex.Match(value?.Trim() ?? "", @"^(?:(?<terminal>[A-Za-z]+)[ -]?)?(?<pro>[0-9]{1,9})$", RegexOptions.CultureInvariant);
         if (!match.Success || !int.TryParse(match.Groups["pro"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var pro) || pro <= 0)
-            throw new FormatException("Enter a Tag with a terminal prefix and 1â€“9 digits, or a positive numeric PRO (for example MCO3706592 or 3706592).");
+            throw new FormatException("Enter a positive PRO number with 1 to 9 digits. You can include a terminal prefix, as in MCO3706592.");
         return (pro.ToString(CultureInfo.InvariantCulture), match.Groups["terminal"].Value.ToUpperInvariant());
     }
 
-    public void Normalize()
+    public void Normalize(bool allowBlankPro=false)
     {
         if (Order is null) throw new FormatException("Order details are required.");
         foreach (var value in new[] { TagNumber, BillOfLading, ShipmentReference, HouseAirWaybill, MasterAirWaybill })
             if (value is null || value.Length > 200) throw new FormatException("Document identifiers allow up to 200 characters.");
-        var (pro, terminal) = SplitTag(string.IsNullOrWhiteSpace(TagNumber) ? Order.Id : TagNumber);
+        var identifier = string.IsNullOrWhiteSpace(TagNumber) ? Order.Id : TagNumber;
+        var (pro, terminal) = allowBlankPro && string.IsNullOrWhiteSpace(identifier) ? ("", "") : SplitTag(identifier);
         Order.Id = pro;
         Order.TerminalCode = terminal;
         // Only the explicitly extracted BOL is mapped to Nova PBBOL. Never borrow another identifier.
@@ -91,6 +124,9 @@ public sealed class OrderDocumentDraft
         if (!string.IsNullOrWhiteSpace(Order.Notes)) lines.Add(Order.Notes);
         foreach (var (label, value) in new[] { ("Shipper account ID",ShipperAccountId),("Consignee account ID",ConsigneeAccountId),("Bill-to account ID",BillToAccountId),("Purchase order",PurchaseOrder),("Original Tag", TagNumber), ("Work type", Order.WorkType), ("Shipment reference", ShipmentReference), ("HAWB", HouseAirWaybill), ("MAWB", MasterAirWaybill) })
             if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{label}: {value.Trim()}");
+        if(includeLines)
+            foreach(var (label,value) in new[]{("Bill-to contact",BillToContact),("Bill-to phone",BillToPhone),("Bill-to email",BillToEmail)})
+                if(!string.IsNullOrWhiteSpace(value))lines.Add($"{label}: {value.Trim()}");
         if(includeLines && FreightLines is {Length:>0})lines.Add("Imported freight rows: "+System.Text.Json.JsonSerializer.Serialize(FreightLines));
         return string.Join("\n", lines);
     }
@@ -131,9 +167,18 @@ public sealed class DocumentFreightLine
     public decimal? CalculatedCubeFt3 {get;set;}
     public decimal? Volume => CubeFt3 ?? CalculatedCubeFt3;
     public decimal? WeightLb {get;set;}
+    public decimal? DimWeightLb {get;set;}
     public string? Description {get;set;}
     public decimal? Length {get;set;}
     public decimal? Width {get;set;}
     public decimal? Height {get;set;}
     public string DimensionUnit {get;set;}="";
 }
+
+public sealed record DuplicateImportPro(string Error,string? Code)
+{
+    public const string ErrorCode="duplicate_pro";
+    public static DuplicateImportPro For(string pro)=>new($"PRO {pro} already exists. No order was created.",ErrorCode);
+}
+
+public sealed class DuplicateProException(string message) : FormatException(message);

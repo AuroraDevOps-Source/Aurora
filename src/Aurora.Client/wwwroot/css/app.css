@@ -74,7 +74,7 @@ code { color: var(--ink); }
 }
 .aurora-product-nav .header-link:hover { color: white; background: rgba(255, 255, 255, .05); }
 .aurora-product-nav .header-link.active { color: white; background: rgba(255, 255, 255, .08); border-bottom-color: white; }
-.aurora-product-nav .header-link:disabled { color: rgba(255, 255, 255, .35); }
+.aurora-product-nav .header-link:disabled { color: #aab8c9 !important; }
 .aurora-product-nav .header-link:focus-visible { outline: 2px solid #93c5fd; outline-offset: -4px; }
 .aurora-user-menu { flex-shrink: 0; max-width: 200px; }
 .aurora-user-menu > .mud-button-root { max-width: 100%; color: rgba(255, 255, 255, .7); font-size: 12px; text-transform: none; letter-spacing: 0; }
@@ -380,3 +380,5 @@ body:has(.map-popout) .tms-workspace { display:block; }
 .settings-dialog .field { margin-bottom:10px; }
 @media(max-width:600px) { .settings-connections-grid { grid-template-columns:minmax(0,1fr); } }
 .dispatch-dialog.login-tenant-dialog { width:min(440px,calc(100vw - 24px)); }
+
+.tms-workspace > .tms-main:only-child { grid-column: 1 / -1; }

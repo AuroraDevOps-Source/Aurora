@@ -2,6 +2,15 @@
 @attribute [Authorize]
 @inject NavigationManager Navigation
 
+@if (Destination is null)
+{
+    <p class="pa-4" role="status">No applications are enabled for your account in this company.</p>
+}
+
 @code {
-    protected override void OnInitialized() => Navigation.NavigateTo(ProductWorkspace.RouteFor(ProductWorkspace.Aurora), replace: true);
+    [Parameter] public string? Destination { get; set; }
+    protected override void OnParametersSet()
+    {
+        if (Destination is not null) Navigation.NavigateTo(Destination, replace: true);
+    }
 }

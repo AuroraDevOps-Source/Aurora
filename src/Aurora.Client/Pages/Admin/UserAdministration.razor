@@ -7,7 +7,7 @@
 {
     <div class="user-toolbar"><h2>Users</h2><span class="spacer"></span><button class="primary-button" disabled="@_busy" @onclick="New">Add user</button></div>
     <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr><th>Username</th><th>Email</th><th>Level</th><th></th></tr></thead>
-    <tbody>@foreach(var user in _users){<EditGridRow Disabled="@(_busy || !user.CanEdit)" OnEdit="()=>Edit(user)"><td>@user.UserName</td><td>@user.Email</td><td>@user.Level</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><button class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>SendInvitation(user)">Send invitation</button><button class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>_delete=user">Delete</button></td></EditGridRow>}</tbody></table></div>
+    <tbody>@foreach(var user in _users){<EditGridRow Disabled="@(_busy || !user.CanEdit)" OnEdit="()=>Edit(user)"><td>@user.UserName</td><td>@user.Email</td><td>@user.Level</td><td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><button type="button" class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>Edit(user)">Edit</button>@if(!user.CanEdit){<span class="preview-footnote">Managed by another company</span>}<button class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>SendInvitation(user)">Send invitation</button><button class="text-button" disabled="@(_busy || !user.CanEdit)" @onclick="()=>_delete=user">Delete</button></td></EditGridRow>}</tbody></table></div>
     @if(_delete is not null){<div class="delete-prompt" role="alert">Delete login <strong>@_delete.UserName</strong>? <button class="outline-button" disabled="@_busy" @onclick="()=>_delete=null">Cancel</button><button class="primary-button" disabled="@_busy" @onclick="Delete">Delete user</button></div>}
 }
 else
@@ -18,8 +18,12 @@ else
         <fieldset class="edit-group"><legend>Account & access</legend><div class="user-fields">
             <label class="field">Username<input id="managed-user-name" name="managed-user-name" @bind="_name" autocomplete="section-managed-user username" data-1p-ignore="true" data-lpignore="true" maxlength="256" /></label>
             <label class="field">Email<input type="email" @bind="_email" maxlength="256" /></label>
-            <label class="field">Level<select @bind="_level"><option>Administrator</option><option>Power User</option><option>User</option></select></label>
+            <label class="field">Level<select @bind="_level" disabled="@(!IsAdministrator)">@if(IsAdministrator){<option>Administrator</option><option>Power User</option>}<option>User</option></select></label>
             @if(_id is not null){<label class="field">New login password<input id="managed-user-password" name="managed-user-password" type="password" @bind="_loginPassword" autocomplete="section-managed-user new-password" data-1p-ignore="true" data-lpignore="true" placeholder="Leave blank to keep current" /></label>}
+            @if(_id is not null && _originalAuroraUser.HasValue)
+            {
+                <label><input type="checkbox" @bind="_auroraUser" /> Aurora User</label>
+            }
         </div></fieldset>
         <div class="user-toolbar"><span class="spacer"></span><button class="outline-button" @onclick="Cancel">Cancel</button><button class="primary-button" @onclick="Save">Save</button></div>
     </fieldset>
@@ -27,17 +31,26 @@ else
 </section>
 
 @code {
+    [Parameter] public bool IsAdministrator { get; set; }
     const string Url="api/v1/admin/users";
     AdminUserDto[] _users=[];AdminUserDto? _delete;
     Guid? _id;bool _editing,_busy;
+    bool? _originalAuroraUser;
+    bool _auroraUser;
     string _name="",_email="",_level="User",_revision="",_loginPassword="";
     string? _error,_message;
     protected override async Task OnInitializedAsync()=>await Run(Load);
     async Task Load(){using var response=await Http.GetAsync(Url);await Check(response);_users=(await response.Content.ReadFromJsonAsync<AdminUserDto[]>())??[];}
     void New(){_id=null;_editing=true;_delete=null;_name=_email=_revision=_loginPassword="";_level="User";_error=_message=null;}
-    void Edit(AdminUserDto user){_id=user.Id;_name=user.UserName;_email=user.Email;_level=user.Level;_revision=user.Revision;_loginPassword="";_editing=true;_delete=null;_error=_message=null;}
+    void Edit(AdminUserDto user)
+    {
+        _id=user.Id;_name=user.UserName;_email=user.Email;_level=user.Level;_revision=user.Revision;
+        _originalAuroraUser=user.AuroraUser;_auroraUser=user.AuroraUser==true;
+        _loginPassword="";_editing=true;_delete=null;_error=_message=null;
+    }
     void Cancel(){_editing=false;_loginPassword="";_error=_message=null;}
-    AdminUserEdit Input()=>new(_name,_email,_level,_loginPassword,_revision);
+    AdminUserEdit Input()=>new(_name,_email,_level,_loginPassword,_revision,
+        AuroraUser:_id.HasValue && _originalAuroraUser.HasValue && _originalAuroraUser!=_auroraUser ? _auroraUser : null);
     async Task Save()=>await Run(async()=>
     {
         var creating=_id is null;

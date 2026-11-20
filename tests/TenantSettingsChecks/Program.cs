@@ -6,6 +6,7 @@ using Aurora.Infrastructure.Data;
 using Aurora.Infrastructure.Tenancy;
 using Aurora.Integrations.Nova;
 using Dapper;
+using FirebirdSql.Data.FirebirdClient;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -47,6 +48,7 @@ try
  Check(input.DocumentExtractionInstructions=="","a new company starts with shared extraction rules");
  const string companyInstructions="Read a parcel label as the shipment reference.";
  input.DocumentExtractionInstructions=companyInstructions;
+ input.DocumentFormRules=[new(){Issuer="Lykes Cartage Company",Form="Lykes Freight Bill",Account="UPS9001",Instructions="Use the customer Account header."}];
  Check(input.DriverCostPerHour==0,"new tenant defaults to zero driver cost");
  Check(input.Navigation is {Optimization:true,DataEntry:true,FreightOps:true,Hub:true,Nova:true},"new tenant shows all menu options by default");
  input.CompanyName=" Updated company ";
@@ -60,6 +62,9 @@ try
  Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@a AND product_code='freightops'",new{a})==input.FreightOps.ApiUrl,"launcher uses saved FreightOps connection URL");
  Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@b AND product_code='freightops'",new{b})=="https://old.example.invalid/","saving launcher URL does not change another tenant");
  var saved=await service.Read(default);
+ var scoped=saved.DocumentFormRules!.Single();
+ Check(scoped.Matches(" LYKES Cartage Company ","Lykes Freight Bill","ups9001") && !scoped.Matches("Other carrier","Lykes Freight Bill","UPS9001") &&
+     !scoped.Matches("Lykes Cartage Company","Lykes Freight Bill","OTHER"),"PDF settings match only this issuer, form and customer");
  Check(saved.DocumentExtractionInstructions==companyInstructions,"company extraction instructions round-trip");
  Check(saved.CompanyName=="Updated company","company name saved and trimmed");
  Check(saved.Navigation is {Optimization:false,DataEntry:true,FreightOps:false,Hub:false,Nova:false},"menu preferences persist independently");
@@ -77,7 +82,7 @@ try
  var badName=await service.Read(default);badName.CompanyName=" ";
  await Reject(()=>service.Save(badName,default),"blank company name rejected");
  badName.CompanyName=new string('x',201);await Reject(()=>service.Save(badName,default),"overlong company name rejected");
- var compatibility=await service.Read(default);compatibility.Navigation=null;compatibility.DocumentExtractionInstructions=null;
+ var compatibility=await service.Read(default);compatibility.Navigation=null;compatibility.DocumentExtractionInstructions=null;compatibility.DocumentFormRules=null;
  await service.Save(compatibility,default);
  Check((await service.Read(default)).DocumentExtractionInstructions==companyInstructions,"older settings clients preserve company instructions");
  var tooLong=await service.Read(default);tooLong.DocumentExtractionInstructions=new string('a',TenantSettingsDto.MaxDocumentInstructionsLength+1);
@@ -91,11 +96,38 @@ try
  var moved=await service.Read(default);moved.FreightOps.ApiUrl="https://new.example.invalid/";moved.FreightOps.Password="replacement-secret";
  await service.Save(moved,default);
  Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@a AND product_code='freightops'",new{a})==moved.FreightOps.ApiUrl,"changing Connections also changes launcher destination");
+ var urlOnly=await service.Read(default);
+ urlOnly.FreightOps=new(){ApiUrl="https://launcher.example.invalid/"};
+ await service.Save(urlOnly,default);
+ var launcher=await service.Read(default);
+ Check(launcher.FreightOps.ApiUrl==urlOnly.FreightOps.ApiUrl && launcher.FreightOps.UserName=="" && !launcher.FreightOps.HasPassword,"URL-only FreightOps connection round trips without retaining old credentials");
+ Check(await owner.ExecuteScalarAsync<string>("SELECT instance_url FROM tenant_product WHERE tenant_id=@a AND product_code='freightops'",new{a})==urlOnly.FreightOps.ApiUrl,"URL-only connection updates the FreightOps launcher");
  var changed=await service.Read(default);changed.DispatchTrack.ApiUrl="https://other.example.invalid/";
  await Reject(()=>service.Save(changed,default),"changed destination requires fresh credentials");
  changed=await service.Read(default);changed.Nova.Host="192.0.2.2";changed.Nova.Password="new-secret";
- await Reject(()=>service.Save(changed,default),"source swap cannot mix synchronized data");
+ await owner.ExecuteAsync("UPDATE aurora_sync_connection SET enabled=true WHERE tenant_id=@a AND provider='nova'",new{a});
+ await service.Save(changed,default);
+ Check((await service.Read(default)).Nova.Host==changed.Nova.Host,"administrator can save a different Nova database");
+ await using(var db=await factory.OpenConnectionAsync())
+  Check(await db.ExecuteScalarAsync<int>("SELECT count(*) FROM public.aurora_sync_credentials()")==0,"the original sync cannot use the replacement database");
+ var beforeTest=await service.Read(default);
+ var differentPath=new NovaConnectionSettings { Host=beforeTest.Nova.Host, Port=beforeTest.Nova.Port,
+     Database="different.fdb", UserName=beforeTest.Nova.UserName };
+ await Reject(()=>service.TestNovaConnection(differentPath,default),"testing a different path requires its own password");
+ if(config.TryGetValue("FirebirdRouting:ConnectionString",out var fixture))
+ {
+  var fb=new FbConnectionStringBuilder(fixture.GetString());
+  if(fb.DataSource=="172.23.0.5" && fb.Database.Equals(@"D:\db\wayl_test\operations.fdb",StringComparison.OrdinalIgnoreCase))
+  {
+   var probe=new NovaConnectionSettings {Host=fb.DataSource, Port=fb.Port, Database=fb.Database, UserName=fb.UserID, Password=fb.Password};
+   await service.TestNovaConnection(probe,default);
+   var afterTest=await service.Read(default);
+   Check(afterTest.Revision==beforeTest.Revision && afterTest.Nova.Database==beforeTest.Nova.Database,
+       "testing an alternate database succeeds without saving it to a tenant that has a sync source");
+  }
+ }
  context.Company=b;var other=await service.Read(default);
+ Check(other.DocumentFormRules is {Count:0},"PDF customer rules isolated by tenant");
  Check(other.DocumentExtractionInstructions=="","second tenant does not receive the first tenant's instructions");
  other.DocumentExtractionInstructions="Temporary rule";await service.Save(other,default);
  other=await service.Read(default);other.DocumentExtractionInstructions="";await service.Save(other,default);
@@ -118,9 +150,24 @@ try
  await history.RequireCreatedOrder(batch,"123",default);
  Check(true,"created order link resolves within tenant history");
  try{await history.RequireCreatedOrder(batch,"999",default);throw new Exception("Unrelated order link accepted");}catch(KeyNotFoundException){Check(true,"history link cannot address an unrelated PRO");}
- var failed=await history.Start("pasted-orders.txt",default);await history.Failed(failed);
- Check((await history.List(default)).First().Status=="Failed","failed conversion retained in recent imports");
+ var failed=await history.Start("pasted-orders.txt",default);await history.Failed(failed,"Conversion timed out.");
+ Check((await history.List(default)).First() is {Status:"Failed",FailureReason:"Conversion timed out."},"failed conversion retained in recent imports");
+ var draft=new OrderDocumentDraft { ImportId=batch, ImportRowId=Guid.NewGuid(), ImportRowNumber=2, TagNumber="456" };
+ await history.TrackCreation(draft,()=>Task.FromResult(Results.BadRequest(new ApiErrorDto("Bill-to state allows 2 characters.")) as IResult));
+ await history.TrackCreation(draft,()=>Task.FromResult(Results.BadRequest(new ApiErrorDto("Bill-to state allows 2 characters.")) as IResult));
+ var detail=(await history.Failures(batch,default)).Single();
+ Check(detail.OrderLabel.Contains("456") && detail.Reason=="Bill-to state allows 2 characters.","order failure retains reason and identifier across repeated attempts");
+ var localFailure=new ImportFailure(draft.ImportRowId,draft.FailureLabel(),"Invalid terminal prefix.");
+ Check(await history.SaveReviewCounts(batch,new(0,1,[localFailure]),default),"review stores client-side validation reason with counts");
+ Check((await history.Failures(batch,default)).Any(f=>f.Reason==localFailure.Reason),"local validation reason survives history reload");
+ var legacy=await history.Start("legacy-duplicates.xlsx",default);
+ await history.Converted(legacy,2,default,[new(Guid.NewGuid(),"Order 1","That PRO number already exists.")]);
+ await history.SaveReviewCounts(legacy,new(1,0),default);
+ Check(!(await history.List(default)).Single(h=>h.Id==legacy).HasOrderFailures && !(await history.Failures(legacy,default)).Any(),"skipped legacy duplicate has no failure details");
+ await history.SaveReviewCounts(legacy,new(1,1,[new(Guid.NewGuid(),"Order 2","Invalid terminal prefix.")]),default);
+ Check((await history.List(default)).Single(h=>h.Id==legacy).HasOrderFailures && (await history.Failures(legacy,default)).Single().Reason=="Invalid terminal prefix.","mixed batch retains its actual failure");
  context.Company=b;
+ Check(!(await history.Failures(batch,default)).Any(),"order failure details isolated by tenant");
  Check(!(await history.List(default)).Any(),"history isolated by tenant");
  try{await history.RequireCreatedOrder(batch,"123",default);throw new Exception("Cross-tenant order link accepted");}catch(KeyNotFoundException){Check(true,"order link cannot cross tenant boundaries");}
  await Reject(()=>history.Validate(batch,default),"another tenant cannot attach to import");
@@ -132,7 +179,7 @@ try
   Check(await db.ExecuteScalarAsync<int>("SELECT count(*) FROM tenant_settings")==0,"ordinary planner cannot read connection settings");
   var menu=JsonSerializer.Deserialize<TenantNavigationSettings>((await db.ExecuteScalarAsync<string>("SELECT public.aurora_tenant_navigation()"))!);
   Check(menu is {Optimization:false,DataEntry:true},"ordinary member can read menu preferences without secrets");
-  Check((await history.List(default)).Count()==2,"ordinary member can view company import history");
+  Check((await history.List(default)).Count()==3,"ordinary member can view company import history");
   Check(await db.ExecuteScalarAsync<decimal>("SELECT public.aurora_driver_cost_per_hour()")==35.25m,"ordinary planner can use only the global labor rate");
  }
  context.User=Guid.NewGuid();
@@ -181,15 +228,92 @@ try
  Check(blockedPreview is Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult,"ordinary member cannot override global instructions in previews");
  var samples=(preview as IValueHttpResult)?.Value as DocumentExtractionSample[];
  Check(samples is [{Pro:"42"}] && samples[0].Fields.GetProperty("TagNumber").GetString()=="MCO42" && hub.Prompt.EndsWith(unsaved) && !hub.Prompt.Contains(companyInstructions),"preview uses unsaved instructions and returns extracted fields");
- Check((await history.List(default)).Count()==2,"a sample preview leaves import history alone");
+ Check((await history.List(default)).Count()==3,"a sample preview leaves import history alone");
  var regular=await conversion.Convert(sample,null,default);
  var drafts=(regular as IValueHttpResult)?.Value as List<OrderDocumentDraft>;
  Check(drafts is [{ImportId:not null}] && hub.Prompt.EndsWith(companyInstructions) && !hub.Prompt.Contains(unsaved),"ordinary member conversion uses the saved instructions after a preview");
  Check(hub.Prompt.Contains("Return ONLY a JSON array") && hub.Credential==a.ToString(),"shared response contract and authenticated tenant credential reach the Hub");
+ // A two-page PDF goes through the same classifier in admin preview and conversion.
+ var packet=new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+ packet.AddPage(200,200);packet.AddPage(200,200);
+ using var pdfStream=new MemoryStream(packet.Build());
+ var pdfSample=new FormFile(pdfStream,0,pdfStream.Length,"file","two-issuers.pdf");
+ hub.PacketFixture=true;
+ var packetPreview=await conversion.Convert(pdfSample,"",default);
+ var packetRows=(packetPreview as IValueHttpResult)?.Value as DocumentExtractionSample[];
+ Check(packetRows is {Length:2} && packetRows[0].Pro=="3735721" &&
+     packetRows[0].Fields.GetProperty("BillToAccountId").GetString()=="UPS9001" &&
+     packetRows[0].Fields.GetProperty("SourcePages")[0].GetInt32()==1,
+     "two-pass sample preview returns normalized Lykes billing and original page");
+ Check(hub.ScopedPromptSeen && hub.OtherPromptIsolated,"customer instructions reach only the matching shipment");
+ hubSettings[$"DocumentConversion:Tenants:{a:D}:RequirePrintedLykesTag"]="true";
+ var proRules=new List<DocumentFormRule>{new(){Issuer="Unrelated issuer",UsePrintedPro=true,Instructions="Use Bill No. for BOL."}};
+ async Task<string> SecondPro()
+ {
+     var sampleResult=await conversion.Convert(pdfSample,"",default,previewRules:proRules);
+     return ((DocumentExtractionSample[])((IValueHttpResult)sampleResult).Value!)[1].Pro;
+ }
+ hub.SeparatePro=true;
+ Check(await SecondPro()=="3456789","a scoped printed PRO survives the tenant Tag-only default");
+ hub.SeparatePro=false;
+ Check(await SecondPro()=="","the separate-PRO rule leaves PRO blank when only the bill number is present");
+ hubSettings[$"DocumentConversion:Tenants:{a:D}:RequirePrintedLykesTag"]="false";
+ var packetHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(pdfStream.ToArray()));
+ await owner.ExecuteAsync("INSERT INTO document_packet_mapping VALUES (@a,@packetHash,1,1,'TEST-001','Fixture payer'),(@a,@packetHash,2,2,'TEST-002','Fixture payer')",new{a,packetHash});
+ var preselected=await conversion.Convert(pdfSample,"",default);
+ var preselectedRows=(DocumentExtractionSample[])((IValueHttpResult)preselected).Value!;
+ Check(preselectedRows[1].Fields.GetProperty("BillOfLading").GetString()=="TEST-002" &&
+     preselectedRows.All(r=>r.Fields.GetProperty("MappingQuestions").GetArrayLength()==0),"exact packet applies provisional values without mapping questions");
+ context.Company=b;
+ var untouched=await conversion.Convert(pdfSample,"",default);
+ Check(((DocumentExtractionSample[])((IValueHttpResult)untouched).Value!)[1].Fields.GetProperty("BillOfLading").GetString()!="TEST-002","same PDF in another tenant does not use packet selections");
+ context.Company=a;
+ hub.CopyFixture=true;
+ var longPacket=new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+ for(int page=0;page<7;page++)longPacket.AddPage(200,200);
+ using var longStream=new MemoryStream(longPacket.Build());
+ var copies=await conversion.Convert(new FormFile(longStream,0,longStream.Length,"file","copies.pdf"),"",default);
+ var copyRows=(copies as IValueHttpResult)?.Value as DocumentExtractionSample[];
+ Check(copyRows is {Length:2} && copyRows[0].Fields.GetProperty("SourcePages").Deserialize<int[]>()!.SequenceEqual(new[]{5,6}) &&
+     copyRows[1].Fields.GetProperty("SourcePages")[0].GetInt32()==7,"merge stamped and clean copies at an index boundary and keep distinct shipment");
+ hub.CopyFixture=false;
+ await owner.ExecuteAsync("UPDATE document_packet_mapping SET issuer='Unrelated issuer',form='Waybill',nova_assigns_pro=true WHERE tenant_id=@a AND file_sha256=@packetHash",new{a,packetHash});
+ var indexCalls=hub.IndexCalls;
+ var reviewed=await conversion.Convert(pdfSample,"",default);
+ var reviewedRows=(DocumentExtractionSample[])((IValueHttpResult)reviewed).Value!;
+ Check(hub.IndexCalls==indexCalls && reviewedRows.All(r=>r.Pro=="" && r.Fields.GetProperty("Order").GetProperty("BillTo").GetString()=="Fixture payer"),
+     "visually indexed packets use the saved issuer and payer and let Nova assign the PRO");
+ var firstReady=new TaskCompletionSource<OrderDocumentDraft>(TaskCreationOptions.RunContinuationsAsynchronously);
+ hub.HoldSecond=new(TaskCreationOptions.RunContinuationsAsynchronously);
+ var streamedConversion=conversion.Convert(pdfSample,null,default,deferAddressLookup:true,
+     ordersReady:rows=>firstReady.TrySetResult(rows[0]));
+ var early=await firstReady.Task.WaitAsync(TimeSpan.FromSeconds(10));
+ Check(!streamedConversion.IsCompleted && early.ImportId.HasValue && early.ImportRowId!=Guid.Empty &&
+     early.BillOfLading=="TEST-001" && early.MappingQuestions.Length==0,"first editable draft is available with final packet mappings while second shipment is blocked");
+ hub.HoldSecond.SetResult();
+ var finished=(List<OrderDocumentDraft>)((IValueHttpResult)await streamedConversion).Value!;
+ hub.HoldSecond=null;
+ Check(finished.Count==2 && finished[0].ImportRowId==early.ImportRowId && finished[1].ImportRowId!=early.ImportRowId &&
+     finished.All(d=>d.ImportId==early.ImportId),"completion preserves IDs of incremental drafts and a single import batch");
+ hub.FailSecond=true;
+ var partial=await conversion.Convert(pdfSample,null,default,deferAddressLookup:true);
+ var partialDrafts=(partial as IValueHttpResult)?.Value as List<OrderDocumentDraft>;
+ Check(partialDrafts is [{ExtractionError:null},{ExtractionError:not null}] && partialDrafts[1].SourcePages.SequenceEqual(new[]{2}),
+     "a bad extraction on one shipment preserves the other issuer's draft");
+ var partialHistory=(await history.List(default)).First();
+ Check(partialHistory.FailedCount==1 && (await history.Failures(partialHistory.Id,default)).Single().OrderLabel=="PDF pages 2",
+     "a failed shipment retains its source page and reason in Recent imports");
+ hub.FailSecond=false;
+ hub.PacketFixture=false;
  context.Company=b;
  await conversion.Convert(sample,null,default);
  Check(hub.Prompt.Contains("Return ONLY a JSON array") && !hub.Prompt.Contains(companyInstructions) && hub.Credential==b.ToString(),"a cleared tenant uses the shared prompt and its own Hub credential");
  Check(hub.Prompt.Contains(globalRules),"global rules apply even when a tenant clears company instructions");
+ hub.Status=System.Net.HttpStatusCode.ServiceUnavailable;
+ var unsuccessful=await conversion.Convert(sample,null,default);
+ var returnedReason=((unsuccessful as IValueHttpResult)?.Value as ApiErrorDto)?.Error;
+ var failedFile=(await history.List(default)).First();
+ Check(failedFile.Status=="Failed" && failedFile.FailureReason==returnedReason && returnedReason?.Contains("503")==true,"conversion records the same Hub failure returned to the reviewer");
  context.Company=a;
  await using(var db=await factory.OpenConnectionAsync())
  {
@@ -213,15 +337,52 @@ finally
 Console.WriteLine($"{count} tenant settings checks passed; fixtures removed.");
 sealed class SampleHub : HttpMessageHandler, IHttpClientFactory
 {
+ public System.Net.HttpStatusCode Status {get;set;}=System.Net.HttpStatusCode.OK;
+ public TaskCompletionSource? HoldSecond {get;set;}
+ public int IndexCalls {get;private set;}
+ public bool FailSecond {get;set;}
+ public bool SeparatePro {get;set;}
+ public bool CopyFixture {get;set;}
+ public bool PacketFixture {get;set;}
+ public bool ScopedPromptSeen {get;private set;}
+ public bool OtherPromptIsolated {get;private set;}
  public string Prompt {get;private set;}="";
  public string? Credential {get;private set;}
  public HttpClient CreateClient(string name)=>new(this,disposeHandler:false);
  protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
  {
   var multipart=(MultipartFormDataContent)request.Content!;
-  Prompt=await multipart.Single(p=>p.Headers.ContentDisposition?.Name?.Trim('"')=="prompt").ReadAsStringAsync(ct);
+  var prompt=await multipart.Single(p=>p.Headers.ContentDisposition?.Name?.Trim('"')=="prompt").ReadAsStringAsync(ct);
+  Prompt=prompt;
   Credential=request.Headers.Authorization?.Parameter;
-  return new(System.Net.HttpStatusCode.OK){Content=new StringContent("""[{"TagNumber":"MCO42","Order":{"Customer":"Receiver"}}]""")};
+  if(PacketFixture)
+  {
+   string body;
+   if(prompt.StartsWith("Inventory"))IndexCalls++;
+   if(CopyFixture && prompt.StartsWith("Inventory"))
+   {
+    if(prompt.Contains("There are 5 pages"))
+     body="""[{"page":1,"kind":"support"},{"page":2,"kind":"support"},{"page":3,"kind":"support"},{"page":4,"kind":"support"},{"page":5,"kind":"order","issuer":"Alliance Inc.","reference":"J24083","purchaseOrder":"55817","consignee":"Longines Boutique","pieces":1,"weightLb":105,"number":"123762"}]""";
+    else body="""[{"page":1,"kind":"order","issuer":"Alliance Inc."},{"page":2,"kind":"order","issuer":"Alliance Inc","reference":"J24083","purchaseOrder":"55817","consignee":"Longines Boutique","pieces":1,"weightLb":105},{"page":3,"kind":"order","issuer":"Other issuer","number":"888"}]""";
+   }
+   else if(prompt.StartsWith("Inventory"))
+    body="""[{"page":1,"kind":"order","issuer":"Lykes Cartage Company","title":"Delivery Only","number":"MCO3735721","account":"UPS9001 - UPS SUPPLY CHAIN / MCO - MCO","lykesAccountForm":true},{"page":2,"kind":"order","issuer":"Unrelated issuer","title":"Delivery Only","number":"888","account":"UPS9001"}]""";
+   else if(prompt.Contains("original PDF pages 1."))
+   {
+    ScopedPromptSeen=prompt.Contains("Use the customer Account header.") && prompt.Contains("Lykes freight bill:");
+    body="""[{"PrintedBillToAccountLine":"UPS9001 - UPS SUPPLY CHAIN / MCO - MCO","PrintedLykesTag":"MCO3735721","HouseAirWaybill":"MCO3735721","TerminalCode":"MCO","Order":{"Customer":"UPS AIR CARGO"}}]""";
+   }
+   else
+   {
+    if(HoldSecond is {} gate)await gate.Task.WaitAsync(ct);
+    OtherPromptIsolated=!prompt.Contains("Use the customer Account header.") && !prompt.Contains("Lykes freight bill:");
+    body=FailSecond ? "[]" : SeparatePro
+        ? """[{"BillOfLading":"MAV00042","PrintedIdentifiers":[{"Label":"PRO Number","Value":"3456789"}],"Order":{"Customer":"Receiver"}}]"""
+        : """[{"BillOfLading":"MAV00042","PrintedIdentifiers":[{"Label":"Bill No.","Value":"MAV00042"}],"Order":{"Id":"42","Customer":"Receiver"}}]""";
+   }
+   return new(Status){Content=new StringContent(body)};
+  }
+  return new(Status){Content=new StringContent("""[{"TagNumber":"MCO42","Order":{"Customer":"Receiver"}}]""")};
  }
 }
 

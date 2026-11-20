@@ -1,0 +1,41 @@
+@inject HttpClient Api
+<button class="text-button" type="button" aria-expanded="@(_open ? "true" : "false")" @onclick="Toggle">Failure details</button>
+@if (_open)
+{
+<div class="failure-details">
+    @if (Item.FailureReason is {} reason) { <p>@reason</p> }
+    @if (Item.HasOrderFailures)
+    {
+        @if (_failures is null) { <p role="status">@(_error ?? "Loading order failures…")</p> }
+        else
+        {
+            <ul>@foreach (var failure in _failures)
+            {
+                <li><strong>@failure.OrderLabel</strong> — @failure.Reason</li>
+            }</ul>
+        }
+    }
+    else if (Item.FailureReason is null)
+    {
+        <p>@(Item.Status=="Interrupted" ? "Conversion did not report a final result." : "No failure reason was recorded for this import.")</p>
+    }
+</div>
+}
+
+@code {
+    [Parameter, EditorRequired] public OrderImportHistory Item { get; set; } = null!;
+    private ImportFailure[]? _failures;
+    private string? _error;
+    private bool _loading;
+
+    private bool _open;
+    private async Task Toggle()
+    {
+        _open=!_open;
+        if (!_open || !Item.HasOrderFailures || _failures is not null || _loading) return;
+        _loading=true;
+        try { _failures=await Api.GetFromJsonAsync<ImportFailure[]>($"api/v1/tms/orders/import/history/{Item.Id}/failures") ?? []; }
+        catch (Exception) { _error="Could not load the failure details. Reopen to retry."; }
+        finally { _loading=false; }
+    }
+}

@@ -7,16 +7,16 @@ namespace Aurora.Api.Features.Routing;
 
 public sealed class DocumentMappingStore(NpgsqlConnectionFactory connections, ITenantContext tenant)
 {
-    static string Key(string value)=>value.Trim().ToUpperInvariant();
+    static string Key(string? value)=>(value??"").Trim().ToUpperInvariant();
     public async Task<IResult> Save(DocumentMappingRule rule,CancellationToken ct)
     {
-        if(rule.Field is not ("PRO" or "BillTo") || new[]{rule.Sender,rule.Form,rule.Label}.Any(v=>string.IsNullOrWhiteSpace(v)||v.Length>160))
+        if(rule.Account?.Length>160 || rule.Field is not ("PRO" or "BOL" or "BillTo") || new[]{rule.Sender,rule.Form,rule.Label}.Any(v=>string.IsNullOrWhiteSpace(v)||v.Length>160))
             return Results.BadRequest(new ApiErrorDto("A sender, form and printed field label are required."));
         await using var db=await connections.OpenConnectionAsync(ct);
         var saved=await db.ExecuteAsync(new CommandDefinition("""
-            INSERT INTO document_mapping_rules(tenant_id,sender,form,field,label) VALUES(@TenantId,@sender,@form,@Field,@label)
-            ON CONFLICT(tenant_id,sender,form,field) DO UPDATE SET label=excluded.label WHERE document_mapping_rules.label=excluded.label
-            """,new{tenant.TenantId,sender=Key(rule.Sender),form=Key(rule.Form),rule.Field,label=Key(rule.Label)},cancellationToken:ct));
+            INSERT INTO document_mapping_rules(tenant_id,sender,form,field,label,account) VALUES(@TenantId,@sender,@form,@Field,@label,@account)
+            ON CONFLICT(tenant_id,sender,form,field,account) DO UPDATE SET label=excluded.label WHERE document_mapping_rules.label=excluded.label
+            """,new{tenant.TenantId,sender=Key(rule.Sender),form=Key(rule.Form),rule.Field,label=Key(rule.Label),account=Key(rule.Account)},cancellationToken:ct));
         return saved==1 ? Results.NoContent() : Results.Conflict(new ApiErrorDto("A different mapping is already saved for this sender and form. Apply this answer to this import only."));
     }
 
@@ -26,13 +26,14 @@ public sealed class DocumentMappingStore(NpgsqlConnectionFactory connections, IT
         if(candidates.Count==0)return;
         await using var db=await connections.OpenConnectionAsync(ct);
         var rules=(await db.QueryAsync<DocumentMappingRule>(new CommandDefinition(
-            "SELECT sender,form,field,label FROM document_mapping_rules WHERE tenant_id=@TenantId AND sender=ANY(@senders)",
-            new{tenant.TenantId,senders=candidates.Select(d=>Key(d.MappingSender)).Distinct().ToArray()},cancellationToken:ct))).ToDictionary(r=>(r.Sender,r.Form,r.Field));
+            "SELECT sender,form,field,label,account FROM document_mapping_rules WHERE tenant_id=@TenantId AND sender=ANY(@senders)",
+            new{tenant.TenantId,senders=candidates.Select(d=>Key(d.MappingSender)).Distinct().ToArray()},cancellationToken:ct))).ToDictionary(r=>(r.Sender,r.Form,r.Field,r.Account));
         foreach(var d in candidates)
         foreach(var question in d.MappingQuestions)
         {
             if(question.Field=="PRO" && (requirePrintedTag || string.Equals(d.DocumentType,"Lykes",StringComparison.OrdinalIgnoreCase)))continue;
-            if(!rules.TryGetValue((Key(d.MappingSender),Key(d.MappingForm),question.Field),out var rule))continue;
+            if(!rules.TryGetValue((Key(d.MappingSender),Key(d.MappingForm),question.Field,Key(d.MappingAccount)),out var rule) &&
+               !rules.TryGetValue((Key(d.MappingSender),Key(d.MappingForm),question.Field,""),out rule))continue;
             var matches=question.Candidates.Where(c=>Key(c.Label)==rule.Label).ToArray();
             if(matches.Length!=1)continue;
             try

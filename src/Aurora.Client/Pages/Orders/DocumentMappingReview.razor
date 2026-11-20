@@ -1,7 +1,7 @@
 @inject IHttpClientFactory Clients
 
 <fieldset class="mapping-alert" disabled="@_saving">
- <legend><span class="mdi mdi-alert-outline" aria-hidden="true"></span> @(Question.Field=="PRO" ? "Which identifier is the PRO?" : "Which account should be billed?")</legend>
+ <legend><span class="mdi mdi-alert-outline" aria-hidden="true"></span> @(Question.Field=="BOL" ? "Which field is the BOL number?" : Question.Field=="PRO" ? "Which identifier is the PRO?" : "Which account should be billed?")</legend>
  <div class="mapping-controls">
  <p>@Question.Reason</p>
  @foreach(var candidate in Question.Candidates)
@@ -9,16 +9,16 @@
   <label class="field"><span><input type="radio" name="@_group" checked="@(_choice==candidate)" @onchange="()=>Select(candidate)" />
    @candidate.Label · @candidate.Value @(candidate.Page is >0 ? $"(page {candidate.Page})" : "")</span></label>
  }
- @if(Question.Candidates.Length>0){<label><input type="radio" name="@_group" checked="@(_manual)" @onchange="()=>Select(null)" /> Enter another value</label>}
+ @if(Question.Candidates.Length>0){<label><input type="radio" name="@_group" checked="@(_manual)" @onchange="()=>Select(null)" /> Other (enter a value)</label>}
  @if(_manual || Question.Candidates.Length==0)
  {
-  <label class="field">@(Question.Field=="PRO"?"PRO":"Bill To name")<input @bind="_value" @bind:event="oninput" maxlength="200" /></label>
+  <label class="field">@(Question.Field=="BOL"?"BOL number":Question.Field=="PRO"?"PRO":"Bill To name")<input @bind="_value" @bind:event="oninput" maxlength="200" /></label>
   @if(Question.Field=="BillTo"){<label class="field">Nova account code (if known)<input @bind="_account" maxlength="80" /></label>}
  }
  @if(CanReuse)
  {
-  @if(Drafts.Count>1){<label><input type="checkbox" @bind="_batch" /> Apply this printed label to matching tickets in this import</label>}
-  <label><input type="checkbox" @bind="_remember" /> Remember “@_choice!.Label” for @Draft.MappingSender · @Draft.MappingForm</label>
+  @if(Drafts.Count>1 || MoreExpected){<label><input type="checkbox" @bind="_batch" /> Apply this printed label to matching tickets in this import</label>}
+  <label><input type="checkbox" @bind="_remember" /> Remember “@_choice!.Label” for @Draft.MappingSender · @Draft.MappingForm @(string.IsNullOrWhiteSpace(Draft.MappingAccount) ? "" : " · Account "+Draft.MappingAccount)</label>
  }
  @if(_error is not null){<p role="alert">@_error</p>}
  <div class="mapping-actions">
@@ -31,6 +31,8 @@
  [Parameter,EditorRequired] public OrderDocumentDraft Draft {get;set;}=null!;
  [Parameter,EditorRequired] public DocumentMappingQuestion Question {get;set;}=null!;
  [Parameter,EditorRequired] public List<OrderDocumentDraft> Drafts {get;set;}=[];
+ [Parameter] public bool MoreExpected {get;set;}
+ [Parameter] public EventCallback<DocumentMappingRule> OnBatchRule {get;set;}
  [Parameter] public EventCallback OnAnswered {get;set;}
  [Parameter] public EventCallback OnSkipped {get;set;}
  readonly string _group=Guid.NewGuid().ToString("N");
@@ -54,19 +56,15 @@
    if(CanReuse && _remember)
    {
     using var http=Clients.CreateClient(ApiClients.Authorized);
-    using var response=await http.PostAsJsonAsync("api/v1/tms/orders/import/mapping-rule",new DocumentMappingRule(Draft.MappingSender,Draft.MappingForm,Question.Field,choice.Label));
+    using var response=await http.PostAsJsonAsync("api/v1/tms/orders/import/mapping-rule",new DocumentMappingRule(Draft.MappingSender,Draft.MappingForm,Question.Field,choice.Label,Draft.MappingAccount));
     await ApiResponse.Check(response);
    }
    DocumentMappings.Answer(Draft,Question,choice);
    if(CanReuse && _batch)
-   foreach(var other in Drafts.Where(d=>d!=Draft && Same(d.MappingSender,Draft.MappingSender) && Same(d.MappingForm,Draft.MappingForm)))
    {
-    var q=other.MappingQuestions.FirstOrDefault(x=>x.Field==Question.Field);
-    var matches=q?.Candidates.Where(c=>Same(c.Label,choice.Label)).ToArray();
-    if(q is not null && matches is [var candidate])
-    {
-     try{DocumentMappings.Answer(other,q,candidate);}catch(FormatException){/* Keep this row for individual review. */}
-    }
+    var rule=new DocumentMappingRule(Draft.MappingSender,Draft.MappingForm,Question.Field,choice.Label,Draft.MappingAccount);
+    foreach(var other in Drafts.Where(d=>d!=Draft))DocumentMappings.ApplyToMatchingOrder(other,rule);
+    await OnBatchRule.InvokeAsync(rule);
    }
    await OnAnswered.InvokeAsync();
   }

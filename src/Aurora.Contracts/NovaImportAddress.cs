@@ -20,7 +20,7 @@ public sealed class NovaImportAddress
         if(string.IsNullOrWhiteSpace(name))return null;
         var matches=accounts.Where(a=>Clean(a.Name)==Clean(name)
             && (string.IsNullOrWhiteSpace(city)||Clean(a.City)==Clean(city))
-            && (string.IsNullOrWhiteSpace(state)||Clean(a.State)==Clean(state))
+            && (string.IsNullOrWhiteSpace(state)||Clean(DocumentPartyAddress.RegionCode(a.State))==Clean(DocumentPartyAddress.RegionCode(state)))
             && (string.IsNullOrWhiteSpace(zip)||Clean(a.Zip).Replace("-","")==Clean(zip).Replace("-",""))
             && !string.IsNullOrWhiteSpace(a.Address)).Take(2).ToArray();
         return matches.Length==1?matches[0]:null;
@@ -31,7 +31,10 @@ public sealed class NovaImportAddress
         ("delivery","Consignee",["Customer","Address","Address2","City","State","PostalCode","Country"]),
         ("header","Bill to",["BillTo","BillToAddress","BillToAddress2","BillToCity","BillToState","BillToPostalCode","BillToCountry"])];
 
-    public static Dictionary<string,NovaImportAddress> Apply(OrderDocumentDraft draft,IEnumerable<NovaImportAddress> accounts)
+    public const string AmbiguousBillTo = "Bill to: multiple Nova accounts match this name. Enter the bill-to account ID.";
+
+    public static Dictionary<string,NovaImportAddress> Apply(OrderDocumentDraft draft,IEnumerable<NovaImportAddress> accounts,
+        IReadOnlyDictionary<string,NovaImportAddress?>? dailyBillToMatches=null)
     {
         var result=new Dictionary<string,NovaImportAddress>();var messages=new List<string>();
         foreach(var (part,label,properties) in Parties)
@@ -39,8 +42,22 @@ public sealed class NovaImportAddress
             string Get(int i)=>(string?)typeof(TmsOrder).GetProperty(properties[i])!.GetValue(draft.Order)??"";
             var code=Clean(draft.AccountId(part));
             if(code.Length==0 && string.IsNullOrWhiteSpace(Get(0)))continue;
-            var match=code.Length==0?Match(accounts,Get(0),Get(3),Get(4),Get(5)):accounts.FirstOrDefault(a=>Clean(a.Code)==code);
-            if(match is null){messages.Add($"{label}: no unique Nova address match; kept the imported address.");continue;}
+            var match=part=="header" && code.Length==0 && draft.DailyReportBillToName is not null && dailyBillToMatches is not null
+                ? dailyBillToMatches.GetValueOrDefault(draft.BillToLookupName().Trim())
+                : code.Length==0?Match(accounts,Get(0),Get(3),Get(4),Get(5)):accounts.FirstOrDefault(a=>Clean(a.Code)==code);
+            if(match is null)
+            {
+                if (part=="header" && code.Length==0 && draft.DailyReportBillToName is not null &&
+                    dailyBillToMatches?.ContainsKey(draft.BillToLookupName().Trim())==true)
+                {
+                    messages.Add(AmbiguousBillTo);
+                    continue;
+                }
+                messages.Add(part=="header" && string.Equals(draft.DocumentType,"Lykes",StringComparison.OrdinalIgnoreCase) && code.Length>0
+                    ? $"Bill to: printed account {code} was not found in Nova. Verify the account code before creating this order."
+                    : $"{label}: no unique Nova address match; kept the imported address.");
+                continue;
+            }
             if(draft.EditedAddressParts?.Contains(part)==true)
             {
                 if(code.Length>0)result[part]=match;
@@ -48,8 +65,8 @@ public sealed class NovaImportAddress
                 continue;
             }
             draft.SetAccountId(part,match.Code.Trim());
-            string[] values=[match.Name,match.Address,match.Address2,match.City,match.State,match.Zip,match.Country];
-            for(var i=code.Length>0 && !string.IsNullOrWhiteSpace(Get(0))?1:0;i<properties.Length;i++)if(!string.IsNullOrWhiteSpace(match.Address) || !string.IsNullOrWhiteSpace(values[i]))typeof(TmsOrder).GetProperty(properties[i])!.SetValue(draft.Order,values[i]?.Trim()??"");
+            string[] values=[match.Name,match.Address,match.Address2,match.City,DocumentPartyAddress.RegionCode(match.State),match.Zip,NovaDocumentImport.CountryCode(match.Country)];
+            for(var i=code.Length>0 && !string.IsNullOrWhiteSpace(Get(0))?1:0;i<properties.Length;i++)if(!(part=="header" && draft.LogoCompany is not null && !string.IsNullOrWhiteSpace(Get(i))) && (!string.IsNullOrWhiteSpace(match.Address) || !string.IsNullOrWhiteSpace(values[i])))typeof(TmsOrder).GetProperty(properties[i])!.SetValue(draft.Order,values[i]?.Trim()??"");
             result[part]=match;messages.Add($"{label}: using the address from Nova account {match.Code.Trim()}.");
         }
         draft.AddressLookupMessages=messages.ToArray();return result;

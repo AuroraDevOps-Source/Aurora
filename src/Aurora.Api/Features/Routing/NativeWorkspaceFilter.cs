@@ -16,7 +16,12 @@ public sealed class NativeWorkspaceFilter(IConfiguration configuration) : IEndpo
     public static bool Blocks(string method,string path)
     {
         if(HttpMethods.IsGet(method)||HttpMethods.IsHead(method)||HttpMethods.IsOptions(method))return false;
-        if(path.EndsWith("/lookup-address",StringComparison.Ordinal)||path=="/api/v1/tms/orders/convert-document"||path is "/api/v1/tms/orders/import/check" or "/api/v1/tms/orders/import/addresses" or "/api/v1/tms/orders/import/mapping-rule")return false;
+        const string historyPrefix="/api/v1/tms/orders/import/history/";
+        const string countsSuffix="/counts";
+        if (HttpMethods.IsPut(method) && path.StartsWith(historyPrefix,StringComparison.Ordinal) &&
+            path.EndsWith(countsSuffix,StringComparison.Ordinal) && path.Length>historyPrefix.Length+countsSuffix.Length &&
+            Guid.TryParseExact(path[historyPrefix.Length..^countsSuffix.Length],"D",out _)) return false;
+        if(path.EndsWith("/lookup-address",StringComparison.Ordinal)||path is "/api/v1/tms/orders/convert-document" or "/api/v1/tms/orders/convert-document/jobs"||path is "/api/v1/tms/orders/import/check" or "/api/v1/tms/orders/import/addresses" or "/api/v1/tms/orders/import/mapping-rule")return false;
         return path.StartsWith("/api/v1/tms/",StringComparison.Ordinal)
             ||path.StartsWith("/api/v1/routing/equipment/",StringComparison.Ordinal)
             ||path.StartsWith("/api/v1/aurora/manifests/",StringComparison.Ordinal)&&path.EndsWith("/freightops",StringComparison.Ordinal);

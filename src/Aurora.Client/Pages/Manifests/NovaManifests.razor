@@ -52,7 +52,7 @@ else if (_selected is null)
             }
         </div>
         <div id="native-manifest-panel" class="@(_section==ManifestSection.Details ? "native-manifest-details" : null)" role="tabpanel" aria-labelledby="@($"native-manifest-tab-{_section}")">
-            <div hidden="@(_section==ManifestSection.Orders)">
+            <div hidden="@(_section==ManifestSection.Stops)">
                 <ManifestDispatch ManifestId="selected.Id" ShowHistory="@(_section==ManifestSection.History)" OnSaved="DispatchSaved" @key="selected.Id" />
             </div>
             @if(_section==ManifestSection.Details)
@@ -63,13 +63,13 @@ else if (_selected is null)
                     @if (_orders.Any(o=>!HasCoordinates(o))) { <p class="planning-map-caption">@(_orders.Count(o=>!HasCoordinates(o))) orders have no map coordinates.</p> }
                 </div>
             }
-            else if(_section==ManifestSection.Orders)
+            else if(_section==ManifestSection.Stops)
             {
                 <div class="manifest-table-wrap"><table class="manifest-table">
-                    <thead><tr><th>Sequence</th><th>PRO / Order</th><th>Customer</th><th>Destination</th></tr></thead>
-                    <tbody>@foreach(var o in _orders){<tr><td>@o.Sequence</td><td><button class="text-button" @onclick="()=>ViewOrder(o)">@o.Pro</button></td><td>@o.Customer</td><td>@o.Address, @o.City, @o.State @o.PostalCode</td></tr>}</tbody>
+                    <thead><tr><th>Sequence</th><th>PRO / Order</th><th>Customer</th><th>Destination</th><th title="Planned arrival time">Delivery Time</th></tr></thead>
+                    <tbody>@foreach(var o in _orders){<tr><td>@o.Sequence</td><td><button class="text-button" @onclick="()=>ViewOrder(o)">@o.Pro</button></td><td>@o.Customer</td><td>@o.Address, @o.City, @o.State @o.PostalCode</td><td class="schedule-cell" title="Planned arrival time">@PlannedTime(o.PlannedArrival)</td></tr>}</tbody>
                 </table></div>
-                @if (_orders.Length==0) { <p>No orders on this manifest.</p> }
+                @if (_orders.Length==0) { <p>No stops on this manifest.</p> }
             }
         </div>
     </section>
@@ -118,7 +118,7 @@ else if (_selected is null)
 }
 
 @code {
-    enum ManifestSection { Details, Orders, History }
+    enum ManifestSection { Details, Stops, History }
     ManifestSection _section;
     async Task SelectSection(ManifestSection section)
     {
@@ -242,15 +242,16 @@ else if (_selected is null)
     object[] MapStops(NovaManifest manifest)
     {
         var stops=new List<object>();
-        if(HasDepot(manifest))stops.Add(new {lat=manifest.DepotLatitude,lon=manifest.DepotLongitude,sequence=0,locationId=$"Starting terminal · {manifest.StartTerminal}",isDepot=true,orderIds=Array.Empty<string>(),arrival="—",departure="—"});
+        if(HasDepot(manifest))stops.Add(new {lat=manifest.DepotLatitude,lon=manifest.DepotLongitude,sequence=0,locationId=$"Starting terminal · {manifest.StartTerminal}",isDepot=true,orderIds=Array.Empty<string>(),arrival="—",departure=PlannedTime(_orders.FirstOrDefault()?.PlannedRouteDeparture),planned=true});
         if (manifest.IsTransfer)
         {
             if (manifest.EndLatitude is >= -90 and <= 90 && manifest.EndLongitude is >= -180 and <= 180 && (manifest.EndLatitude!=0 || manifest.EndLongitude!=0))
-                stops.Add(new {lat=manifest.EndLatitude,lon=manifest.EndLongitude,sequence=1,locationId=$"Receiving terminal · {manifest.EndTerminal}",isDepot=false,orderIds=_orders.Select(o=>o.Pro).ToArray(),arrival="—",departure="—"});
+                stops.Add(new {lat=manifest.EndLatitude,lon=manifest.EndLongitude,sequence=1,locationId=$"Receiving terminal · {manifest.EndTerminal}",isDepot=false,orderIds=_orders.Select(o=>o.Pro).ToArray(),arrival=PlannedTime(_orders.FirstOrDefault()?.PlannedArrival),departure=PlannedTime(_orders.FirstOrDefault()?.PlannedDeparture),planned=true});
         }
-        else stops.AddRange(_orders.Where(HasCoordinates).Select(o=>(object)new {lat=o.Latitude,lon=o.Longitude,sequence=o.Sequence,locationId=o.Customer,isDepot=false,orderIds=new[]{o.Pro},arrival="—",departure="—"}));
+        else stops.AddRange(_orders.Where(HasCoordinates).Select(o=>(object)new {lat=o.Latitude,lon=o.Longitude,sequence=o.Sequence,locationId=o.Customer,isDepot=false,orderIds=new[]{o.Pro},arrival=PlannedTime(o.PlannedArrival),departure=PlannedTime(o.PlannedDeparture),planned=true}));
         return stops.ToArray();
     }
+    static string PlannedTime(DateTimeOffset? value)=>value?.ToString("MM/dd h:mm tt",System.Globalization.CultureInfo.InvariantCulture)??"Not available";
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if(_showOrderDialog)
