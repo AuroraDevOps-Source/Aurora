@@ -35,6 +35,7 @@ foreach (var endpoint in ((IEndpointRouteBuilder)app).DataSources.SelectMany(s =
         Check((await authorization.AuthorizeAsync(user, null, policy)).Succeeded == (role == "aurora:Admin"), "reset endpoint protects role " + role);
     }
 }
+await NativeResetChecks.Run(Check);
 if (Environment.GetEnvironmentVariable("FIREBIRD_CHECK_CONFIG") is { } path)
 {
     var config = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(path))!;
@@ -61,7 +62,7 @@ if (Environment.GetEnvironmentVariable("FIREBIRD_CHECK_CONFIG") is { } path)
         Check(await source.WriteResetManifests(db, tx, [manifest], 110, default) == 1, "native reset returns the member order");
         Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_HEADER WHERE PB_ID={manifest}") == 0, "Aurora manifest is deleted");
         Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_HEADER WHERE PB_ID={preserved}") == 1, "pre-existing manifest remains");
-        Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_STOP_REC WHERE OPS_ORDER_ID={manifest}") == 0, "manifest routing stops are deleted by native trigger");
+        Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_STOP_REC WHERE OPS_ORDER_ID={manifest}") == 0, "manifest routing stops are removed");
         Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_MANIFEST_STOPS WHERE OSM_STOP_ID={route}") == 0, "manifest membership removed");
         Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_STOP_REC WHERE OPS_STOP_ID={stop} AND OPS_MANIFEST_NUMBER IS NULL AND OPS_DELIVERED_TIME IS NULL AND OPS_STATUS=110") == 1, "source delivery remains and is reset for routing");
         Check(await Scalar<int>($"SELECT COUNT(*) FROM OPS_HEADER WHERE PB_ID={order} AND PB_STATUS=110") == 1, "order header ready status restored");

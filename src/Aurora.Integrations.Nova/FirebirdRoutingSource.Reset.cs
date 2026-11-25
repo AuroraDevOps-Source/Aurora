@@ -66,7 +66,11 @@ public sealed partial class FirebirdRoutingSource
                 orders.Add(member.OrderId);
             }
             await db.ExecuteAsync(new CommandDefinition("UPDATE EQUIP_STATUS SET ES_MANIFEST_NUMBER=NULL,ES_STOP_ID=NULL WHERE ES_MANIFEST_NUMBER=@id", new { id }, tx, cancellationToken: ct));
-            // Nova's delete triggers remove routing stops, membership, driver links and manifest detail.
+            // Some Nova database copies omit the delete triggers. Remove the operational
+            // links explicitly so dangling membership cannot keep returned orders unplannable.
+            await db.ExecuteAsync(new CommandDefinition("DELETE FROM OPS_MANIFEST_STOPS WHERE OSM_STOP_ID IN (SELECT OPS_STOP_ID FROM OPS_STOP_REC WHERE OPS_ORDER_ID=@id)", new { id }, tx, cancellationToken: ct));
+            await db.ExecuteAsync(new CommandDefinition("DELETE FROM DRIVER_PKUP_DELV WHERE DPD_LOAD_NUMBER=@id", new { id }, tx, cancellationToken: ct));
+            await db.ExecuteAsync(new CommandDefinition("DELETE FROM OPS_STOP_REC WHERE OPS_ORDER_ID=@id", new { id }, tx, cancellationToken: ct));
             // Keep audit history; reset does not erase the evidence of previous test activity.
             await db.ExecuteAsync(new CommandDefinition("DELETE FROM OPS_HEADER WHERE PB_ID=@id AND PB_TYPE='M'", new { id }, tx, cancellationToken: ct));
         }
