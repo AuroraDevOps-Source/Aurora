@@ -72,6 +72,7 @@ public partial class NovaRecords
     async Task LoadPlanningOrders()
     {
         _planningError = null;
+        _planningWarnings = [];
         try
         {
             using var refresh = await PlanningLoadRetry.SendAsync(() => Http.PostAsync("api/v1/aurora/firebird/refresh", null));

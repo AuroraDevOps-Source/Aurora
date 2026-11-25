@@ -23,7 +23,16 @@
         {
 
             @if(_planningError is not null){<p class="alert" role="alert">@_planningError</p>}
-            @foreach(var warning in _planningWarnings){<p class="alert" role="alert">@warning</p>}
+            @if(_planningWarnings.Length>0)
+            {
+                <details class="planning-warnings">
+                    <summary>Planning warnings (@_planningWarnings.Length) · View details</summary>
+                    <p>Some orders need attention before planning. Warnings cover all refreshed orders, including those outside the current filters.</p>
+                    <ul tabindex="0" aria-label="Planning warning details">
+                        @foreach(var warning in _planningWarnings){<li>@warning</li>}
+                    </ul>
+                </details>
+            }
             @foreach(var draft in _openPlans)
             {
                 <div class="route-open-plan"><span>@draft.Name · @draft.OrderCount orders</span><a class="outline-button" href="@($"/aurora/planning?draft={draft.Id}")">Resume plan</a><button class="text-button" disabled="@_busy" @onclick="()=>CancelPlan(draft.Id)">Cancel plan &amp; release orders</button></div>
