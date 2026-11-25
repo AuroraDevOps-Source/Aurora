@@ -55,32 +55,3 @@
 .address-lookup { display:flex; align-items:end; }
 .address-lookup .mdi { font-size:18px; }
 .order-manifest-link + .order-manifest-link { margin-left:8px; }
-.planning-warnings {
-    margin: 12px 0;
-    padding: 10px 14px;
-    border: 1px solid #e6c77a;
-    border-radius: 6px;
-    background: #fffaf0;
-    color: #704d0b;
-}
-
-.planning-warnings summary {
-    cursor: pointer;
-    font-weight: 600;
-}
-
-.planning-warnings p {
-    margin: 10px 0;
-}
-
-.planning-warnings ul {
-    max-height: 240px;
-    overflow-y: auto;
-    overflow-wrap: anywhere;
-    margin: 0;
-    padding-left: 24px;
-}
-
-.planning-warnings li + li {
-    margin-top: 6px;
-}

@@ -23,16 +23,6 @@
         {
 
             @if(_planningError is not null){<p class="alert" role="alert">@_planningError</p>}
-            @if(_planningWarnings.Length>0)
-            {
-                <details class="planning-warnings">
-                    <summary>Planning warnings (@_planningWarnings.Length) · View details</summary>
-                    <p>Some orders need attention before planning. Warnings cover all refreshed orders, including those outside the current filters.</p>
-                    <ul tabindex="0" aria-label="Planning warning details">
-                        @foreach(var warning in _planningWarnings){<li>@warning</li>}
-                    </ul>
-                </details>
-            }
             @foreach(var draft in _openPlans)
             {
                 <div class="route-open-plan"><span>@draft.Name · @draft.OrderCount orders</span><a class="outline-button" href="@($"/aurora/planning?draft={draft.Id}")">Resume plan</a><button class="text-button" disabled="@_busy" @onclick="()=>CancelPlan(draft.Id)">Cancel plan &amp; release orders</button></div>
@@ -40,7 +30,7 @@
         }
         @if(_busy){<p role="status">Loading records…</p>}
         <div class="manifest-table-wrap"><table class="manifest-table"><thead><tr>@if(Kind=="orders"){<th><input type="checkbox" aria-label="Select available orders on this page" checked="@AllPageSelected" disabled="@(_busy || !PageAvailable.Any())" @onchange="SelectPage" /></th>}<th class="data-issue-column" aria-label="Data requirements"></th><th>@(Kind=="fleet"?"Unit":"PRO / Order")</th><th>@(Kind=="fleet"?"Equipment type":"Customer / location")</th>@if(Kind=="fleet"){<th>Make and Model</th>}<th>Terminal</th><th>Status</th>@if(Kind=="orders"){<th>Manifest Number</th><th>Routing</th>}</tr></thead>
-        <tbody>@foreach(var row in _rows){<EditGridRow Disabled="@(_busy)" OnEdit="()=>Open(row.Id)">@if(Kind=="orders"){<td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input @key="(row.Id, _selectionVersion)" type="checkbox" aria-label="@($"Select order {row.Number}")" title="@SelectionHint(row)" checked="@_selectedOrders.Contains(row.Id)" disabled="@(_busy || !CanSelect(row))" @onclick="e=>SelectOrder(row,e)" /></td>}<td class="data-issue-column"><DataIssueIndicator @key="row.Id" RecordName="@row.Number" Issues="@row.Issues" /></td><td><strong>@row.Number</strong></td><td>@row.Description</td>@if(Kind=="fleet"){<td>@(string.IsNullOrWhiteSpace(row.Make) && string.IsNullOrWhiteSpace(row.Model) ? "—" : string.Join(" ", new[]{row.Make,row.Model}.Where(v=>!string.IsNullOrWhiteSpace(v))))</td>}<td>@row.Terminal</td><td>@row.Status</td>@if(Kind=="orders"){<td @onclick:stopPropagation="true" @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true">@if(row.ManifestNumbers.Length==0){<span>—</span>}else{@foreach(var manifest in row.ManifestNumbers){<a class="order-manifest-link" href="@($"/aurora/manifests?edit={manifest}")">@manifest</a>}}</td><td>@(row.WorkType=="Pickup"?"Pickup → terminal":row.ReceivingTerminal is {} receiving ? $"Line haul → {receiving}" : "Consignee")</td>}</EditGridRow>}</tbody></table></div>
+        <tbody>@foreach(var row in _rows){<EditGridRow Disabled="@(_busy)" OnEdit="()=>Open(row.Id)">@if(Kind=="orders"){<td @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input @key="(row.Id, _selectionVersion)" type="checkbox" aria-label="@($"Select order {row.Number}")" title="@SelectionHint(row)" checked="@_selectedOrders.Contains(row.Id)" disabled="@(_busy || !CanSelect(row))" @onclick="e=>SelectOrder(row,e)" /></td>}<td class="data-issue-column"><DataIssueIndicator @key="row.Id" RecordName="@row.Number" Issues="@(Kind=="orders"?OrderIssues(row):row.Issues)" /></td><td><strong>@row.Number</strong></td><td>@row.Description</td>@if(Kind=="fleet"){<td>@(string.IsNullOrWhiteSpace(row.Make) && string.IsNullOrWhiteSpace(row.Model) ? "—" : string.Join(" ", new[]{row.Make,row.Model}.Where(v=>!string.IsNullOrWhiteSpace(v))))</td>}<td>@row.Terminal</td><td>@row.Status</td>@if(Kind=="orders"){<td @onclick:stopPropagation="true" @ondblclick:stopPropagation="true" @onkeydown:stopPropagation="true">@if(row.ManifestNumbers.Length==0){<span>—</span>}else{@foreach(var manifest in row.ManifestNumbers){<a class="order-manifest-link" href="@($"/aurora/manifests?edit={manifest}")">@manifest</a>}}</td><td>@(row.WorkType=="Pickup"?"Pickup → terminal":row.ReceivingTerminal is {} receiving ? $"Line haul → {receiving}" : "Consignee")</td>}</EditGridRow>}</tbody></table></div>
         @if(!_busy && _rows.Length==0 && _error is null){<p>No records match your search.</p>}
         <div class="tms-selection"><span>Page @(_page+1) · @_rows.Length records</span><button class="outline-button" disabled="@(_busy || _page==0)" @onclick="Previous">Previous</button><button class="outline-button" disabled="@(_busy || !_hasMore)" @onclick="Next">Next</button></div>
     </section>

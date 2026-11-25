@@ -9,11 +9,11 @@ public partial class NovaRecords
 {
     readonly HashSet<long> _selectedOrders = [];
     Dictionary<long, TmsOrder> _planningOrders = [];
+    Dictionary<string, TerminalDto> _planningTerminals = new(StringComparer.OrdinalIgnoreCase);
     OpenOrderDraftDto[] _openPlans = [];
     long? _selectionAnchor;
     int _selectionVersion;
     string? _planningError;
-    string[] _planningWarnings=[];
     HashSet<long> _consolidationOrders=[];
     bool _showPlanSchedule;
     OrderDraftDto[] _createdPlans = [];
@@ -32,7 +32,16 @@ public partial class NovaRecords
 
     TmsOrder? PlanningOrder(NovaRecordSummary row) => _planningOrders.GetValueOrDefault(row.Id) is { } order
         && string.Equals(order.TerminalCode, row.Terminal, StringComparison.OrdinalIgnoreCase) ? order : null;
-    bool CanSelect(NovaRecordSummary row) => row.Issues.Length==0 && _planningError is null && PlanningOrder(row) is { Status: WorkspaceOrderStatus.Ready, ManifestId: null, OptimizationDraftId: null };
+    DataRequirementIssue[] OrderIssues(NovaRecordSummary row)
+    {
+        if (row.ReceivingTerminal is not {} code) return row.Issues;
+        if (!_options.Terminals.Contains(code, StringComparer.OrdinalIgnoreCase))
+            return [..row.Issues, new("receiving-terminal", $"Receiving terminal {code} is not available. Open the order and choose a valid receiving terminal.")];
+        return _planningTerminals.TryGetValue(code, out var terminal)
+            ? [..row.Issues, ..DataRequirements.Depot(code, terminal.Latitude, terminal.Longitude)]
+            : row.Issues;
+    }
+    bool CanSelect(NovaRecordSummary row) => OrderIssues(row).Length==0 && _planningError is null && PlanningOrder(row) is { Status: WorkspaceOrderStatus.Ready, ManifestId: null, OptimizationDraftId: null };
     IEnumerable<NovaRecordSummary> PageAvailable => _rows.Where(CanSelect);
     bool AllPageSelected => PageAvailable.Any() && PageAvailable.All(row => _selectedOrders.Contains(row.Id));
     string SelectionHint(NovaRecordSummary row) => CanSelect(row) ? "Shift-click to select a range on this page"
@@ -40,7 +49,7 @@ public partial class NovaRecords
         : _consolidationOrders.Contains(row.Id)?"Customer consolidation: held or assigned automatically without route optimization."
         : PlanningOrder(row)?.OptimizationDraftId is not null ? "Already in an open plan. Resume or cancel that plan to release this order."
         : PlanningOrder(row)?.ManifestId is not null ? "Already assigned to a manifest."
-        : row.Issues.Length > 0 ? string.Join(" ", row.Issues.Select(issue => issue.Message))
+        : OrderIssues(row) is { Length: > 0 } issues ? string.Join(" ", issues.Select(issue => issue.Message))
         : "No available planning record. Check the order's status and pickup/delivery manifest in Nova, then refresh.";
     void ClearOrderSelection() { _selectedOrders.Clear(); _selectionAnchor = null; _selectionVersion++; }
     void SelectPage(ChangeEventArgs e)
@@ -72,13 +81,15 @@ public partial class NovaRecords
     async Task LoadPlanningOrders()
     {
         _planningError = null;
-        _planningWarnings = [];
+        _planningTerminals.Clear();
         try
         {
             using var refresh = await PlanningLoadRetry.SendAsync(() => Http.PostAsync("api/v1/aurora/firebird/refresh", null));
             await Check(refresh);
             var sync = await refresh.Content.ReadFromJsonAsync<FirebirdSyncResult>() ?? throw new FormatException("Orders could not be refreshed for planning.");
-            _planningWarnings=sync.Warnings;_consolidationOrders=sync.ConsolidationOrders.ToHashSet();
+            _consolidationOrders=sync.ConsolidationOrders.ToHashSet();
+            var terminals = await Http.GetFromJsonAsync<TerminalDto[]>("api/v1/tms/terminals") ?? [];
+            _planningTerminals = terminals.ToDictionary(t => t.Code, StringComparer.OrdinalIgnoreCase);
             using var response = await PlanningLoadRetry.SendAsync(() => Http.GetAsync("api/v1/tms/orders?status=ReadyToRoute"));
             await Check(response);
             var orders = await response.Content.ReadFromJsonAsync<TmsOrder[]>() ?? [];
